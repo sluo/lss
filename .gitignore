@@ -1,0 +1,11 @@
+/.classpath
+/.project
+/.pydevproject
+/.idea
+
+build/
+*.png
+*.zip
+*.swp
+*.class
+*.DS_Store

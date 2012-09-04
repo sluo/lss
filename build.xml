@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<project name="lss" default="all" basedir=".">
+
+  <description>
+    Java packages for research.
+  </description>
+
+  <!-- Project directories -->
+  <property name="src" value="${basedir}/src"/>
+  <property name="build" value="${basedir}/build"/>
+  <property name="build.cls" value="${build}/cls"/>
+  <property name="build.jar" value="${build}/jar"/>
+
+  <!-- Other global settings -->
+  <property name="title" value="Simon's Java"/>
+  <property environment="env"/>
+  <path id="classpath">
+    <fileset dir="${basedir}/../jtk">
+      <include name="jar/*.jar"/>
+      <include name="build/jar/edu_mines_jtk.jar"/>
+    </fileset>
+    <fileset dir="${basedir}/../idh/bench">
+      <include name="build/jar/idh.jar"/>
+    </fileset>
+  </path>
+
+  <!-- Initialize -->
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${build}"/>
+    <mkdir dir="${build.cls}"/>
+    <mkdir dir="${build.jar}"/>
+  </target>
+
+  <!-- Compile Java -->
+  <target name="compile-java" depends="init">
+    <javac srcdir="${src}" destdir="${build.cls}" 
+      compiler="javac1.6"
+      debug="on" 
+      listfiles="yes"
+      deprecation="on"
+      includeantruntime="false">
+      <compilerarg value="-Xlint:all,-serial"/>
+      <classpath refid="classpath"/>
+      <exclude name="**/old/**"/>
+      <exclude name="**/new/**"/>
+    </javac>
+  </target>
+
+  <!-- Build Java archive -->
+  <target name="jar" depends="compile-java,copy-resources"
+      description="build Java archive">
+    <jar jarfile="${build.jar}/lss.jar" basedir="${build.cls}"/>
+  </target>
+  <target name="copy-resources">
+    <copy todir="${build.cls}">
+      <fileset dir="${src}">
+        <include name="**/resources/*"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <!-- Build everything -->
+  <target name="all" depends="jar"
+      description="build everything"/>
+
+  <!-- Cleanup -->
+  <target name="clean"
+      description="delete all products of build">
+    <delete dir="${build}"/>
+  </target>
+
+</project>
