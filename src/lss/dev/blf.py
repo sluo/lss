@@ -3,7 +3,6 @@ Bilateral filtering for slope estimation
 """
 from imports import *
 from ldf import *
-#from lss.dsp import *
 
 pngDir = None
 #pngDir = '/Users/sluo/Desktop/'
