@@ -4,8 +4,8 @@ Figures for slides
 from imports import *
 
 #subset = None
-#subset = "a"
-subset = "b"
+subset = "a"
+#subset = "b"
 
 pngDir = None
 #pngDir = "/Users/sluo/Desktop/"
@@ -197,11 +197,12 @@ def goSubset():
     seismic = True
     normals = False
     blended = False
-    shiftss = False
-    horizon = False
+    shiftss = True
+    horizon = True
     g = read("g")
     #cmin,cmax = 0.8*min(g),0.8*max(g)
     cmin,cmax = 0.7*min(g),0.7*max(g)
+    jettrans = ColorMap.setAlpha(jet,0.40)
     if seismic:
       h = read("h")
       f = read("f")
@@ -213,7 +214,6 @@ def goSubset():
       u1 = mul(d1*1000,read('u1'))
       u2 = mul(d2*1000,read('u2'))
       u3 = mul(d3*1000,read('u3'))
-      jettrans = ColorMap.setAlpha(jet,0.40)
       displaySeismicAndShifts(h,u1,jettrans,
                               cbar='Vertical component (ms)',name='u1')
       displaySeismicAndShifts(h,u2,jettrans,
@@ -238,7 +238,6 @@ def goSubset():
       displaySeismicAndShifts(g,t1,jetlinear)
       """
 
-      jettrans = ColorMap.setAlpha(jet,0.40)
       displaySeismicAndShifts(g,q1,jettrans,cmin2=minq,cmax2=maxq,
                               cbar='Vertical throw (ms)',name='q1')
 
@@ -255,16 +254,17 @@ def goSubset():
 
 
     if shiftss:
-      #s1 = mul(d1*1000.0,read('s1'))
-      s1 = mul(d1*1000,read('s1'))
+      #s1 = mul(d1,read('s1')); clabel = 'Vertical shift (s)'
+      s1 = mul(d1*1000,read('s1')); clabel = 'Vertical shift (ms)'
       displaySeismicAndShifts(g,s1,jettrans,cmin2=min(s1),cmax2=max(s1),
-                              cbar='Vertical shift (ms)',name='s1_3d')
+                              cbar=clabel,name='s1_3d')
     if horizon:
 
       world1,frame = displaySeismic(g,cmin,cmax)
-      xyz = getHorizonVertices(h1)
-      tg = QuadGroup(True,xyz)
-      tg.setColor(Color.ORANGE)
+      xyz,rgb = getHorizonVertices(h1)
+      tg = QuadGroup(True,xyz,rgb)
+      #tg = QuadGroup(True,xyz)
+      #tg.setColor(Color.ORANGE)
       world1.addChild(tg)
       """
       world2 = displaySeismic(g,cmin,cmax)
@@ -381,7 +381,9 @@ def getHorizonVertices(k1,r=None,x=None):
   x2 = slice23(k1,x2) # x2(u=k1)
   x3 = slice23(k1,x3) # x3(u=k1)
   w = slice23(k1,w)   # w(u=k1)
-  return FlattenerUtil.makeQuadVertices(x1,x2,x3,w)
+  #return FlattenerUtil.makeQuadVertices(x1,x2,x3,w)
+  xyzrgb = FlattenerUtil.makeQuadVerticesAndRgbFloats(x1,x2,x3,w)
+  return xyzrgb[0],xyzrgb[1]
   
 
 def goFull():

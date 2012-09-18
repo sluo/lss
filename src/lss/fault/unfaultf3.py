@@ -42,7 +42,7 @@ def show():
   mapping: mapping x(u) from composite shifts
   horizon: horizons
   """
-  seismic = False
+  seismic = True
   nearest = False
   blended = False
   shiftsr = False
@@ -53,11 +53,11 @@ def show():
     g = read("g")
     h = read("h")
     f = read("f")
-    #display(g,name="input") # input
-    #display(h,name="unfaulted") # unfaulted
-    #display(f,name="flat") # unfaulted and flattened
-    display2(g,h,name="input and unfaulted")
-    display2(h,f,name="unfaulted and flat")
+    display(g,name="input") # input
+    display(h,name="unfaulted") # unfaulted
+    display(f,name="flat") # unfaulted and flattened
+    #display2(g,h,name="input and unfaulted")
+    #display2(h,f,name="unfaulted and flat")
   if nearest or blended:
     t1 = read('t1')
     t2 = read('t2')

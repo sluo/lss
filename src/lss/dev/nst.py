@@ -5,8 +5,9 @@ from imports import *
 
 pngDir = None
 #pngDir = '/Users/sluo/Desktop/'
-seisImage = 'fakeA'
+#seisImage = 'fakeA'
 #seisImage = 'fakeB'
+seisImage = 'fakeC'
 #seisImage = 'f3d'
 
 #############################################################################
@@ -14,11 +15,39 @@ seisImage = 'fakeA'
 def main(args):
   #f = getImage(); plot(f)
   #goLof()
-  goIsotropic()
+  #goIsotropic()
   #goAnisotropic()
+  #goFlattenLof()
+  #goFlattenIsotropic()
+  goFlattenAnisotropic()
 
-def goIsotropic():
-  f = getImage(); plot(f,name='f')
+def goFlattenLof():
+  f = getImage()
+  sigma1,sigma2 = 8.0,1.0
+  u1,u2 = goLof(f,sigma1,sigma2)
+  flattenS(f,u1,u2)
+
+def goFlattenIsotropic():
+  f = getImage()
+  u1,u2 = goIsotropic(f)
+  flattenS(f,u1,u2)
+
+def goFlattenAnisotropic():
+  f = getImage()
+  u1,u2 = goAnisotropic(f)
+  flattenS(f,u1,u2)
+
+def flattenS(f,u1,u2):
+  p2 = getSlopesFromNormals(u1,u2)
+  fl = FlattenerS(6.0,6.0)
+  s = fl.findShifts(p2)
+  g = fl.applyShifts(f,s)
+  plot(f,name='f')
+  plot(g,name='g')
+
+def goIsotropic(f=None):
+  if f==None:
+    f = getImage(); plot(f,name='f')
   g11,g12,g22 = getGradientOuterProducts(f)
   d = getDiffusionScalars(f)
   plot(d,cmap=jet,name='diffusivity')
@@ -31,8 +60,11 @@ def goIsotropic():
   u1,u2,_,_,_,_ = getEigenFromTensors(t11,t12,t22)
   plot(u1,cmap=jet,name='u1')
   plot(u2,cmap=jet,name='u2')
+  return u1,u2
     
-def goAnisotropic():
+def goAnisotropic(f=None):
+  if f==None:
+    f = getImage(); plot(f,name='f')
   f = getImage(); plot(f,name='f')
   g11,g12,g22 = getGradientOuterProducts(f)
   t11,t12,t22 = like(g11),like(g12),like(g22)
@@ -45,6 +77,7 @@ def goAnisotropic():
   u1,u2,_,_,_,_ = getEigenFromTensors(t11,t12,t22)
   plot(u1,cmap=jet,name='u1')
   plot(u2,cmap=jet,name='u2')
+  return u1,u2
 
 def getDiffusionScalars(f):
   """Scalar diffusivity."""
@@ -147,15 +180,13 @@ def getTensorsFromEigen(u1,u2,v1,v2,eu,ev):
       a22[i2][i1] = eui*u2i*u2i+evi*v2i*v2i
   return a11,a12,a22
 
-def goLof(sigma1=12.0,sigma2=None):
-  f = getImage()
+def goLof(f=None,sigma1=12.0,sigma2=12.0):
+  if f==None:
+    f = getImage()
   u1 = zerofloat(n1,n2)
   u2 = zerofloat(n1,n2)
   el = zerofloat(n1,n2)
-  if sigma2==None:
-    lof = LocalOrientFilter(sigma1)
-  else:
-    lof = LocalOrientFilter(sigma1,sigma2)
+  lof = LocalOrientFilter(sigma1,sigma2)
   lof.applyForNormalLinear(f,u1,u2,el)
   el = pow(el,8)
   #plot(f)
@@ -200,6 +231,8 @@ def getImage():
     return fakeImageA()
   elif seisImage=='fakeB':
     return fakeImageB()
+  elif seisImage=='fakeC':
+    return fakeImageC()
   elif seisImage=='f3d':
     return read('f3d400')
 
@@ -236,6 +269,14 @@ def fakeImageB():
       f[i2][i1] = si.interpolate(slope*i2+i1-n1/3)
   return addNoise(0.1,f)
 
+def fakeImageC():
+  str = 24.0 # maximum vertical shift when adding structure.
+  fau = 8.0 # maximum displacement when adding a fault.
+  ero = 50 # sample at which to create an erosional unconformity.
+  amp = 1.0 # minimum scale factor when scaling amplitudes.
+  noi = 0.0 # rms of added noise, relative to rms signal.
+  return FakeData.seismic2d2012A(n1,n2,str,fau,ero,amp,noi)
+
 def like(f):
   return zerofloat(len(f[0]),len(f))
 
@@ -263,6 +304,9 @@ def setup():
     dataDir = None
   if seisImage=='fakeB':
     s1,s2 = Sampling(401),Sampling(801)
+    dataDir = None
+  if seisImage=='fakeC':
+    s1,s2 = Sampling(301),Sampling(501)
     dataDir = None
   elif seisImage=='f3d':
     s1,s2 = Sampling(462),Sampling(951)
