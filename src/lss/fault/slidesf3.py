@@ -977,7 +977,8 @@ def makeFrame(world,name=None):
   view.setWorldSphere(BoundingSphere(BoundingBox(f3-1.0,f2,f1,l3,l2,l1)))
   frame.viewCanvas.setBackground(frame.getBackground())
   #frame.setSize(1020,750)
-  frame.setSize(1800,1200)
+  #frame.setSize(1800,1200)
+  frame.setSize(3600,2400)
   frame.setVisible(True)
   return frame
 
