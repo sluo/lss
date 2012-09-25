@@ -8,30 +8,32 @@ from javax.imageio import *
 from ldf import BilateralFilter
 
 pngDir = None
-dataDir = '/Users/sluo/Desktop/vangogh/'
+dataDir = '/data/misc/'
 n1,n2 = 1765,2228
 
 #############################################################################
 
 def main(args):
   #makeImage()
-  f = read('f'); plot(f,name='input')
-  goLinearIsotropic(f)
-  goLinearAnisotropic(f)
-  goNonlinearIsotropic(f)
-  goNonlinearAnisotropic(f)
-  goBilateral(f)
+  f = getImage(); plot(f,name='input')
+  #goLinearIsotropic(f)
+  #goLinearAnisotropic(f)
+  #goNonlinearIsotropic(f)
+  #goNonlinearAnisotropic(f)
+  #goBilateral(f)
 
 def goLinearIsotropic(f):
   g = like(f)
-  RecursiveGaussianFilter(12.0).apply00(f,g)
+  RecursiveGaussianFilter(24.0).apply00(f,g)
   plot(g,cmin=-1,cmax=1,name='linear isotropic')
+  #plot(sub(f,g),cmin=-0.5,cmax=0.5,name='linear isotropic error')
 
 def goLinearAnisotropic(f):
   g = like(f)
-  RecursiveGaussianFilter(12.0).apply0X(f,g)
+  RecursiveGaussianFilter(24.0).apply0X(f,g)
   RecursiveGaussianFilter(1.0).applyX0(g,g)
   plot(g,cmin=-1,cmax=1,name='linear anisotropic')
+  #plot(sub(f,g),cmin=-0.5,cmax=0.5,name='linear anisotropic error')
 
 def goNonlinearIsotropic(f):
   g = like(f)
@@ -44,6 +46,7 @@ def goNonlinearIsotropic(f):
   c = 1000.0
   lsf.apply(c,s,f,g)
   plot(g,cmin=-1,cmax=1,name='nonlinear isotropic')
+  #plot(sub(f,g),cmin=-0.5,cmax=0.5,name='nonlinear isotropic error')
 
 def goNonlinearAnisotropic(f):
   g = like(f)
@@ -54,6 +57,7 @@ def goNonlinearAnisotropic(f):
   c = 100.0
   lsf.apply(t,c,f,g)
   plot(g,cmin=-1,cmax=1,name='nonlinear anisotropic')
+  #plot(sub(f,g),cmin=-0.5,cmax=0.5,name='nonlinear anisotropic error')
 
 def goBilateral(f):
   g = like(f)
@@ -62,9 +66,10 @@ def goBilateral(f):
   blf = BilateralFilter(sigmaS,sigmaR)
   blf.apply(f,g)
   plot(g,cmin=-1,cmax=1,name='bilateral filter')
+  #plot(sub(f,g),cmin=-0.5,cmax=0.5,name='bilateral filter error')
 
 def computeSigmaR(g):
-  sigmaR = 0.5*(Quantiler.estimate(0.75,g)-Quantiler.estimate(0.25,g))
+  sigmaR = 0.50*(Quantiler.estimate(0.75,g)-Quantiler.estimate(0.25,g))
   print 'sigmaR=%f'%sigmaR
   return sigmaR
 
@@ -85,6 +90,9 @@ def makeImage():
   plot(f)
   write('f',f)
   return f
+
+def getImage():
+  return read('vangogh')
 
 def read(name,image=None,dir=None):
   if not image:

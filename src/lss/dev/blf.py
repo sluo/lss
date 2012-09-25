@@ -9,21 +9,43 @@ pngDir = None
 #seisImage = 'fakeA'
 #seisImage = 'fakeB'
 seisImage = 'f3d'
+#seisImage = 'tp'
 
 #############################################################################
 
 def main(args):
   #f = getImage(); plot(f)
-  #goBlf()
+  goBlf()
+  #goDsf()
   #goLof()
   #goLofX()
   #goGradientProduct()
   #goError()
   #goNormalAB()
-  goNormalABC(1)
+  #goNormalABC(1)
   #goFlatten()
 
+def goDsf():
+  f = getImage()
+  dsf = DynamicSlopeFinder(12.0)
+  p2 = like(f)
+  dsf.findSlopes(f,p2)
+  plot(p2,cmap=jet,name='p2')
+  return p2
+
 def goFlatten():
+  f = getImage()
+  p2 = goLof(6.0,2.0)
+  #p2 = goLofX()
+  #p2 = goDsf()
+  #p2 = goNormalABC(1) # bilateral filter
+  fl = FlattenerS(6.0,6.0)
+  s = fl.findShifts(p2)
+  g = fl.applyShifts(f,s)
+  plot(f,perc=99.5,name='f')
+  plot(g,perc=99.5,name='g')
+
+def xgoFlatten():
   bilateralFilter = True
   f = getImage()
   if bilateralFilter:
@@ -57,6 +79,57 @@ def getSlopesFromNormals(u1,u2):
         p2[i2][i1] = -u2i/u1i
   return p2
 
+def goLof(sigma1=24.0,sigma2=None):
+  f = getImage()
+  u1 = zerofloat(n1,n2)
+  u2 = zerofloat(n1,n2)
+  el = zerofloat(n1,n2)
+  if sigma2==None:
+    lof = LocalOrientFilter(sigma1)
+  else:
+    lof = LocalOrientFilter(sigma1,sigma2)
+  lof.applyForNormalLinear(f,u1,u2,el)
+  el = pow(el,8)
+  #plot(f)
+  #plot(u1,cmap=jet,name='u1 lof')
+  #plot(u2,cmap=jet,name='u2 lof')
+  #plot(el,cmap=jet,name='el')
+  #plot(div(u2,u1),cmap=jet,perc=100)
+  return getSlopesFromNormals(u1,u2)
+
+def goLofX():
+  """Estimates normal vectors using a modified lof."""
+  f = getImage()
+  u1 = zerofloat(n1,n2)
+  u2 = zerofloat(n1,n2)
+  el = zerofloat(n1,n2)
+  lof = LocalOrientFilter(16.0,16.0)
+  lof.applyForNormalLinear(f,u1,u2,el)
+  #el = pow(el,8)
+
+  plot(f)
+  p2a = getSlopesFromNormals(u1,u2)
+  #plot(u1,cmap=jet,cmin=0.86,cmax=1.00,name='u1')
+  #plot(u2,cmap=jet,cmin=0.00,cmax=0.50,name='u2')
+  #plot(el,cmap=jet,name='el')
+  plot(p2a,cmap=jet,name='old')
+
+  #el = fillfloat(1.0,n1,n2)
+  c = 10.0
+  lofx = LocalOrientFilterX(c,el)
+  lofx.applyForNormal(f,u1,u2)
+  p2b = getSlopesFromNormals(u1,u2)
+
+  cmin1,cmax1 = getClips(u1)
+  cmin2,cmax2 = getClips(u2)
+  plot(el,cmap=jet,name='el')
+  #plot(u1,cmap=jet,cmin=0.86,cmax=1.00,name='u1')
+  #plot(u2,cmap=jet,cmin=0.00,cmax=0.50,name='u2')
+  plot(p2b,cmap=jet,name='new')
+  plot(u1,cmap=jet,cmin=cmin1,cmax=cmax1,name='u1')
+  plot(u2,cmap=jet,cmin=cmin2,cmax=cmax2,name='u2')
+  return getSlopesFromNormals(u1,u2)
+
 def goNormalABC(niter=1):
   """Estimate normal vectors using a bilateral filter."""
   f = getImage()
@@ -85,11 +158,11 @@ def goNormalABC(niter=1):
     return getEigenvectors(t11,t12,t22)
   for ii in range(niter):
     if ii==0:
-      u1,u2 = goLof(8.0,8.0)
-      #u1,u2 = goLof(12.0,12.0)
-      #u1,u2 = goLof(16.0,4.0)
-      #u1,u2 = goLof(32.0,8.0)
-      #u1,u2 = goLof(64.0,32.0)
+      u1,u2 = like(f),like(f)
+      LocalOrientFilter(8.0,8.0).applyForNormal(f,u1,u2)
+      #LocalOrientFilter(12.0,12.0).applyForNormal(f,u1,u2)
+      #LocalOrientFilter(32.0,8.0).applyForNormal(f,u1,u2)
+      #LocalOrientFilter(64.0,32.0).applyForNormal(f,u1,u2)
       cmin1,cmax1 = getClips(u1)
       cmin2,cmax2 = getClips(u2)
       plot(u1,cmap=jet,cmin=cmin1,cmax=cmax1,name='u1 (lof)') # lof
@@ -99,7 +172,7 @@ def goNormalABC(niter=1):
   plot(f,name='f')
   plot(u1,cmap=jet,cmin=cmin1,cmax=cmax1,name='u1') # blf
   plot(u2,cmap=jet,cmin=cmin2,cmax=cmax2,name='u2') # blf
-  return u1,u2
+  return getSlopesFromNormals(u1,u2)
 
 def goNormalAB():
   """Estimate normal vectors using a bilateral filter."""
@@ -296,82 +369,34 @@ def goError():
   plot(t,cmap=jet,name='error',perc=99)
 
 def goBlf():
-  #f = getImage()
-  #f = zerofloat(n1,n2); f[n2/2][n1/2] = 1.0
-  f = sub(randfloat(n1,n2),0.5)
-  RecursiveGaussianFilter(4.0).apply00(f,f)
-  gb = zerofloat(n1,n2)
-  gr = zerofloat(n1,n2)
-  sigmaSpace = 1.0 # half-width of spatial filter
-  sigmaRange = 1.0e6 # half-width of range function
-  blf = BilateralFilter(sigmaSpace,sigmaRange)
+  f = fillfloat(-1.0,n1,n2)
+  for i2 in range(n2/2,n2):
+    fill(1.0,f[i2])
+  f = addNoise(0.25,f)
+  sigma = 24.0
+  sigmaS = sigma
+  sigmaR = computeSigmaR(f)
+  gblf,grgf = like(f),like(f)
+  BilateralFilter(sigmaS,sigmaR).apply(f,gblf)
+  RecursiveGaussianFilter(sigma).apply00(f,grgf)
+  cmin,cmax = -1.5,1.5
+  plot(f,cmin=cmin,cmax=cmax,name='f')
+  plot(gblf,cmin=cmin,cmax=cmax,name='blf')
+  plot(grgf,cmin=cmin,cmax=cmax,name='rgf')
 
-  sigma1 = 10.0
-  sigma2 = 1.0
-  et = makeTensors(sigma1,sigma2)
-  blf.apply(et,f,gb)
-  rgf1 = RecursiveGaussianFilter(sigma1)
-  rgf2 = RecursiveGaussianFilter(sigma2)
-  rgf1.apply0X(f,gr)
-  rgf2.applyX0(gr,gr)
-
-  cmin = min(min(gb),min(gr))
-  cmax = max(max(gb),max(gr))
-  plot(f)
-  plot(gb,cmin=cmin,cmax=cmax)
-  plot(gr,cmin=cmin,cmax=cmax)
-  print sum(sub(gb,gr))
-
-def makeTensors(sigma1,sigma2):
-  u1 = fillfloat(1.0,n1,n2) # 1st component of eigenvector u
-  u2 = fillfloat(0.0,n1,n2) # 2nd component of eigenvector u
-  au = fillfloat(500.0,n1,n2) # eigenvalues for eigenvector u
-  av = fillfloat(50.0,n1,n2) # eigenvalues for eigenvector v
-  return EigenTensors2(u1,u2,au,av)
-
-def goLof(sigma1=24.0,sigma2=None):
-  f = getImage()
-  u1 = zerofloat(n1,n2)
-  u2 = zerofloat(n1,n2)
-  el = zerofloat(n1,n2)
-  if sigma2==None:
-    lof = LocalOrientFilter(sigma1)
-  else:
-    lof = LocalOrientFilter(sigma1,sigma2)
-  lof.applyForNormalLinear(f,u1,u2,el)
-  el = pow(el,8)
-  #plot(f)
-  #plot(u1,cmap=jet,name='u1 lof')
-  #plot(u2,cmap=jet,name='u2 lof')
-  #plot(el,cmap=jet,name='el')
-  #plot(div(u2,u1),cmap=jet,perc=100)
-  return u1,u2
-
-def goLofX():
-  f = getImage()
-  u1 = zerofloat(n1,n2)
-  u2 = zerofloat(n1,n2)
-  el = zerofloat(n1,n2)
-  lof = LocalOrientFilter(24.0,24.0)
-  lof.applyForNormalLinear(f,u1,u2,el)
-  el = pow(el,64)
-
-  plot(f)
-  #plot(u1,cmap=jet,cmin=0.86,cmax=1.00,name='u1')
-  #plot(u2,cmap=jet,cmin=0.00,cmax=0.50,name='u2')
-  #plot(el,cmap=jet,name='el')
-  plot(div(u2,u1),cmap=jet,name='old')
-
-  #el = fillfloat(1.0,n1,n2)
-  lofx = LocalOrientFilterX(800.0,el)
-  lofx.applyForNormal(f,u1,u2)
-
-  plot(el,cmap=jet,name='el')
-  #plot(u1,cmap=jet,cmin=0.86,cmax=1.00,name='u1')
-  #plot(u2,cmap=jet,cmin=0.00,cmax=0.50,name='u2')
-  plot(div(u2,u1),cmap=jet,name='new')
-
-  return u1,u2
+  # Tukey's biweight function
+  dt = 0.05*sigmaR
+  nt = 1+int((4.0*sigmaR)/dt)
+  ft = -2.0*sigmaR
+  st = Sampling(nt,dt,ft)
+  f = zerofloat(nt)
+  for it in range(nt):
+    t = ft+it*dt
+    if abs(t)<sigmaR:
+      s = t/sigmaR
+      r = 1.0-s*s
+      f[it] = r*r
+  SimplePlot.asPoints(st,f)
 
 def goGradientProduct():
   """Unsmoothed outer product of image gradients."""
@@ -425,14 +450,6 @@ def addNoise(nrms,f):
   grms = sqrt(sum(mul(g,g))/n1/n2)
   g = mul(g,nrms*frms/grms)
   return add(f,g)
-
-def getImage():
-  if seisImage=='fakeA':
-    return fakeImageA()
-  elif seisImage=='fakeB':
-    return fakeImageB()
-  elif seisImage=='f3d':
-    return read('f3d400')
 
 def fakeImageA():
   f = FakeData.seismic2d2012A(n1,n2,0.0,0.0,0.0,1.0,0.0)
@@ -489,13 +506,15 @@ def panel(cbar=None):
   cb = p.addColorBar()
   if cbar:
     cb.setLabel(cbar)
+  cb.setWidthMinimum(80)
   return p
 
 def frame(panel,name=None):
   frame = PlotFrame(panel)
   #frame.setBackground(Color(204,204,204,255))
   #frame.setFontSizeForSlide(1.0,1.0)
-  frame.setSize(800,600)
+  #frame.setSize(800,600)
+  frame.setSize(1000,700)
   if name:
     frame.setTitle(name)
   frame.setVisible(True)
@@ -606,6 +625,35 @@ def array(x1,x2,x3=None,x4=None):
 def zeros(n1,n2,n3):
   return zerofloat(n1,n2,n3)
 
+def getImage():
+  if seisImage=='fakeA':
+    return fakeImageA()
+  elif seisImage=='fakeB':
+    return fakeImageB()
+  elif seisImage=='f3d':
+    f = read('f3d400')
+    return div(f,max(abs(f)))
+  elif seisImage=='tp':
+    f = read('tp73')
+    return div(f,max(abs(f)))
+
+def setup():
+  global s1,s2,n1,n2,dataDir
+  if seisImage=='fakeA':
+    s1,s2 = Sampling(201),Sampling(201)
+    dataDir = None
+  elif seisImage=='fakeB':
+    s1,s2 = Sampling(401),Sampling(801)
+    dataDir = None
+  elif seisImage=='f3d':
+    s1,s2 = Sampling(462),Sampling(951)
+    dataDir = '/data/seis/f3/'
+  elif seisImage=='tp':
+    s1,s2 = Sampling(251),Sampling(357)
+    dataDir = '/data/seis/tp/'
+  n1,n2 = s1.count,s2.count
+
+
 #############################################################################
 # graphics
 
@@ -686,19 +734,6 @@ def slice23(k1,f):
   s = zerofloat(n2,n3)
   SimpleFloat3(f).get23(n2,n3,k1,0,0,s)
   return s
-
-def setup():
-  global s1,s2,n1,n2,dataDir
-  if seisImage=='fakeA':
-    s1,s2 = Sampling(201),Sampling(201)
-    dataDir = None
-  if seisImage=='fakeB':
-    s1,s2 = Sampling(401),Sampling(801)
-    dataDir = None
-  elif seisImage=='f3d':
-    s1,s2 = Sampling(462),Sampling(951)
-    dataDir = '/data/seis/f3/'
-  n1,n2 = s1.count,s2.count
 
 #############################################################################
 # Run the function main on the Swing thread
