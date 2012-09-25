@@ -256,8 +256,11 @@ def goSubset():
     if shiftss:
       #s1 = mul(d1,read('s1')); clabel = 'Vertical shift (s)'
       s1 = mul(d1*1000,read('s1')); clabel = 'Vertical shift (ms)'
-      displaySeismicAndShifts(g,s1,jettrans,cmin2=min(s1),cmax2=max(s1),
-                              cbar=clabel,name='s1_3d')
+      #displaySeismicAndShifts(g,s1,jettrans,cmin2=min(s1),cmax2=max(s1),
+      #                        cbar=clabel,name='s1_3d')
+      print max(s1)
+      print min(s1)
+      plot3d(s1)
     if horizon:
 
       world1,frame = displaySeismic(g,cmin,cmax)
@@ -302,7 +305,6 @@ def goSubset():
     if pngDir and name:
       #frame.getViewCanvas().paintToFile(pngDir+name+'.png')
       frame.paintToFile(pngDir+name+'.png')
-      #colorbar.paintToPng(colorbar.getWidth(),1.0,pngDir+'c.png')
       pass
     return world,frame
 
@@ -327,8 +329,9 @@ def goSubset():
     frame = makeFrame(world,name)
     if cbar:
       colorbar = addColorBar(frame,cbar)
-      colorbar.setWidthMinimum(250)
+      colorbar.setWidthMinimum(500)
       ipg.addColorMap2Listener(colorbar)
+      #colorbar.paintToPng(colorbar.getWidth(),1.0,pngDir+'cbar.png')
     if cmax2>cmin2:
       ipg.setClips2(cmin2,cmax2)
     else:
@@ -336,10 +339,42 @@ def goSubset():
     if pngDir and name:
       #frame.getViewCanvas().paintToFile(pngDir+name+'.png')
       frame.paintToFile(pngDir+name+'.png')
-      pass
 
   #goPlot3()
   go3dViews()
+
+def plot3d(g):
+  n1 = len(g[0][0])
+  n2 = len(g[0])
+  n3 = len(g)
+  sf = SimpleFrame()
+  sf.setBackground(Color.WHITE)
+  ipg = sf.addImagePanels(s1,s2,s3,g)
+  ipg.setColorModel(ColorMap.getJet())
+  #ipg.setClips(min(g),max(g))
+  ipg.setClips(-149,max(g))
+  cbar = addColorBar3d(sf,"Vertical shift (ms)",None)
+  ipg.addColorMapListener(cbar)
+  sf.setSize(1800,1200)
+  #sf.orbitView.setAzimuthAndElevation(-99,67)
+  #sf.orbitView.setScale(1.56)
+  #sf.orbitView.setTranslate(Vector3(0.0435,0.0550,-0.0157))
+  #sf.viewCanvas.setBackground(sf.getBackground())
+  sf.setVisible(True)
+  if pngDir:
+    #png = pngDir+sampling()+"t"+str(k1d)+png
+    #sf.paintToFile(png+".png");
+    cbar.paintToPng(cbar.getWidth(),6.0,pngDir+"c.png")
+
+def addColorBar3d(frame,clab,cint=None):
+  cbar = ColorBar(clab)
+  cbar.setFont(Font("Arial",Font.PLAIN,64))
+  cbar.setBackground(Color.WHITE)
+  if cint:
+    cbar.setInterval(cint)
+  cbar.setWidthMinimum(240)
+  frame.add(cbar,BorderLayout.EAST)
+  return cbar
 
 
 def getHorizonVertices(k1,r=None,x=None):
@@ -954,6 +989,7 @@ def addImage2ToWorld(world,image1,image2):
 def addColorBar(frame,label):
   cbar = ColorBar(label)
   cbar.setFont(cbar.getFont().deriveFont(64.0))
+  cbar.setWidthMinimum(220)
   frame.add(cbar,BorderLayout.EAST)
   #frame.viewCanvas.setBackground(frame.getBackground())
   return cbar
@@ -976,9 +1012,8 @@ def makeFrame(world,name=None):
   view.setElevation(elevation)
   view.setWorldSphere(BoundingSphere(BoundingBox(f3-1.0,f2,f1,l3,l2,l1)))
   frame.viewCanvas.setBackground(frame.getBackground())
-  #frame.setSize(1020,750)
+  frame.setSize(1020,750)
   #frame.setSize(1800,1200)
-  frame.setSize(3600,2400)
   frame.setVisible(True)
   return frame
 
