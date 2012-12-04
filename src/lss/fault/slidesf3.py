@@ -194,7 +194,7 @@ def goSubset():
     return frame
 
   def go3dViews():
-    seismic = True
+    seismic = False
     normals = False
     blended = False
     shiftss = True
@@ -270,14 +270,16 @@ def goSubset():
       #tg.setColor(Color.ORANGE)
       world1.addChild(tg)
       """
-      world2 = displaySeismic(g,cmin,cmax)
+      world2,frame = displaySeismic(g,cmin,cmax)
       colors = [Color.ORANGE,Color.BLUE,Color.RED,Color.CYAN]
       r = array(read('r1'),read('r2'),read('r3'))
       x = array(read('x1'),read('x2'),read('x3'))
       for i in range(len(h1s)):
-        xyz = getHorizonVertices(h1s[i],r,x)
-        tg = QuadGroup(True,xyz)
-        tg.setColor(colors[i])
+        xyz,rgb = getHorizonVertices(h1s[i])
+        tg = QuadGroup(True,xyz,rgb)
+        #xyz = getHorizonVertices(h1s[i],r,x)
+        #tg = QuadGroup(True,xyz)
+        #tg.setColor(colors[i])
         world2.addChild(tg)
       """
       if pngDir:
@@ -1012,8 +1014,8 @@ def makeFrame(world,name=None):
   view.setElevation(elevation)
   view.setWorldSphere(BoundingSphere(BoundingBox(f3-1.0,f2,f1,l3,l2,l1)))
   frame.viewCanvas.setBackground(frame.getBackground())
-  frame.setSize(1020,750)
-  #frame.setSize(1800,1200)
+  #frame.setSize(1020,750)
+  frame.setSize(1800,1200)
   frame.setVisible(True)
   return frame
 

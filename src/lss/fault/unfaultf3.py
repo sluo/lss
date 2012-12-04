@@ -2,6 +2,7 @@
 Unfaulting F3D with Dave's fault throws
 """
 from imports import *
+from lss.dev import *
 
 subset = 'a'
 #subset = 'b'
@@ -25,11 +26,12 @@ h1s = [20,40,60]
 #############################################################################
 
 def main(args):
-  show()
+  #show()
   #goInterpolateThrows()
   #goCheckInterpolation()
   #goUnfault()
   #goFlatten()
+  goFlattenX()
   #goMapping()
 
 def show():
@@ -237,6 +239,63 @@ def goFlatten():
   f = read('f')
   display(f,name="f")
 
+def goFlattenX():
+  """Flattens the unfaulted image. Uses DynamicSlopeFinder."""
+  smoothImage = False # sos before lof
+  findSlopes = True
+  findShifts = True
+  timer = Stopwatch()
+  h = read('h')
+  display(h,name="h")
+  u1,u2,u3 = like(h),like(h),like(h)
+  if findSlopes:
+    findNormalsDsf(h,u1,u2,u3)
+    write("u1_dsf",u1)
+    write("u2_dsf",u2)
+    write("u3_dsf",u3)
+  flat = FlattenerRT(6.0,6.0)
+  if findShifts:
+    read("u1_dsf",u1)
+    read("u2_dsf",u2)
+    read("u3_dsf",u3)
+    ep = fillfloat(1.0,n1,n2,n3)
+    p = array(u1,u2,u3,ep)
+    timer.restart(); print 'shifts...'
+    r = flat.findShifts(p)
+    timer.stop(); print 'shifts in %.2fs'%timer.time()
+    #q = array(read("q1"),read("q2"),read("q3"))
+    #s = shiftShifts(r,q) # composite shifts
+    #f = applyShifts(g,s)
+    f = applyShifts(h,r) # faults look cleaner
+    display(f,name="f")
+    #write("r1",r[0])
+    #write("r2",r[1])
+    #write("r3",r[2])
+    #write("s1",s[0])
+    #write("s2",s[1])
+    #write("s3",s[2])
+    #write("f",f)
+    #write("f0",f)
+  #goMapping() # composite mapping x(u) = u-s(u) 
+  #f = read('f')
+  #display(f,name="f")
+
+def findNormalsDsf(f,u1,u2,u3):
+  """Normal vectors from DynamicSlopeFinder."""
+  sigma = 12.0 # half-width for averaging slopes
+  dsf = DynamicSlopeFinder(sigma)
+  p2,p3 = like(f),like(f)
+  dsf.findSlopes(f,p2,p3)
+  for i3 in range(n3):
+    for i2 in range(n2):
+      for i1 in range(n1):
+        p2i = p2[i3][i2][i1]
+        p3i = p3[i3][i2][i1]
+        s = 1.0/sqrt(1.0+p2i*p2i+p3i*p3i)
+        u1[i3][i2][i1] = s
+        u2[i3][i2][i1] = -p2i*s
+        u3[i3][i2][i1] = -p3i*s
+  
 def shiftShifts(r,q):
   """Combine interpolated fault throws and flattening shifts
      r = flattening shifts, q = unfaulting shifts

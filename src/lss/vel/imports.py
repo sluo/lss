@@ -22,6 +22,7 @@ from tp import *
 from dnp import *
 from util import *
 
+from lss.dev import *
 from lss.fault import *
 from lss.flat import *
 from lss.util import *

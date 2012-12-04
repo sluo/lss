@@ -10,35 +10,46 @@ import edu.mines.jtk.mosaic.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
+import static lss.vel.AcousticWavefield.*;
+
 public class BornWavefield {
 
   public enum SourceWavelet {
-    RICKER,
-  }
-
-  /**
-   * Source function.
-   */
-  public interface Source {
-    public void add(double t, float[][] f);
+    RICKER
   }
 
   public BornWavefield(
     Sampling sz, Sampling sx, Sampling st, float[][] r)
   {
     _r = r;
-    _dz = sz.getDelta();
-    _dx = sx.getDelta();
-    _dt = st.getDelta();
+    _sz = sz;
+    _sx = sx;
+    _st = st;
     _nz = sz.getCount()+2*_b;
     _nx = sx.getCount()+2*_b;
     _nt = st.getCount();
+    _dz = sz.getDelta();
+    _dx = sx.getDelta();
+    _dt = st.getDelta();
+    _fz = sz.getFirst();
+    _fx = sx.getFirst();
+    _ft = st.getFirst();
     Check.argument(_dx==_dz,"dx==dz");
     _tm = new float[_nx][_nz];
     _ti = new float[_nx][_nz];
     _tp = new float[_nx][_nz];
     _u = new float[_nt][_nx][_nz];
   }
+
+  public void forwardPropagate(Source source, float[][] c) {
+    propagate(source,c);
+  }
+
+  public void backPropagate(Source source, float[][] c) {
+    propagate(source,c);
+    reverse3(_u);
+  }
+
 
   public void forwardPropagate(
     double freq, int kzs, int kxs, float[][] c)
@@ -57,17 +68,17 @@ public class BornWavefield {
   public void backPropagate(
     float[] s, int kzs, int kxs, float[][] c)
   {
-    Source source = new AdjointSource(s,kzs,kxs);
+    Source source = new AdjointSource(_dt,kzs,kxs,s);
     propagate(source,c);
-    reverseIndex3(_u);
+    reverse3(_u);
   }
 
   public void backPropagate(
     float[][] s, int kzs[], int[] kxs, float[][] c)
   {
-    Source source = new AdjointSource(s,kzs,kxs);
+    Source source = new AdjointSource(_dt,kzs,kxs,s);
     propagate(source,c);
-    reverseIndex3(_u);
+    reverse3(_u);
   }
 
   public float[] getWavefield(int kzr, int kxr) {
@@ -118,12 +129,14 @@ public class BornWavefield {
   private int _it; // current time index
   private int _nx,_nz,_nt; // number of samples
   private double _dx,_dz,_dt; // sampling intervals
+  private double _fx,_fz,_ft; // first sample time
+  private Sampling _sx,_sz,_st; // samplings
   private float[][] _v; // velocity
   private float[][] _rvs; // v * v * (0.5 * dt * dt) / (dx * dx)
   private float[][] _um,_ui,_up; // u(x;t-1), u(x;t), u(x;t+1)
   private float[][][] _u; // wavefield
 
-  private float[][] _r; // image for Born modeling
+  private float[][] _r; // reflector image for Born modeling
   private float[][] _tm,_ti,_tp,_tt;
 
   private void propagate(Source source, float[][] v) {
@@ -141,63 +154,6 @@ public class BornWavefield {
     mul((float)r,_rvs,_rvs);
   }
 
-  private class RickerSource implements Source {
-    public RickerSource(double fpeak, int kzs, int kxs) {
-      _fpeak = fpeak;
-      _kzs = kzs+_b;
-      _kxs = kxs+_b;
-      _tdelay = 1.0/fpeak;
-    }
-    public void add(double t, float[][] f) {
-      f[_kxs][_kzs] += ricker(t-_tdelay);
-    }
-    private float ricker(double t) {
-      double x = PI*_fpeak*t;
-      double xx = x*x;
-      return (float)((1.0-2.0*xx)*exp(-xx));
-    }
-    private int _kzs,_kxs;
-    private double _fpeak,_tdelay;
-  }
-
-  private class AdjointSource implements Source {
-    public AdjointSource(float[] s1, int kzs, int kxs) {
-      _kzs = kzs+_b;
-      _kxs = kxs+_b;
-      _s1 = s1;
-      _ns = 1;
-    }
-    public AdjointSource(float[][] s2, int[] kzsa, int[] kxsa) {
-      Check.argument(kzsa.length==kxsa.length,"kzs.length=kxs.length");
-      _ns = kzsa.length;
-      _kzsa = copy(kzsa);
-      _kxsa = copy(kxsa);
-      for (int is=0; is<_ns; is++) {
-        _kzsa[is] += _b;
-        _kxsa[is] += _b;
-      }
-      _s2 = s2;
-    }
-    public void add(double t, float[][] f) {
-      int it = (int)(t/_dt);
-      if (_kzsa==null && _kxsa==null) {
-        float a = (it<0)?0.0f:_s1[_nt-1-it];
-        f[_kxs][_kzs] += a;
-      } else if (_kzsa!=null && _kxsa!=null) {
-        for (int is=0; is<_ns; is++) {
-          int kzs = _kzsa[is];
-          int kxs = _kxsa[is];
-          float a = (it<0)?0.0f:_s2[is][_nt-1-it];
-          f[kxs][kzs] += a;
-        }
-      }
-    }
-    private int _ns,_kzs,_kxs;
-    private int[] _kzsa = null;
-    private int[] _kxsa = null;
-    private float[] _s1 = null;
-    private float[][] _s2 = null;
-  }
 
   private void propagate() {
     _um = _u[0];
@@ -210,7 +166,7 @@ public class BornWavefield {
     zero(_ti);
     zero(_tp);
     for (_it=0; _it<_nt-3; ++_it) {
-      System.out.format("\r%d",_it);
+      System.out.format("\r%d",_it+3);
       step();
     }
     System.out.print("\n");
@@ -222,12 +178,23 @@ public class BornWavefield {
       stepSliceX(ix);
     }});
 
-    _source.add(_it*_dt,_tp);
+    _source.add(_ft+_it*_dt,_tp);
 
+    final float odxs = (float)(1.0/(_dx*_dx));
     Parallel.loop(0,_nx-2*_b,new Parallel.LoopInt() {
     public void compute(int ix) {
       for (int iz=0; iz<_nz-2*_b; ++iz) {
-        _up[ix+_b][iz+_b] += _r[ix][iz]*_tp[ix+_b][iz+_b];
+        //_up[ix+_b][iz+_b] += _r[ix][iz]*_tp[ix+_b][iz+_b];
+        // TODO Laplacian before multiplication
+        // TODO scale by 1/v^2?
+        _up[ix+_b][iz+_b] -=
+          odxs*_r[ix][iz]*(
+            -4.0f*_tp[ix+_b][iz+_b]+
+            _tp[ix+_b+1][iz+_b]+
+            _tp[ix+_b-1][iz+_b]+
+            _tp[ix+_b][iz+_b+1]+
+            _tp[ix+_b][iz+_b-1]
+          );
       }
     }});
 
@@ -497,13 +464,14 @@ public class BornWavefield {
     return v;
   }
 
-  private void reverseIndex3(float[][][] f) {
+  private void reverse3(float[][][] f) {
     int n3 = f.length;
-    float[][][] ft = new float[n3][][];
-    for (int i3=0; i3<n3; i3++)
-      ft[i3] = f[n3-1-i3];
-    for (int i3=0; i3<n3; i3++)
-      f[i3] = ft[i3];
+    float[][] t;
+    for (int i3=0, j3=n3-1; i3<n3/2; ++i3, --j3) {
+      t = f[i3];
+      f[i3] = f[j3];
+      f[j3] = t;
+    }
   }
 
 }

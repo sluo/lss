@@ -16,10 +16,11 @@ seisImage = 'f3d'
 #############################################################################
 
 def main(args):
+  f = getImage(); plot(f,perc=99.5,name='f')
   #goBlf()
   #goGradientOuterProducts()
   #goNormals()
-  goFlatten()
+  #goFlatten()
 
 def goNormals():
   f = getImage(); plot(f,perc=99.5,name='f')
