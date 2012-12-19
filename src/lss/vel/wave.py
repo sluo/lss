@@ -8,7 +8,7 @@ from imports import *
 
 sz = Sampling(201,16.0,0.0)
 sx = Sampling(201,16.0,0.0)
-st = Sampling(1001,0.0012,0.0)
+st = Sampling(2001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 v = fillfloat(2000.0,nz,nx) # velocity
@@ -18,18 +18,28 @@ fpeak = 5.0 # Ricker wavelet peak frequency
 #############################################################################
 
 def main(args):
-  wavefield = AcousticWavefield(sz,sx,st)
-  wavelet = AcousticWavefield.SourceWavelet.RICKER;
-  wavefield.forwardPropagate(wavelet,fpeak,kzs,kxs,v)
+  #wavefield = AcousticWavefield(sz,sx,st)
+  #wavelet = AcousticWavefield.SourceWavelet.RICKER;
+  #wavefield.forwardPropagate(wavelet,fpeak,kzs,kxs,v)
+  #u = wavefield.getWavefield()
+  #display(u)
+
+  wavefield = AcousticWavefieldY(sz,sx,st)
+  source = AcousticWavefieldY.RickerSource(fpeak,kzs,kxs)
+  wavefield.propagate(source,v)
   u = wavefield.getWavefield()
   display(u)
+  plot(u[900]);
+  plot(u[1000]);
+  plot(u[1800]);
+  print sum(abs(u[1800]));
 
 #############################################################################
 
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
-def plot(x,cmap=jet,title=None):
+def plot(x,cmap=gray,title=None):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   sp.addColorBar()
   sp.setSize(600,600)

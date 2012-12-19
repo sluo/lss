@@ -20,8 +20,14 @@ public class AcousticWavefield {
   /**
    * Source function.
    */
-  public interface Source {
-    public void add(double t, float[][] f);
+  public static abstract class Source {
+    public void add(double t, float[][] f) {
+      add(1.0f,t,f);
+    }
+    public void sub(double t, float[][] f) {
+      add(-1.0f,t,f);
+    }
+    abstract void add(float sign, double t, float[][] f);
   }
 
   public AcousticWavefield(
@@ -37,6 +43,24 @@ public class AcousticWavefield {
     _u = new float[_nt][_nx][_nz];
   }
 
+  public void propagate(Source source, float[][] v) {
+    Check.argument(v[0].length==_nz-2*_b,"dimensions");
+    Check.argument(v.length==_nx-2*_b,"dimensions");
+    updateAndPropagate(source,v);
+    if (source instanceof AdjointSource) {
+      reverse3(_u);
+    }
+  }
+
+  public void forwardPropagate(Source source, float[][] v) {
+    propagate(source,v);
+  }
+
+  public void backPropagate(Source source, float[][] v) {
+    propagate(source,v);
+  }
+
+/*
   public void forwardPropagate(
     double freq, int kzs, int kxs, float[][] c)
   {
@@ -55,15 +79,6 @@ public class AcousticWavefield {
     }
   }
 
-  public void forwardPropagate(Source source, float[][] c) {
-    propagate(source,c);
-  }
-
-  public void backPropagate(Source source, float[][] c) {
-    propagate(source,c);
-    reverse3(_u);
-  }
-
   public void backPropagate(
     float[] s, int kzs, int kxs, float[][] c)
   {
@@ -79,6 +94,7 @@ public class AcousticWavefield {
     propagate(source,c);
     reverse3(_u);
   }
+*/
 
   public float[] getWavefield(int kzr, int kxr) {
     float[] y = new float[_nt];
@@ -89,6 +105,7 @@ public class AcousticWavefield {
   }
 
   public float[][] getWavefield(int[] kzr, int[] kxr) {
+    Check.argument(kzr.length==kxr.length,"kzr.length=kxr.length");
     int nr = kzr.length;
     float[][] y = new float[nr][_nt];
     for (int it=0; it<_nt; it++) {
@@ -122,7 +139,7 @@ public class AcousticWavefield {
   /////////////////////////////////////////////////////////////////////////
   // private
 
-  private static int _b = 42; // absorbing boundary size
+  private static int _b = 50; // absorbing boundary size
   private Source _source;
   private double _t; // current time
   private int _it; // current time index
@@ -133,30 +150,26 @@ public class AcousticWavefield {
   private float[][] _um,_ui,_up; // u(x;t-1), u(x;t), u(x;t+1)
   private float[][][] _u; // wavefield
 
-  private void propagate(Source source, float[][] v) {
-    _source = source;
-    setModel(v);
-    propagate();
-  }
-
-  private void setModel(float[][] v) {
+  private void updateAndPropagate(Source source, float[][] v) {
     double odx = 1.0/_dx;
     double r = 0.5*_dt*_dt*odx*odx;
     _rvs = extendModel(v);
     _v = copy(_rvs);
     mul(_rvs,_rvs,_rvs);
     mul((float)r,_rvs,_rvs);
+    _source = source;
+    propagate();
   }
 
-  public static class RickerSource implements Source {
+  public static class RickerSource extends Source {
     public RickerSource(double fpeak, int kzs, int kxs) {
       _fpeak = fpeak;
       _kzs = kzs+_b;
       _kxs = kxs+_b;
       _tdelay = 1.0/fpeak;
     }
-    public void add(double t, float[][] f) {
-      f[_kxs][_kzs] += ricker(t-_tdelay);
+    public void add(float sign, double t, float[][] f) {
+      f[_kxs][_kzs] += sign*ricker(t-_tdelay);
     }
     private float ricker(double t) {
       double x = PI*_fpeak*t;
@@ -167,7 +180,7 @@ public class AcousticWavefield {
     private double _fpeak,_tdelay;
   }
 
-  public static class PlaneWaveSource implements Source {
+  public static class PlaneWaveSource extends Source {
     public PlaneWaveSource(
       double angle, double tdelay, double fpeak,
       double dx, int kzs, int kxs, float[][] v)
@@ -184,11 +197,12 @@ public class AcousticWavefield {
       //new RecursiveGaussianFilter(_nx/4).apply0(_w,_w); // taper
       div(_w,max(_w),_w);
     }
-    public void add(double t, float[][] f) {
+    public void add(float sign, double t, float[][] f) {
       //double p = sin(_angle)/_v[_kzs][_nx/2]; // TODO: function of x?
       for (int ix=0; ix<_nx; ++ix) {
         double t0 = _ps*(ix-_kxs)*_dx;
-        f[ix+_b][_kzs+_b] += _w[ix]*ricker(t-_tdelay+t0); // TODO + or - t0?
+        // TODO + or - t0?
+        f[ix+_b][_kzs+_b] += sign*_w[ix]*ricker(t-_tdelay+t0);
       }
     }
     private float ricker(double t) {
@@ -201,23 +215,11 @@ public class AcousticWavefield {
     private float[] _w; // weight for tapering sources
   }
 
-  public static class DefaultSource implements Source {
-    public DefaultSource(
-      double dt, int kzs, int kxs, float[] s)
-    {
-      _ns = 1;
-      _nt = s.length;
-      _dt = dt;
-      _kzs = new int[1];
-      _kxs = new int[1];
-      _s = new float[1][];
-      _kzs[0] = _b+kzs;
-      _kxs[0] = _b+kxs;
-      _s[0] = s;
+  public static class DefaultSource extends Source {
+    public DefaultSource(double dt, int kzs, int kxs, float[] s) {
+      this(dt,new int[]{kzs},new int[]{kxs},new float[][]{s});
     }
-    public DefaultSource(
-      double dt, int[] kzs, int[] kxs, float[][] s)
-    {
+    public DefaultSource(double dt, int[] kzs, int[] kxs, float[][] s) {
       Check.argument(kzs.length==kxs.length,"kzs.length=kxs.length");
       _ns = kzs.length;
       _nt = s[0].length;
@@ -226,12 +228,12 @@ public class AcousticWavefield {
       _kxs = kxs;
       _s = s;
     }
-    public void add(double t, float[][] f) {
+    public void add(float sign, double t, float[][] f) {
       int it = (int)(t/_dt);
       for (int is=0; is<_ns; is++) {
         int kzs = _b+_kzs[is];
         int kxs = _b+_kxs[is];
-        f[kxs][kzs] += _s[is][it];
+        f[kxs][kzs] += sign*_s[is][it];
       }
     }
     private double _dt;
@@ -241,45 +243,53 @@ public class AcousticWavefield {
     private float[][] _s = null;
   }
 
-  public static class AdjointSource implements Source {
-    public AdjointSource(
-      double dt, int kzs, int kxs, float[] s)
-    {
-      _ns = 1;
-      _nt = s.length;
-      _dt = dt;
-      _kzs = new int[1];
-      _kxs = new int[1];
-      _s = new float[1][];
-      _kzs[0] = _b+kzs;
-      _kxs[0] = _b+kxs;
-      _s[0] = s;
+  public static class AdjointSource extends Source {
+    //public AdjointSource(double dt, int kzs, int kxs, float[] s) {
+    //  this(dt,new int[]{kzs},new int[]{kxs},new float[][]{s});
+    //}
+    //public AdjointSource(double dt, int[] kzs, int[] kxs, float[][] s) {
+    //  Check.argument(kzs.length==kxs.length,"kzs.length=kxs.length");
+    //  _ns = kzs.length;
+    //  _nt = s[0].length;
+    //  _dt = dt;
+    //  _kzs = kzs;
+    //  _kxs = kxs;
+    //  _s = s;
+    //}
+    //public void add(float sign, double t, float[][] f) {
+    //  int it = (int)((t)/_dt);
+    //  for (int is=0; is<_ns; is++) {
+    //    int kzs = _b+_kzs[is];
+    //    int kxs = _b+_kxs[is];
+    //    if (it>=0 && it<_nt-1)
+    //      f[kxs][kzs] += sign*_s[is][_nt-1-it];
+    //  }
+    //}
+    //private double _dt;
+    //private int _ns,_nt;
+    //private int[] _kzs;
+    //private int[] _kxs;
+    //private float[][] _s;
+
+    public AdjointSource(double dt, int kzs, int kxs, float[] s) {
+      this(dt,new int[]{kzs},new int[]{kxs},new float[][]{s});
     }
-    public AdjointSource(
-      double dt, int[] kzs, int[] kxs, float[][] s)
-    {
-      Check.argument(kzs.length==kxs.length,"kzs.length=kxs.length");
-      _ns = kzs.length;
-      _nt = s[0].length;
-      _dt = dt;
-      _kzs = kzs;
-      _kxs = kxs;
-      _s = s;
+    public AdjointSource(double dt, int[] kzs, int[] kxs, float[][] s) {
+      _source = new DefaultSource(dt,kzs,kxs,reverse(s));
     }
-    public void add(double t, float[][] f) {
-      int it = (int)((t)/_dt);
-      for (int is=0; is<_ns; is++) {
-        int kzs = _b+_kzs[is];
-        int kxs = _b+_kxs[is];
-        if (it>=0 && it<_nt-1)
-          f[kxs][kzs] += _s[is][_nt-1-it];
-      }
+    public void add(float sign, double t, float[][] f) {
+      _source.add(sign,t,f);
     }
-    private double _dt;
-    private int _ns,_nt;
-    private int[] _kzs = null;
-    private int[] _kxs = null;
-    private float[][] _s = null;
+    private static float[][] reverse(float[][] x) {
+      int n1 = x[0].length;
+      int n2 = x.length;
+      float[][] y = new float[n2][n1];
+      for (int i2=0; i2<n2; ++i2)
+        for (int i1=0,j1=n1-1; i1<n1; ++i1,--j1)
+          y[i2][j1] = x[i2][i1];
+      return y;
+    }
+    private DefaultSource _source;
   }
 
   private void propagate() {
@@ -301,7 +311,8 @@ public class AcousticWavefield {
     public void compute(int ix) {
       stepSliceX(ix);
     }});
-    _source.add(_it*_dt,_up);
+    _source.add(_dt*_it,_up);
+    if (_it>=2) _source.sub(_dt*(_it-2),_um); // SEP trick?
     absorb();
     _um = _u[_it+1];
     _ui = _u[_it+2];
@@ -309,9 +320,9 @@ public class AcousticWavefield {
   }
 
   // 4th-order stencil coefficients for 2nd-order derivative
-  private static final float C0 = -2.5000000000000000f;
-  private static final float C1 =  1.3333333730697632f;
-  private static final float C2 = -0.0833333358168602f;
+  private static final float C0 = -2.5f;
+  private static final float C1 =  4.0f/3.0f;
+  private static final float C2 = -1.0f/12.0f;
 
   private void stepSliceX(int ix) {
 
@@ -393,6 +404,7 @@ public class AcousticWavefield {
     int nzmb = nz-b;
     //float w = 0.005f;
     float w = 0.0025f;
+    //float w = 0.0050f;
     //float w = 0.30f/b;
     float ws = w*w;
     float[] uix = u[ix];
