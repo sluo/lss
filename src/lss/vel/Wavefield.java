@@ -5,6 +5,7 @@ import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 // testing
+import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
 public class Wavefield {
@@ -98,7 +99,7 @@ public class Wavefield {
   private double _dx,_dz,_dt; // sampling intervals
   private float[][] _s0; // slowness
   private float[][] _s1; // perturbation slowness
-  private float[][] _r0; // dt^2/(6*dx^2*s0^2)
+  private float[][] _r0; // dt^2/(dx^2*s0^2)
   private float[][] _u0m,_u0i,_u0p; // u0(x;t-1), u0(x;t), u0(x;t+1)
   private float[][] _u1m,_u1i,_u1p; // u1(x;t-1), u1(x;t), u1(x;t+1)
 
@@ -107,7 +108,7 @@ public class Wavefield {
   {
     _source = source;
     _receiver = receiver;
-    float r = (float)(_dt*_dt/(6.0*_dx*_dx));
+    float r = (float)(_dt*_dt/(_dx*_dx));
     _s0 = extendModel(s0);
     _r0 = copy(_s0);
     mul(_r0,_r0,_r0);
@@ -337,21 +338,82 @@ public class Wavefield {
     private DefaultSource _source;
   }
 
+  // Coefficients for 21-point Laplacian
+  private static final float C1 =  0.0f;
+  private static final float C2 = -1.0f/30.0f;
+  private static final float C3 = -1.0f/60.0f;
+  private static final float C4 =  4.0f/15.0f;
+  private static final float C5 =  13.0f/15.0f;
+  private static final float C6 = -21.0f/5.0f;
+
+  // Coefficients for 5-point Laplacian
+  private static final float D1 =  1.0f/6.0f;
+  private static final float D2 =  2.0f/3.0f;
+  private static final float D3 = -10.0f/3.0f;
+
   private void step(
     final float[][] um, final float[][] ui, final float[][] up)
   {
+
     Parallel.loop(1,_nx-1,new Parallel.LoopInt() {
     public void compute(int ix) {
-      int ixm = ix-1;
-      int ixp = ix+1;
-      for (int iz=1; iz<_nz-1; ++iz) {
-        int izm = iz-1;
-        int izp = iz+1;
-        float r = _r0[ix][iz];
-        up[ix][iz] = (2.0f-r*20.0f)*ui[ix][iz]-um[ix][iz]+r*(
-          1.0f*(ui[ixm][izm]+ui[ixm][izp]+ui[ixp][izm]+ui[ixp][izp])+
-          4.0f*(ui[ixm][iz ]+ui[ix ][izm]+ui[ix ][izp]+ui[ixp][iz ])
-        );
+
+      // ix = 1 or ix = nx-2
+      if (ix==1 || ix==_nx-2) {
+        int ixm1 = ix-1;
+        int ixp1 = ix+1;
+        for (int iz=1; iz<_nz-1; ++iz) {
+          int izm1 = iz-1;
+          int izp1 = iz+1;
+          float r = _r0[ix][iz];
+          up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
+            D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
+            D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
+        }
+
+      // 1 < ix < nx-2
+      } else {
+        int ixm1 = ix-1;
+        int ixp1 = ix+1;
+        int ixm2 = ix-2;
+        int ixp2 = ix+2;
+
+        // iz = 1
+        {
+          int iz = 1;
+          int izm1 = iz-1;
+          int izp1 = iz+1;
+          float r = _r0[ix][iz];
+          up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
+            D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
+            D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
+        }
+        
+        // 1 < iz < nz-2
+        for (int iz=2; iz<_nz-2; ++iz) {
+          int izm1 = iz-1;
+          int izp1 = iz+1;
+          int izm2 = iz-2;
+          int izp2 = iz+2;
+          float r = _r0[ix][iz];
+          up[ix][iz] = (2.0f+C6*r)*ui[ix][iz]-um[ix][iz]+r*(
+            C5*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
+            C4*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
+            C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
+            C2*(ui[ixm2][izm1]+ui[ixm2][izp1]+ui[ixm1][izm2]+ui[ixm1][izp2]+
+                ui[ixp1][izm2]+ui[ixp1][izp2]+ui[ixp2][izm1]+ui[ixp2][izp1]));
+        }
+
+        // iz = nz-2
+        {
+          int iz = _nz-2;
+          int izm1 = iz-1;
+          int izp1 = iz+1;
+          float r = _r0[ix][iz];
+          up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
+            D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
+            D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
+        }
       }
     }});
   }
@@ -470,7 +532,7 @@ public class Wavefield {
     }
   }
 
-  private float[][] extendModel(float[][] c) {
+  private float[][] xextendModel(float[][] c) {
     int nz = c[0].length;
     int nx = c.length;
     int nxp = nx+2*_b;
@@ -506,14 +568,13 @@ public class Wavefield {
     }
     mul(w,w,w);
     float[][] t = copy(v);
-    new RecursiveExponentialFilter(_b).apply(t,t);
+    RecursiveExponentialFilter ref = new RecursiveExponentialFilter(_b);
+    ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE);
+    ref.apply(t,t);
     v = add(mul(w,v),mul(sub(1.0f,w),t));
-    //SimplePlot.asPixels(t);
-    //SimplePlot sp = SimplePlot.asPixels(v); sp.addColorBar();
-    //SimplePlot.asPixels(w);
     return v;
   }
-  private float[][] xextendModel(float[][] c) {
+  private float[][] extendModel(float[][] c) {
     int nz = c[0].length;
     int nx = c.length;
     float[][] v = new float[nx+2*_b][nz+2*_b];

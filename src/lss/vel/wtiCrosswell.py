@@ -4,98 +4,187 @@ Combined waveform and traveltime inversion
 from imports import *
 
 #############################################################################
-# Parameters
 
 sz = Sampling(701,0.004,0.0)
 sx = Sampling(401,0.004,0.0)
-#st = Sampling(1300,0.0005,0.0) # for gaussian
-st = Sampling(3000,0.0006,0.0) # for marmousi
+st = Sampling(1200,0.0006,0.0) # for gaussian
+#sz = Sampling(701,0.004,0.0)
+#sx = Sampling(401,0.004,0.0)
+#st = Sampling(1500,0.0005,0.0) # for gaussian
+##st = Sampling(3000,0.0006,0.0) # for marmousi
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 #kxs,kzs = [0],[0]
 #kxs,kzs = [0],[nz/2]
 #kxs,kzs = [0,0],[nz/3,2*nz/3]
 #kxs,kzs = fillint(0,15),rampint(0,50,15) 
-kxs,kzs = fillint(0,29),rampint(0,25,29) 
-#kxs,kzs = fillint(0,69),rampint(0,10,71) 
+#kxs,kzs = fillint(0,29),rampint(0,25,29) 
+kxs,kzs = fillint(0,71),rampint(0,10,71) 
 kxr,kzr = fillint(nx-1,nz),rampint(0,1,nz) 
 ns,nr = len(kxs),len(kxr)
-fpeak = 20.0 # Ricker wavelet peak frequency
+fpeak = 50.0 # Ricker wavelet peak frequency
+niter = 10
 
 pngDir = None
-#pngDir = '/Users/sluo/Desktop/png/'
-#############################################################################
+datDir = None
+pngDir = os.getenv('HOME')+'/Desktop/png/'
+datDir = os.getenv('HOME')+'/Desktop/dat/'
 
-parallel = False
 def main(args):
   setModel()
   #showWeights()
+  #showData()
   goWaveform()
   #goTraveltime()
-  #goCombinedA()
-  #goCombinedB()
+  #goCombined()
+  #goCombinedX()
 
 def setModel():
-  global v,c
-  v,c = getMarmousi(),fillfloat(2.8,nz,nx)
-  #v,c = getGaussian(0.02,0.02),fillfloat(4.0,nz,nx)
-  #v,c = getGaussian(0.20,0.20),fillfloat(4.0,nz,nx)
-  #v,c = getGaussian(0.20,0.02),fillfloat(4.0,nz,nx)
-  div(1.0,v,v)
-  div(1.0,c,c)
-  plot(v,cmap=jet,title='true')
-  plot(c,cmap=jet,cmin=min(v),cmax=max(v),title='initial')
+  global _t,_s
+  _t,_s = getGaussian(0.02,0.02),fillfloat(0.25,nz,nx)
+  #_t,_s = getGaussian(0.20,0.20),fillfloat(0.25,nz,nx)
+  #_t,_s = getGaussian(0.20,0.02),fillfloat(0.25,nz,nx)
+  #_t,_s = getMarmousi(),fillfloat(0.35,nz,nx)
+  plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
+  plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+       title='s_init')
 
-class Modeler():
-  def __init__(self,jzs,jxs,v,c,wave=None):
-    self.jzs = jzs
-    self.jxs = jxs
-    self.wave = Wavefield(sz,sx,st) if wave==None else wave
-  def modelDataAndSourceWavefield(self):
-    do,ds,u = zerofloat(nt,nr),zerofloat(nt,nr),zerofloat(nz,nx,nt)
-    source = Wavefield.RickerSource(fpeak,self.jzs,self.jxs)
+#############################################################################
+# Data
+
+def modelData(s):
+  d = zerofloat(nt,nr,ns)
+  sw = Stopwatch(); sw.restart()
+  Parallel.loop(ns,DataP(s,d))
+  sw.stop(); print 'data:',sw.time(),'s'
+  return d
+
+class DataP(Parallel.LoopInt):
+  def __init__(self,s,d):
+    self.s = s # slowness
+    self.d = d # output array
+  def compute(self,isou):
+    wave = Wavefield(sz,sx,st)
+    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
     receiver = Wavefield.Receiver(kzr,kxr)
-    self.wave.modelAcousticData(source,receiver,v,do) # observed data
-    self.wave.modelAcousticDataAndWavefield(source,receiver,c,ds,u)
-    return do,ds,u
-  def modelReceiverWavefield(self,r):
-    a = zerofloat(nz,nx,nt)
-    source = Wavefield.AdjointSource(dt,kzr,kxr,r)
-    self.wave.modelAcousticWavefield(source,c,a)
-    return a
+    wave.modelAcousticData(source,receiver,self.s,self.d[isou])
+
+def showData():
+  do = zerofloat(nt,nr,ns) # observed data
+  ds = zerofloat(nt,nr,ns) # simulated data
+  sw = Stopwatch(); sw.restart()
+  Parallel.loop(ns,DataP(_t,do))
+  Parallel.loop(ns,DataP(_s,ds))
+  sw.stop(); print 'data:',sw.time(),'s'
+  do = do[ns/2]
+  ds = ds[ns/2]
+
+  """
+  dw,s = warp(ds,do) # order matters!
+  rt = mul(s,timeDerivative(ds)) # traveltime residual
+  rw = sub(ds,dw) # warped residual
+  """
+  dw,v = warp(do,ds) # wrong order
+  w,m = makeWeights(v) # weighting function
+  ra = sub(ds,do) # amplitude residual
+  rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
+  rw = sub(dw,do) # warped residual
+  rc = add(rt,rw) # combined residual (traveltime+warped)
+
+  vmax = 0.9*max(abs(v))
+  rmin,rmax = 0.8*min(rc),0.8*max(rc)
+  dmin,dmax = 0.8*min(do),0.8*max(do)
+  plot(do,cmin=dmin,cmax=dmax,title='observed')
+  plot(ds,cmin=dmin,cmax=dmax,title='simulated')
+  plot(dw,cmin=dmin,cmax=dmax,title='warped')
+  plot(v,cmap=rwb,cmin=-vmax,cmax=vmax,title='shifts')
+  plot(w,cmap=jet,cmin=0.0,cmax=1.0,title='weights')
+  plot(ra,cmin=rmin,cmax=rmax,title='amplitude_residual')
+  plot(rw,cmin=rmin,cmax=rmax,title='warped_residual')
+  plot(rt,cmin=rmin,cmax=rmax,title='traveltime_residual')
+  plot(rc,cmin=rmin,cmax=rmax,title='traveltime_plus_warped_residual')
+
+#############################################################################
+# Line Search
+
+def findStepLength(g,isou,do,da=None):
+  print 'searching for step length...'
+  #a = -1.0
+  a = -2.0*max(abs(sub(_t,_s)))
+  b =  0.0
+  tol = 0.20*(b-a)
+  sw = Stopwatch(); sw.restart()
+  step = BrentMinFinder(WaveformMisfitFunction(g,isou,do,da)).findMin(a,b,tol)
+  sw.stop()
+  print 'a =',a
+  #print 'b =',b
+  print 'step =',step
+  print 'line search:',sw.time(),'s'
+  return step
+
+class WaveformMisfitFunction(BrentMinFinder.Function):
+  def __init__(self,g,isou,do,da=None):
+    self.g = g
+    self.isou = isou
+    self.do = do[isou]
+    self.da = None if da is None else da[isou]
+    self.wave = Wavefield(sz,sx,st)
+  def evaluate(self,a):
+    print '  evaluating'
+    s = add(_s,mul(a,self.g))
+    ds = zerofloat(nt,nr)
+    source = Wavefield.RickerSource(fpeak,kzs[self.isou],kxs[self.isou])
+    receiver = Wavefield.Receiver(kzr,kxr)
+    self.wave.modelAcousticData(source,receiver,s,ds) # simulated data
+    if self.da is not None:
+      sub(ds,self.da,ds) # subtract direct arrival
+    dif = sub(ds,self.do)
+    return sum(mul(dif,dif))
 
 #############################################################################
 # Waveform
 
 def goWaveform():
-  if parallel:
-    g = Parallel.reduce(ns,WaveformParallel())
-  else:
-    g = zerofloat(nz,nx)
-    for isou in range(ns):
-      print "isou =",isou
-      add(computeWaveformGradient(isou),g,g)
+  d = modelData(_t) # observed data
+  for iter in range(niter):
+    print '\niteration',iter
+    sw = Stopwatch(); sw.restart()
+    g = waveformGradientS(d)
+    sw.stop(); print 'gradient:',sw.time(),'s'
+    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
+    if niter>1:
+      step = findStepLength(g,ns/2,d)
+      add(mul(step,g),_s,_s)
+      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+           title='s_iter'+str(iter))
+
+def waveformGradientS(d):
+  g = zerofloat(nz,nx)
+  p = zerofloat(nz,nx) # preconditioner
+  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
+  for isou in range(ns):
+    print 'isou =',isou
+    num,den = waveformGradient(isou,d[isou],ds,u,a)
+    add(num,g,g)
+    add(den,p,p)
+  div(g,p,g)
+  smoothSourceLocations(g)
   div(g,max(abs(g)),g)
-  plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='gradient (all shots)')
-
-def computeWaveformGradient(isou=0):
-  modeler = Modeler(kzs[isou],kxs[isou],v,c)
-  do,ds,u = modeler.modelDataAndSourceWavefield()
-  #r = sub(ds,do) # residual
-  r = do
-  a = modeler.modelReceiverWavefield(r) # receiver wavefield
-  g = makeGradient(isou,u,a) # gradient
-  #plot(do,perc=99.5,title='observed')
-  #plot(ds,perc=99.5,title='simulated')
-  #plot(r,perc=99.5,title='residual')
   return g
-  #return zerofloat(nz,nx)
 
-class WaveformParallel(Parallel.ReduceInt):
-  def compute(self,isou):
-    return computeWaveformGradient(isou)
-  def combine(self,v1,v2):
-    return add(v1,v2)
+def smoothSourceLocations(g):
+  for ix in range(20):
+    RecursiveExponentialFilter(20-ix).apply(g[ix],g[ix])
+
+def waveformGradient(isou,do,ds,u,a):
+  wave = Wavefield(sz,sx,st)
+  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+  receiver = Wavefield.Receiver(kzr,kxr)
+  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
+  r = sub(ds,do) # residual
+  source = Wavefield.AdjointSource(dt,kzr,kxr,r)
+  wave.modelAcousticWavefield(source,_s,a)
+  return makeGradient(u,a)
 
 #############################################################################
 # Traveltime
@@ -119,7 +208,7 @@ def computeTraveltimeGradient(isou=0):
   mul(s,r,r)
 
   a = modeler.modelReceiverWavefield(r) # receiver wavefield
-  g = makeGradient(isou,u,a) # gradient
+  g = makeGradient(u,a,isou) # gradient
   #plot(do,perc=99.5,title='observed')
   #plot(ds,perc=99.5,title='simulated')
   #plot(dw,perc=99.5,title='warped')
@@ -129,121 +218,111 @@ def computeTraveltimeGradient(isou=0):
   #return zerofloat(nz,nx)
 
 #############################################################################
-# Combined (Version A)
+# Combined
 
-def goCombinedA():
+def goCombined():
+  do = modelData(_t) # observed data
+  for iter in range(niter):
+    print '\niteration',iter
+    sw = Stopwatch(); sw.restart()
+    g = combinedGradientS(do)
+    sw.stop(); print 'gradient:',sw.time(),'s'
+    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
+    if niter>1:
+      step = findStepLength(g,ns/2,do)
+      add(mul(step,g),_s,_s)
+      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+           title='s_iter'+str(iter))
+
+def combinedGradientS(do):
   g = zerofloat(nz,nx)
+  p = zerofloat(nz,nx) # preconditioner
+  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
   for isou in range(ns):
-    print "isou =",isou
-    add(computeCombinedAGradient(isou),g,g)
+    print 'isou =',isou
+    num,den = combinedGradient(isou,do[isou],ds,u,a)
+    add(num,g,g)
+    add(den,p,p)
+  div(g,p,g)
   div(g,max(abs(g)),g)
-  plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='gradient (all shots)')
+  return g
 
-def computeCombinedAGradient(isou=0):
-  modeler = Modeler(kzs[isou],kxs[isou],v,c)
-  do,ds,u = modeler.modelDataAndSourceWavefield()
+def combinedGradient(isou,do,ds,u,a):
+  wave = Wavefield(sz,sx,st)
+  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+  receiver = Wavefield.Receiver(kzr,kxr)
+  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
 
   # Residual
-  p = sub(ds,do) # amplitude residual
-  dw,s = warp(ds,do) # order matters!
-  #q = mul(s,timeDerivative(dw))
-  q = mul(s,timeDerivative(ds)) # traveltime residual
-  #plot(p,perc=99.5,title='amplitude residual')
-  #plot(q,perc=99.5,title='traveltime residual')
-  r,w = like(p),like(p)
+  dw,s = warp(do,ds) # wrong order
+  rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
+  rw = sub(dw,do) # warped residual
+  rc = add(rt,rw) # combined
+
+  source = Wavefield.AdjointSource(dt,kzr,kxr,rc)
+  wave.modelAcousticWavefield(source,_s,a)
+  return makeGradient(u,a)
+
+#############################################################################
+# Combined (using weighting function)
+
+def goCombinedX():
+  do = modelData(_t) # observed data
+  for iter in range(niter):
+    print '\niteration',iter
+    sw = Stopwatch(); sw.restart()
+    g = combinedGradientXS(do)
+    sw.stop(); print 'gradient:',sw.time(),'s'
+    if niter>1:
+      step = findStepLength(g,ns/2,do)
+      add(mul(step,g),_s,_s)
+      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+           title='s_iter'+str(iter))
+
+def combinedGradientXS(do):
+  g = zerofloat(nz,nx)
+  p = zerofloat(nz,nx) # preconditioner
+  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
+  for isou in range(ns):
+    print 'isou =',isou
+    num,den = combinedGradientX(isou,do[isou],ds,u,a)
+    add(num,g,g)
+    add(den,p,p)
+  div(g,p,g)
+  div(g,max(abs(g)),g)
+  return g
+
+def combinedGradientX(isou,do,ds,u,a):
+  wave = Wavefield(sz,sx,st)
+  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+  receiver = Wavefield.Receiver(kzr,kxr)
+  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
+
+  # Residual
+  dw,v = warp(do,ds) # wrong order
+  w,m = makeWeights(v)
+  ra = sub(ds,do) # amplitude residual
+  rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
+  rc = add(mul(w,ra),mul(m,rt)) # combined residual
+
+  source = Wavefield.AdjointSource(dt,kzr,kxr,rc)
+  wave.modelAcousticWavefield(source,_s,a)
+  return makeGradient(u,a)
+
+def makeWeights(v):
+  w = zerofloat(nt,nr)
+  m = zerofloat(nt,nr)
   for ir in range(nr):
     for it in range(nt):
-      t = s[ir][it]*dt
+      t = v[ir][it]*dt
       wi = rcos(t)
       w[ir][it] = wi
-      r[ir][it] = wi*p[ir][it]+(1.0-wi)*q[ir][it]
-
-  a = modeler.modelReceiverWavefield(r) # receiver wavefield
-  g = makeGradient(isou,u,a) # gradient
-  #plot(do,perc=99.5,title='observed')
-  #plot(ds,perc=99.5,title='simulated')
-  #plot(dw,perc=99.5,title='warped')
-  #plot(r,perc=99.5,title='residual')
-  #plot(s,cmap=jet,title='shifts')
-  #plot(w,cmap=jet,title='weights')
-  return g
-
-
-#############################################################################
-# Combined (Version B)
-
-def goCombinedB():
-  do,ds,u = modelDataAndSourceWavefield() # data and source wavefield
-
-  # Residual
-  dw,s = warp(ds,do) # order matters!
-  #z = timeDerivative(dw)
-  z = timeDerivative(ds) # XXX using ds instead of warped do
-  y = sub(ds,dw)
-  plot(z,perc=99.5,title='traveltime residual')
-  plot(y,perc=99.5,title='amplitude residual (after shifting)')
-
-#############################################################################
-
-def warp(p,q):
-  d = 3 # decimate by this factor
-  a = addRandomNoise(1.0e2,p,sigma=2.0)
-  b = addRandomNoise(1.0e2,q,sigma=2.0)
-  f = copy(nt/d,nr/d,0,0,d,d,a)
-  g = copy(nt/d,nr/d,0,0,d,d,b)
-  #shiftMax = int(128/d)
-  shiftMax = int(500/d)
-  strainMax1 = 1.0
-  strainMax2 = 1.0
-  dw = DynamicWarping(-shiftMax,shiftMax)
-  dw.setStrainMax(strainMax1,strainMax2)
-  dw.setShiftSmoothing(8.0/d,8.0/d) # shift smoothing
-  dw.setErrorSmoothing(2) # number of smoothings of alignment errors
-  sw = Stopwatch(); sw.restart()
-  s = dw.findShifts(f,g)
-  sw.stop(); print "warping shifts in",sw.time(),"s"
-  mul(d,s,s) # scale shifts to compensate for decimation
-  li = LinearInterpolator()
-  li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
-  li.setUniform(nt/d,d*dt,0.0,nr/d,d*dz,0.0,s)
-  r = like(p)
-  for ir in range(nr):
-    z = ir*dz
-    for it in range(nt):
-      t = it*dt
-      r[ir][it] = li.interpolate(t,z)
-  h = dw.applyShifts(r,q)
-  #plot(s,cmap=jet,title='shifts')
-  #plot(r,cmap=jet,title='shifts (interpolated)')
-  #plot(f,perc=99.5,title='f')
-  #plot(g,perc=99.5,title='g')
-  #plot(h,perc=99.5,title='h')
-  return h,r
-
-def timeDerivative(f):
-  """Derivative in time, assumed to be the 1st dimension."""
-  n = len(f)
-  #odt = 0.5/dt
-  odt = 0.5
-  g = like(f)
-  for i in range(n):
-    for it in range(1,nt-1):
-      g[i][it] = odt*(f[i][it+1]-f[i][it-1])
-  return g
-
-def addRandomNoise(r,x,sigma=1.0):
-  n1,n2 = len(x[0]),len(x)
-  xrms = sqrt(sum(mul(x,x))/n1/n2) # rms of signal
-  s = sub(randfloat(Random(3),n1,n2),0.5)
-  #s = sub(randfloat(n1,n2),0.5)
-  #sigma = 1.0
-  RecursiveGaussianFilter(sigma).apply00(s,s); # bandlimited noise
-  srms = sqrt(sum(mul(s,s))/n1/n2) # rms of noise
-  return add(mul(xrms/(srms*r),s),x); # r = rms-signal / rms-noise
+      m[ir][it] = 1.0-wi
+  return w,m
 
 def rcos(t):
   """Amplitude response of a (modified) raised-cosine
-     filter, used as a weight function."""
+     filter, used as a weighting function."""
   oott = 300.0*dt/fpeak # 1/2T is the center of the transition zone
   beta = 0.25 # 0<beta<1 (beta=0 gives boxcar, beta=0 gives cosine)
   t = abs(t)
@@ -265,95 +344,119 @@ def showWeights():
   SimplePlot.asPoints(r)
 
 #############################################################################
+# Warping
 
-def modelDataAndSourceWavefield(jzs,jxs):
-  aw = AcousticWavefield(sz,sx,st)
+def warp(p,q):
+  td = 1 # time decimation
+  rd = 1 # receiver decimation
+  a,b = addRandomNoise(2.0,p,q,sigma=1.0)
+  f = copy(nt/td,nr/rd,0,0,td,rd,a)
+  g = copy(nt/td,nr/rd,0,0,td,rd,b)
+  shiftMax = int(400/td)
+  strainMax1 = 1.00
+  strainMax2 = 1.00
+  dw = DynamicWarping(-shiftMax,shiftMax)
+  #dw.setErrorExponent(2.0)
+  dw.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE)
+  dw.setStrainMax(strainMax1,strainMax2)
+  dw.setShiftSmoothing(32.0/td,8.0/rd) # shift smoothing
+  dw.setErrorSmoothing(2) # number of smoothings of alignment errors
+  sw = Stopwatch(); sw.restart()
+  s = dw.findShifts(f,g)
+  sw.stop(); print "warping:",sw.time(),"s"
+  mul(td,s,s) # scale shifts to compensate for decimation
+  li = LinearInterpolator()
+  li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
+  li.setUniform(nt/td,td*dt,0.0,nr/rd,rd*dx,0.0,s)
+  r = like(p)
+  for ir in range(nr):
+    z = ir*dz
+    for it in range(nt):
+      t = it*dt
+      r[ir][it] = li.interpolate(t,z) # interpolate shifts
+  h = dw.applyShifts(r,q)
+  #plot(s,cmap=jet,title='shifts')
+  #plot(r,cmap=jet,title='shifts (interpolated)')
+  #plot(f,perc=99.5,title='f')
+  #plot(g,perc=99.5,title='g')
+  #plot(a,perc=99.5,title='a')
+  #plot(b,perc=99.5,title='b')
+  #plot(h,perc=99.5,title='h')
+  return h,r
 
-  # Observed data
-  source = AcousticWavefield.RickerSource(fpeak,jzs,jxs)
-  aw.forwardPropagate(source,v)
-  do = aw.getWavefield(kzr,kxr)
-
-  # Simulated data
-  aw.forwardPropagate(source,c)
-  ds = aw.getWavefield(kzr,kxr)
-  u = aw.getWavefield()
-
-  return do,ds,u
-
-def modelReceiverWavefield(r):
-  source = AcousticWavefield.AdjointSource(dt,kzr,kxr,r)
-  aw.backPropagate(source,c)
-  return aw.getWavefield()
-
-def makeGradient(isou,u,a):
-  g = correlate(u,a)
-  """
-  """
-  m = zerofloat(nz,nx)
-  m[kxs[isou]][kzs[isou]] = 1.0
-  RecursiveGaussianFilter(0.1/dx).apply00(m,m)
-  div(m,max(m),m)
-  sub(1.0,m,m)
-  mul(m,g,g)
-  #plot(m,jet)
+def timeDerivative(f):
+  """Derivative in time, assumed to be the 1st dimension."""
+  n = len(f)
+  #odt = 0.5/dt
+  odt = 0.5
+  g = like(f)
+  for i in range(n):
+    for it in range(1,nt-1):
+      g[i][it] = odt*(f[i][it+1]-f[i][it-1])
   return g
 
-def correlate(u,a):
+def addRandomNoise(snr,f,g,sigma=1.0):
+  n1,n2 = len(f[0]),len(f)
+  frms = sqrt(sum(mul(f,f))/n1/n2)
+  grms = sqrt(sum(mul(g,g))/n1/n2)
+  xrms = 0.5*(frms+grms)  # (average) rms of signal
+  s = sub(randfloat(n1,n2),0.5)
+  RecursiveGaussianFilter(sigma).apply00(s,s) # bandlimited noise
+  srms = sqrt(sum(mul(s,s))/n1/n2) # rms of noise
+  mul(xrms/(srms*snr),s,s)
+  return add(f,s),add(g,s)
+
+#############################################################################
+
+def makeGradient(u,a,d2=True):
+  g = correlate(u,a,d2) # gradient
+  #p = correlate(u,u) # illumination preconditioner
+  p = fillfloat(1.0,nz,nx)
+  return g,p
+
+def correlate(u,a,d2=False):
   """Zero-lag correlation."""
-  g = zerofloat(nz,nx)
-  for it in range(1,nt-1):
-    #t = add(add(u[it-1],u[it+1]),mul(-2.0,u[it])) # 2nd time derivative
-    #add(mul(a[it],t),g,g)
-    add(mul(a[it],u[it]),g,g)
-  return g
+  class ReduceInt(Parallel.ReduceInt):
+    def compute(self,it):
+      if d2:
+        t = add(add(u[it-1],u[it+1]),mul(-2.0,u[it])) # 2nd time derivative
+        return mul(-1.0,mul(a[it],t))
+      else:
+        return mul(a[it],u[it])
+    def combine(self,g1,g2):
+      return add(g1,g2)
+  return Parallel.reduce(1,nt-1,ReduceInt())
 
+import socket
 def getMarmousi():
-  v = zerofloat(751,2301)
-  read("/data/seis/marmousi/marmousi.dat",v);
-  #c = copy(701,401,50,1550,v)
-  #c = copy(701,401,50,200,v)
-  c = copy(701,401,50,1200,v)
-  #RecursiveExponentialFilter(24.0).apply(c,c)
-  #RecursiveExponentialFilter(24.0).apply(c,c)
-  #plot(v,cmap=jet)
-  #plot(c,cmap=jet)
-  mul(0.001,c,c)
-  return c
+  p = zerofloat(751,2301)
+  if socket.gethostname()=='backus.Mines.EDU':
+    read("/data/sluo/marmousi/marmousi.dat",p)
+  else:
+    read("/data/seis/marmousi/marmousi.dat",p)
+  div(1000.0,p,p) # slowness
+  #s = copy(701,401,50,1550,p)
+  #s = copy(701,401,50,200,p)
+  s = copy(701,401,50,1200,p)
+  return s
 
 def getGaussian(pupper=0.05,plower=0.05):
   """ pupper - percent slowness perturbation of upper anomaly """
   """ plower - percent slowness perturbation of lower anomaly """
-  v = fillfloat(4.0,701,401);
-  div(1.0,v,v); s0 = v[0][0]
+  s = fillfloat(4.0,701,401);
+  div(1.0,s,s); s0 = s[0][0]
   t = zerofloat(701,401)
   t[200][175] = -1.0
   t[200][525] = plower/pupper
-  RecursiveGaussianFilter(60.0).apply00(t,t)
+  #RecursiveGaussianFilter(60.0).apply00(t,t)
+  RecursiveGaussianFilter(0.20/dx).apply00(t,t)
   div(t,max(abs(t)),t)
   mul(t,pupper*s0,t)
-  add(t,v,v)
-  div(1.0,v,v)
-  return v
+  add(t,s,s)
+  return s
 
 def like(x):
   return zerofloat(len(x[0]),len(x))
-
-def read(name,image=None):
-  if not image:
-    image = zerofloat(n1,n2,n3)
-  #fileName = dataDir+name+".dat"
-  fileName = name
-  ais = ArrayInputStream(fileName)
-  ais.readFloats(image)
-  ais.close()
-  return image
-
-def write(name,image):
-  fileName = dataDir+name+'.dat'
-  aos = ArrayOutputStream(fileName)
-  aos.writeFloats(image)
-  aos.close()
 
 #############################################################################
 
@@ -365,10 +468,17 @@ def plot(x,cmap=gray,cmin=0,cmax=0,perc=100,cbar=None,title=None):
   cb = panel.addColorBar()
   if cbar:
     cb.setLabel(cbar)
-    cb.setWidthMinimum(120)
+  cb.setWidthMinimum(160)
+  if len(x[0])==nz and len(x)==nx:
+    pixel = panel.addPixels(sz,sx,x)
+    panel.setHLabel('Offset (km)')
+    panel.setVLabel('Depth (km)')
+  elif len(x[0])==nt and len(x)==nr:
+    pixel = panel.addPixels(st,Sampling(len(x)),x)
+    panel.setHLabel('Receiver')
+    panel.setVLabel('Time (s)')
   else:
-    cb.setWidthMinimum(80)
-  pixel = panel.addPixels(x)
+    pixel = panel.addPixels(x)
   pixel.setColorModel(cmap)
   if cmin<cmax:
     pixel.setClips(cmin,cmax)
@@ -376,33 +486,39 @@ def plot(x,cmap=gray,cmin=0,cmax=0,perc=100,cbar=None,title=None):
     pixel.setPercentiles(100-perc,perc)
   pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
   frame = PlotFrame(panel)
-  if (len(x[0])>nz):
-    frame.setSize(800,1000)
+  frame.setFontSizeForSlide(1.5,1.5)
+  if (len(x[0])==nz):
+    frame.setSize(850,1000)
   else:
-    frame.setSize(600,800)
+    frame.setSize(1000,1000)
   if title:
     frame.setTitle(title)
   frame.setVisible(True)
   if title and pngDir:
     frame.paintToPng(360,3.0,pngDir+title+'.png')
+  if title and datDir:
+    write(datDir+title+'.dat',x)
 
-def xplot(x,cmap=gray,perc=100,cmin=0,cmax=0,title=None):
-  pp = PlotPanel
-  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  if (len(x[0])==nt):
-    sp.setSize(800,1000)
-  else:
-    sp.setSize(600,800)
-  sp.addColorBar()
-  if title:
-    sp.addTitle(title)
-  pv = sp.addPixels(x)
-  pv.setColorModel(cmap)
-  #pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-  if perc<100:
-    pv.setPercentiles(100-perc,perc)
-  if cmin<cmax:
-    pv.setClips(cmin,cmax)
+def read(name,image=None):
+  if not image:
+    image = zerofloat(n1,n2,n3)
+  #fileName = dataDir+name+".dat"
+  fileName = name
+  ais = ArrayInputStream(fileName)
+  ais.readFloats(image)
+  ais.close()
+  return image
+
+def write(fname,image):
+  #fname = datDir+name+'.dat'
+  aos = ArrayOutputStream(fname)
+  aos.writeFloats(image)
+  aos.close()
+
+def cleanDir(dir):
+  os.chdir(dir)
+  for f in os.listdir(dir):
+    os.remove(f)
 
 #############################################################################
 # Do everything on Swing thread.
@@ -410,6 +526,10 @@ import sys,time
 class RunMain(Runnable):
   def run(self):
     start = time.time()
+    if pngDir is not None:
+      cleanDir(pngDir)
+    if datDir is not None:
+      cleanDir(datDir)
     main(sys.argv)
     s = time.time()-start
     h = int(s/3600); s -= h*3600
