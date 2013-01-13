@@ -7,44 +7,66 @@ from imports import *
 
 sz = Sampling(701,0.004,0.0)
 sx = Sampling(401,0.004,0.0)
-st = Sampling(1200,0.0006,0.0) # for gaussian
-#sz = Sampling(701,0.004,0.0)
-#sx = Sampling(401,0.004,0.0)
-#st = Sampling(1500,0.0005,0.0) # for gaussian
+st = Sampling(1750,0.0005,0.0) # for gaussian
 ##st = Sampling(3000,0.0006,0.0) # for marmousi
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 #kxs,kzs = [0],[0]
-#kxs,kzs = [0],[nz/2]
+kxs,kzs = [0],[nz/2]
 #kxs,kzs = [0,0],[nz/3,2*nz/3]
 #kxs,kzs = fillint(0,15),rampint(0,50,15) 
 #kxs,kzs = fillint(0,29),rampint(0,25,29) 
-kxs,kzs = fillint(0,71),rampint(0,10,71) 
+#kxs,kzs = fillint(0,71),rampint(0,10,71) 
 kxr,kzr = fillint(nx-1,nz),rampint(0,1,nz) 
 ns,nr = len(kxs),len(kxr)
 fpeak = 50.0 # Ricker wavelet peak frequency
-niter = 10
+niter = 5
 
 pngDir = None
 datDir = None
 pngDir = os.getenv('HOME')+'/Desktop/png/'
 datDir = os.getenv('HOME')+'/Desktop/dat/'
 
+sfile = None
+#sfile = '/Users/sluo/Desktop/s_iter4.dat'
+
 def main(args):
-  setModel()
+  setModel(sfile)
   #showWeights()
-  #showData()
-  goWaveform()
+  showData()
+  #goWaveform()
   #goTraveltime()
   #goCombined()
   #goCombinedX()
+  #test()
 
-def setModel():
+def test():
+  s = read('/Users/sluo/Desktop/dat/s_iter0.dat')
+  smoothSourceLocations(s)
+  s = _t
+  d = modelData(s)
+  #plot(s,cmap=jet,cmin=min(_t),cmax=max(_t))
+  plot(s,cmap=jet)
+  checkForNaN(d[ns/2])
+  plot(d[ns/2])
+
+def checkForNaN(x):
+  n1,n2 = len(x[0]),len(x)
+  class Loop(Parallel.LoopInt):
+    def compute(self,i2):
+      for i1 in range(n1):
+        if Float.isNaN(x[i2][i1]):
+          sys.exit('found NaN')
+  Parallel.loop(n2,Loop())
+      
+def setModel(ffile=None):
   global _t,_s
-  _t,_s = getGaussian(0.02,0.02),fillfloat(0.25,nz,nx)
-  #_t,_s = getGaussian(0.20,0.20),fillfloat(0.25,nz,nx)
+  #_t,_s = getGaussian(0.02,0.02),fillfloat(0.25,nz,nx)
+  _t,_s = getGaussian(0.20,0.20),fillfloat(0.25,nz,nx)
   #_t,_s = getGaussian(0.20,0.02),fillfloat(0.25,nz,nx)
   #_t,_s = getMarmousi(),fillfloat(0.35,nz,nx)
+  if ffile is not None:
+    _s = read(ffile)
   plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
   plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
        title='s_init')
@@ -78,18 +100,21 @@ def showData():
   sw.stop(); print 'data:',sw.time(),'s'
   do = do[ns/2]
   ds = ds[ns/2]
+  ra = sub(ds,do) # amplitude residual
 
-  """
-  dw,s = warp(ds,do) # order matters!
-  rt = mul(s,timeDerivative(ds)) # traveltime residual
+  dw,v = warp(ds,do) # right order
+  w,m = makeWeights(v) # weighting function
+  rt = mul(v,timeDerivative(ds)) # traveltime residual
   rw = sub(ds,dw) # warped residual
   """
   dw,v = warp(do,ds) # wrong order
   w,m = makeWeights(v) # weighting function
-  ra = sub(ds,do) # amplitude residual
   rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
   rw = sub(dw,do) # warped residual
+  """
+
   rc = add(rt,rw) # combined residual (traveltime+warped)
+  rd = add(mul(w,ra),mul(m,rt)) # combined residual (traveltime+amplitude)
 
   vmax = 0.9*max(abs(v))
   rmin,rmax = 0.8*min(rc),0.8*max(rc)
@@ -103,21 +128,19 @@ def showData():
   plot(rw,cmin=rmin,cmax=rmax,title='warped_residual')
   plot(rt,cmin=rmin,cmax=rmax,title='traveltime_residual')
   plot(rc,cmin=rmin,cmax=rmax,title='traveltime_plus_warped_residual')
+  plot(rd,cmin=rmin,cmax=rmax,title='weighted_traveltime_plus_amplitude')
 
 #############################################################################
 # Line Search
 
 def findStepLength(g,isou,do,da=None):
   print 'searching for step length...'
-  #a = -1.0
-  a = -2.0*max(abs(sub(_t,_s)))
-  b =  0.0
-  tol = 0.20*(b-a)
+  a = -max(abs(sub(_t,_s)))
+  tol = 0.20*(-a)
   sw = Stopwatch(); sw.restart()
-  step = BrentMinFinder(WaveformMisfitFunction(g,isou,do,da)).findMin(a,b,tol)
+  step = BrentMinFinder(WaveformMisfitFunction(g,isou,do,da)).findMin(a,0,tol)
   sw.stop()
   print 'a =',a
-  #print 'b =',b
   print 'step =',step
   print 'line search:',sw.time(),'s'
   return step
@@ -181,6 +204,7 @@ def waveformGradient(isou,do,ds,u,a):
   source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
   receiver = Wavefield.Receiver(kzr,kxr)
   wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
+  checkForNaN(ds)
   r = sub(ds,do) # residual
   source = Wavefield.AdjointSource(dt,kzr,kxr,r)
   wave.modelAcousticWavefield(source,_s,a)
@@ -194,6 +218,7 @@ def goTraveltime():
   for isou in range(ns):
     print "isou =",isou
     add(computeTraveltimeGradient(isou),g,g)
+  smoothSourceLocations(g)
   div(g,max(abs(g)),g)
   plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='gradient (all shots)')
 
@@ -244,6 +269,7 @@ def combinedGradientS(do):
     add(num,g,g)
     add(den,p,p)
   div(g,p,g)
+  smoothSourceLocations(g)
   div(g,max(abs(g)),g)
   return g
 
@@ -252,6 +278,7 @@ def combinedGradient(isou,do,ds,u,a):
   source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
   receiver = Wavefield.Receiver(kzr,kxr)
   wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
+  checkForNaN(ds)
 
   # Residual
   dw,s = warp(do,ds) # wrong order
@@ -348,11 +375,12 @@ def showWeights():
 
 def warp(p,q):
   td = 1 # time decimation
-  rd = 1 # receiver decimation
+  rd = 2 # receiver decimation
   a,b = addRandomNoise(2.0,p,q,sigma=1.0)
   f = copy(nt/td,nr/rd,0,0,td,rd,a)
   g = copy(nt/td,nr/rd,0,0,td,rd,b)
-  shiftMax = int(400/td)
+  #shiftMax = int(400/td)
+  shiftMax = int(200/td)
   strainMax1 = 1.00
   strainMax2 = 1.00
   dw = DynamicWarping(-shiftMax,shiftMax)
@@ -501,7 +529,7 @@ def plot(x,cmap=gray,cmin=0,cmax=0,perc=100,cbar=None,title=None):
 
 def read(name,image=None):
   if not image:
-    image = zerofloat(n1,n2,n3)
+    image = zerofloat(nz,nx)
   #fileName = dataDir+name+".dat"
   fileName = name
   ais = ArrayInputStream(fileName)

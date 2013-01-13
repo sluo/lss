@@ -116,6 +116,8 @@ public class Wavefield {
     if (s1!=null) {
       _s1 = extendModel(s1);
     }
+    //SimplePlot.asPixels(s0);
+    //SimplePlot.asPixels(s1);
   }
 
   private void modelAcoustic(float[][] d, float[][][] u0) {
@@ -167,9 +169,9 @@ public class Wavefield {
   }
 
   private void modelBorn(float[][] d, float[][][] u0, float[][][] u1) {
-    int nz = _nz-2*_b;
-    int nx = _nx-2*_b;
-    int nt = _nt;
+    final int nz = _nz-2*_b;
+    final int nx = _nx-2*_b;
+    final int nt = _nt;
 
     zero(_u0m);
     zero(_u0i);
@@ -185,13 +187,24 @@ public class Wavefield {
 
       // Source injection for u0
       _source.add(_dt*it,_u0p);
-      _source.sub(_dt*(it-2),_u0m); // SEP trick?
+      if (it>=2) {
+        _source.sub(_dt*(it-2),_u0m); // SEP trick?
+      }  
 
       // Virtual source injection for u1
       //for (int ix=0; ix<_nx; ++ix) {
+      /*
       Parallel.loop(_nx,new Parallel.LoopInt() {
       public void compute(int ix) {
         for (int iz=0; iz<_nz; ++iz) {
+          _u1p[ix][iz] -= 2.0f*(_s1[ix][iz]/_s0[ix][iz])*(
+            _u0p[ix][iz]-2.0f*_u0i[ix][iz]+_u0m[ix][iz]);
+        }
+      }});
+      */
+      Parallel.loop(_b,_nx-_b,new Parallel.LoopInt() {
+      public void compute(int ix) {
+        for (int iz=_b; iz<_nz-_b; ++iz) {
           _u1p[ix][iz] -= 2.0f*(_s1[ix][iz]/_s0[ix][iz])*(
             _u0p[ix][iz]-2.0f*_u0i[ix][iz]+_u0m[ix][iz]);
         }
