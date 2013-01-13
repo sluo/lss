@@ -12,15 +12,15 @@ st = Sampling(1750,0.0005,0.0) # for gaussian
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 #kxs,kzs = [0],[0]
-kxs,kzs = [0],[nz/2]
+#kxs,kzs = [0],[nz/2]
 #kxs,kzs = [0,0],[nz/3,2*nz/3]
 #kxs,kzs = fillint(0,15),rampint(0,50,15) 
 #kxs,kzs = fillint(0,29),rampint(0,25,29) 
-#kxs,kzs = fillint(0,71),rampint(0,10,71) 
+kxs,kzs = fillint(0,71),rampint(0,10,71) 
 kxr,kzr = fillint(nx-1,nz),rampint(0,1,nz) 
 ns,nr = len(kxs),len(kxr)
 fpeak = 50.0 # Ricker wavelet peak frequency
-niter = 5
+niter = 2
 
 pngDir = None
 datDir = None
@@ -30,34 +30,19 @@ datDir = os.getenv('HOME')+'/Desktop/dat/'
 sfile = None
 #sfile = '/Users/sluo/Desktop/s_iter4.dat'
 
+#############################################################################
+
 def main(args):
   setModel(sfile)
   #showWeights()
-  showData()
   #goWaveform()
   #goTraveltime()
   #goCombined()
   #goCombinedX()
-  #test()
 
-def test():
-  s = read('/Users/sluo/Desktop/dat/s_iter0.dat')
-  smoothSourceLocations(s)
-  s = _t
-  d = modelData(s)
-  #plot(s,cmap=jet,cmin=min(_t),cmax=max(_t))
-  plot(s,cmap=jet)
-  checkForNaN(d[ns/2])
-  plot(d[ns/2])
-
-def checkForNaN(x):
-  n1,n2 = len(x[0]),len(x)
-  class Loop(Parallel.LoopInt):
-    def compute(self,i2):
-      for i1 in range(n1):
-        if Float.isNaN(x[i2][i1]):
-          sys.exit('found NaN')
-  Parallel.loop(n2,Loop())
+  #showData()
+  WaveformInversion()
+  SplitInversion()
       
 def setModel(ffile=None):
   global _t,_s
@@ -67,9 +52,11 @@ def setModel(ffile=None):
   #_t,_s = getMarmousi(),fillfloat(0.35,nz,nx)
   if ffile is not None:
     _s = read(ffile)
+  g = sub(_s,_t); div(g,max(abs(g)),g)
   plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
   plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
        title='s_init')
+  plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_true')
 
 #############################################################################
 # Data
@@ -102,18 +89,21 @@ def showData():
   ds = ds[ns/2]
   ra = sub(ds,do) # amplitude residual
 
-  dw,v = warp(ds,do) # right order
-  w,m = makeWeights(v) # weighting function
-  rt = mul(v,timeDerivative(ds)) # traveltime residual
-  rw = sub(ds,dw) # warped residual
-  """
-  dw,v = warp(do,ds) # wrong order
-  w,m = makeWeights(v) # weighting function
-  rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
-  rw = sub(dw,do) # warped residual
-  """
+  #dw,v,_ = warp(ds,do) # right order
+  #w,m = makeWeights(v) # weighting function
+  #rt = mul(v,timeDerivative(ds)) # traveltime residual
+  #rw = sub(ds,dw) # warped residual
+  #"""
+  #dw,v, = warp(do,ds) # wrong order
+  #w,m = makeWeights(v) # weighting function
+  #rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
+  #rw = sub(dw,do) # warped residual
+  #"""
+  #rd = add(mul(w,ra),mul(m,rt)) # combined residual (traveltime+amplitude)
 
-  rc = add(rt,rw) # combined residual (traveltime+warped)
+  v,dw = like(do),like(do)
+  rt,rw,rc = makeWarpedResiduals(do,ds,v,dw) # residual
+  w,m = makeWeights(v) # weighting function
   rd = add(mul(w,ra),mul(m,rt)) # combined residual (traveltime+amplitude)
 
   vmax = 0.9*max(abs(v))
@@ -123,12 +113,12 @@ def showData():
   plot(ds,cmin=dmin,cmax=dmax,title='simulated')
   plot(dw,cmin=dmin,cmax=dmax,title='warped')
   plot(v,cmap=rwb,cmin=-vmax,cmax=vmax,title='shifts')
-  plot(w,cmap=jet,cmin=0.0,cmax=1.0,title='weights')
-  plot(ra,cmin=rmin,cmax=rmax,title='amplitude_residual')
-  plot(rw,cmin=rmin,cmax=rmax,title='warped_residual')
-  plot(rt,cmin=rmin,cmax=rmax,title='traveltime_residual')
-  plot(rc,cmin=rmin,cmax=rmax,title='traveltime_plus_warped_residual')
-  plot(rd,cmin=rmin,cmax=rmax,title='weighted_traveltime_plus_amplitude')
+  #plot(w,cmap=jet,cmin=0.0,cmax=1.0,title='weights')
+  #plot(ra,cmin=rmin,cmax=rmax,title='amplitude_residual')
+  #plot(rw,cmin=rmin,cmax=rmax,title='warped_residual')
+  #plot(rt,cmin=rmin,cmax=rmax,title='traveltime_residual')
+  #plot(rc,cmin=rmin,cmax=rmax,title='traveltime_plus_warped_residual')
+  #plot(rd,cmin=rmin,cmax=rmax,title='weighted_traveltime_plus_amplitude')
 
 #############################################################################
 # Line Search
@@ -164,8 +154,108 @@ class WaveformMisfitFunction(BrentMinFinder.Function):
     dif = sub(ds,self.do)
     return sum(mul(dif,dif))
 
+def updateModel(misfitFunction):
+  print 'searching for step length...'
+  a = -0.5*max(abs(sub(_t,_s)))
+  #a = -0.5*(rms(sub(_t,_s))/rms(misfitFunction.g))
+  tol = 0.2*(-a)
+  sw = Stopwatch(); sw.restart()
+  step = BrentMinFinder(misfitFunction).findMin(a,0,tol)
+  sw.stop()
+  print 'a =',a
+  print 'step =',step
+  print 'line search: %.2fs'%sw.time()
+  add(mul(step,misfitFunction.g),_s,_s)
+
+class WaveformMisfitFunction(BrentMinFinder.Function):
+  def __init__(self,g,isou,do):
+  #def __init__(self,g,isou,do,da=None):
+    self.g = g
+    self.isou = isou
+    self.do = do[isou]
+    #self.da = None if da is None else da[isou]
+    self.wave = Wavefield(sz,sx,st)
+  def evaluate(self,a):
+    print 'evaluating'
+    s = add(_s,mul(a,self.g))
+    ds = modelData(s,self.isou)
+    dif = sub(ds,self.do)
+    return sum(mul(dif,dif))
+
+class SplitMisfitFunction(BrentMinFinder.Function):
+  def __init__(self,g,isou,do):
+    self.g = g
+    self.isou = isou
+    self.do = do[isou]
+    self.wave = Wavefield(sz,sx,st)
+  def evaluate(self,a):
+    print 'evaluating'
+    s = add(_s,mul(a,self.g))
+    ds = modelData(s,self.isou)
+    rt,rw,rc = makeWarpedResiduals(self.do,ds) # residual
+    return sum(mul(rc,rc))
+
+class TraveltimeMisfitFunction(BrentMinFinder.Function):
+  def __init__(self,g,isou,do):
+    self.g = g
+    self.isou = isou
+    self.do = do[isou]
+    self.wave = Wavefield(sz,sx,st)
+  def evaluate(self,a):
+    print 'evaluating'
+    s = add(_s,mul(a,self.g))
+    ds = modelData(s,self.isou)
+    rt,rw,rc = makeWarpedResiduals(self.do,ds) # residual
+    return sum(mul(rt,rt))
+
 #############################################################################
 # Waveform
+
+class WaveformInversion():
+  def __init__(self):
+    self.ds = zerofloat(nt,nr)
+    self.u = zerofloat(nz,nx,nt)
+    self.a = zerofloat(nz,nx,nt)
+    self.wave = Wavefield(sz,sx,st)
+    self.do = modelData(_t) # observed data
+    for iter in range(niter):
+      print '\niteration',iter
+      sw = Stopwatch(); sw.start()
+      g = self.gradient()
+      print 'gradient: %.2fm'%(sw.time()/60.0)
+      plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
+      if niter>1:
+        updateModel(WaveformMisfitFunction(g,ns/2,self.do))
+        plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+             title='s_iter'+str(iter))
+      sw.stop(); print 'iteration: %.2fm'%(sw.time()/60.0)
+  def gradient(self):
+    g = zerofloat(nz,nx)
+    p = zerofloat(nz,nx) # preconditioner
+    for isou in range(ns):
+      num,den = self.gradientForOneSource(isou)
+      add(num,g,g)
+      add(den,p,p)
+    div(g,p,g)
+    maskWaterLayer(g)
+    div(g,max(abs(g)),g)
+    return g
+  def gradientForOneSource(self,isou):
+    sw0 = Stopwatch(); sw0.start()
+    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+    receiver = Wavefield.Receiver(kzr,kxr)
+    sw = Stopwatch(); sw.start()
+    self.wave.modelAcousticDataAndWavefield(source,receiver,_s,self.ds,self.u)
+    print 'forward: %.2fs'%sw.time()
+    checkForNaN(self.ds) # throws an exception if NaN
+    r = sub(self.ds,self.do[isou]) # residual
+    source = Wavefield.AdjointSource(dt,kzr,kxr,r)
+    sw.restart()
+    self.wave.modelAcousticWavefield(source,_s,self.a)
+    print 'reverse: %.2fs'%sw.time()
+    g,p = makeGradient(self.u,self.a)
+    sw0.stop(); print 'source %d: %.2fs'%(isou,sw0.time())
+    return g,p
 
 def goWaveform():
   d = modelData(_t) # observed data
@@ -227,7 +317,7 @@ def computeTraveltimeGradient(isou=0):
   do,ds,u = modeler.modelDataAndSourceWavefield()
 
   # Residual
-  dw,s = warp(ds,do) # order matters!
+  dw,s,_ = warp(ds,do) # order matters!
   #r = timeDerivative(dw)
   r = timeDerivative(ds) # XXX use ds instead of warped do
   mul(s,r,r)
@@ -243,7 +333,54 @@ def computeTraveltimeGradient(isou=0):
   #return zerofloat(nz,nx)
 
 #############################################################################
-# Combined
+# Split (Combined)
+
+class SplitInversion():
+  def __init__(self):
+    self.ds = zerofloat(nt,nr)
+    self.u = zerofloat(nz,nx,nt)
+    self.a = zerofloat(nz,nx,nt)
+    self.wave = Wavefield(sz,sx,st)
+    self.do = modelData(_t) # observed data
+    for iter in range(niter):
+      print '\niteration',iter
+      sw = Stopwatch(); sw.start()
+      g = self.gradient()
+      print 'gradient: %.2fm'%(sw.time()/60.0)
+      plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
+      if niter>1:
+        #updateModel(SplitMisfitFunction(g,ns/2,self.do))
+        updateModel(TraveltimeMisfitFunction(g,ns/2,self.do))
+        plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+             title='s_iter'+str(iter))
+      sw.stop(); print 'iteration: %.2fm'%(sw.time()/60.0)
+  def gradient(self):
+    g = zerofloat(nz,nx)
+    p = zerofloat(nz,nx) # preconditioner
+    for isou in range(ns):
+      num,den = self.gradientForOneSource(isou)
+      add(num,g,g)
+      add(den,p,p)
+    div(g,p,g)
+    smoothSourceLocations(g)
+    div(g,max(abs(g)),g)
+    return g
+  def gradientForOneSource(self,isou):
+    sw0 = Stopwatch(); sw0.start()
+    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+    receiver = Wavefield.Receiver(kzr,kxr)
+    sw = Stopwatch(); sw.start()
+    self.wave.modelAcousticDataAndWavefield(source,receiver,_s,self.ds,self.u)
+    print 'forward: %.2fs'%sw.time()
+    checkForNaN(self.ds) # throws an exception if NaN
+    _,_,rc = makeWarpedResiduals(self.do[isou],self.ds) # residual
+    source = Wavefield.AdjointSource(dt,kzr,kxr,rc)
+    sw.restart()
+    self.wave.modelAcousticWavefield(source,_s,self.a)
+    print 'reverse: %.2fs'%sw.time()
+    g,p = makeGradient(self.u,self.a)
+    sw0.stop(); print 'source %d: %.2fs'%(isou,sw0.time())
+    return g,p
 
 def goCombined():
   do = modelData(_t) # observed data
@@ -281,7 +418,7 @@ def combinedGradient(isou,do,ds,u,a):
   checkForNaN(ds)
 
   # Residual
-  dw,s = warp(do,ds) # wrong order
+  dw,s,_ = warp(do,ds) # wrong order
   rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
   rw = sub(dw,do) # warped residual
   rc = add(rt,rw) # combined
@@ -326,7 +463,7 @@ def combinedGradientX(isou,do,ds,u,a):
   wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
 
   # Residual
-  dw,v = warp(do,ds) # wrong order
+  dw,v,_ = warp(do,ds) # wrong order
   w,m = makeWeights(v)
   ra = sub(ds,do) # amplitude residual
   rt = mul(mul(-1.0,v),timeDerivative(ds)) # traveltime residual
@@ -371,9 +508,72 @@ def showWeights():
   SimplePlot.asPoints(r)
 
 #############################################################################
-# Warping
+# Dynamic Warping
+
+def makeWarpedResiduals(do,ds,u=None,wd=None):
+  reverseOrder = True
+  if reverseOrder:
+    v,dw,_ = warp(do,ds) # wrong order
+    mul(-1.0,v,v)
+    rt = mul(v,timeDerivative(ds)) # traveltime residual
+    rw = sub(dw,do) # warped residual
+  else:
+    v,dw,rt = warp(ds,do) # right order
+    rt = mul(v,timeDerivative(ds)) # traveltime residual
+    rw = sub(ds,dw) # warped residual
+  #print '  max shift =',max(abs(v))
+  #print '  max combined residual =',max(abs(add(rt,rw)))
+  if u is not None:
+    copy(v,u)
+  if wd is not None:
+    copy(dw,wd)
+  return rt,rw,add(rt,rw)
 
 def warp(p,q):
+  td = 5 # time decimation
+  rd = 1 # receiver decimation
+  qc = copy(q)
+  #p,q = agc(p,q)
+  a,b = addRandomNoise(10.0,p,q,sigma=1.0)
+  f = copy(nt/td,nr/rd,0,0,td,rd,a)
+  g = copy(nt/td,nr/rd,0,0,td,rd,b)
+  shiftMax = int(400/td)
+  #strainMax1 = 0.25
+  #strainMax2 = 0.10
+  strainMax1 = 1.00
+  strainMax2 = 0.50
+  dw = DynamicWarping(-shiftMax,shiftMax)
+  #dw.setErrorExponent(1.0)
+  dw.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE)
+  dw.setStrainMax(strainMax1,strainMax2)
+  dw.setShiftSmoothing(32.0/td,8.0/rd) # shift smoothing
+  dw.setErrorSmoothing(2) # number of smoothings of alignment errors
+  sw = Stopwatch(); sw.start()
+  s = dw.findShifts(f,g)
+  sw.stop(); print 'warping: %.2fs'%sw.time()
+  mul(td,s,s) # scale shifts to compensate for decimation
+  li = LinearInterpolator()
+  li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
+  li.setUniform(nt/td,td*dt,0.0,nr/rd,rd*dx,0.0,s)
+  r = like(p)
+  for ir in range(nr):
+    z = ir*dz
+    for it in range(nt):
+      t = it*dt
+      r[ir][it] = li.interpolate(t,z) # interpolate shifts
+  h = dw.applyShifts(r,qc)
+  hr = dw.applyShifts(r,mul(r,timeDerivative(qc)))
+  #plot(s,cmap=jet,title='shifts')
+  #plot(r,cmap=jet,title='shifts (interpolated)')
+  #plot(f,title='f')
+  #plot(g,title='g')
+  #plot(a,title='a')
+  #plot(b,title='b')
+  #plot(h,title='h')
+  #plot(hr,title='hr')
+  return r,h,hr
+
+def xwarp(p,q):
   td = 1 # time decimation
   rd = 2 # receiver decimation
   a,b = addRandomNoise(2.0,p,q,sigma=1.0)
@@ -486,6 +686,15 @@ def getGaussian(pupper=0.05,plower=0.05):
 def like(x):
   return zerofloat(len(x[0]),len(x))
 
+def checkForNaN(x):
+  n1,n2 = len(x[0]),len(x)
+  class Loop(Parallel.LoopInt):
+    def compute(self,i2):
+      for i1 in range(n1):
+        if Float.isNaN(x[i2][i1]):
+          raise RuntimeError('found NaN')
+  Parallel.loop(n2,Loop())
+
 #############################################################################
 
 gray = ColorMap.GRAY
@@ -555,8 +764,10 @@ class RunMain(Runnable):
   def run(self):
     start = time.time()
     if pngDir is not None:
+      print 'cleaning pngDir'
       cleanDir(pngDir)
     if datDir is not None:
+      print 'cleaning datDir'
       cleanDir(datDir)
     main(sys.argv)
     s = time.time()-start

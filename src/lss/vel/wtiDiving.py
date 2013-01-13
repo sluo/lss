@@ -34,10 +34,11 @@ sfile = None
 gfile = None
 #gfile = '/home/sluo/Desktop/dat/g_iter0.dat'
 
+#############################################################################
+
 # TODO: use traveltime misfit for split inversion
 # TODO: better line search?
 # TODO: better agc
-
 def main(args):
   setModel()
   #goWaveform()
@@ -48,6 +49,34 @@ def main(args):
   #showData()
   #WaveformInversion()
   SplitInversion()
+
+def setModel():
+  global _t,_s
+  #_t,_s = getGaussian()
+  #_t,_s = getMarmousi(0.2,1.0)
+  #_t,_s = getMarmousi(0.5,1.0)
+  _t,_s = getMarmousi(2.0,1.0)
+  #_t,_s = getMarmousi(2.0,0.95)
+  if sfile is not None:
+    print 'reading sfile'
+    _s = read(sfile)
+  if gfile is not None:
+    print 'reading gfile'
+    g = read(gfile)
+    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95)
+    #do = zerofloat(nt,nr,ns)
+    #d = modelData(_t,ns/2)
+    #e = modelDirectArrival(_t,ns/2)
+    #sub(d,e,d)
+    #plot(d,title='do')
+    #copy(d,do[ns/2])
+    #updateModel(WaveformMisfitFunction(g,ns/2,do))
+    ##updateModel(SplitMisfitFunction(g,ns/2,do))
+  g = sub(_s,_t); div(g,max(abs(g)),g)
+  plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
+  plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+       title='s_init')
+  plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_true')
 
 #############################################################################
 # Migration
@@ -127,81 +156,6 @@ def laplacian(x):
   return y
 
 #############################################################################
-
-def setModel():
-  global _t,_s
-  #_t,_s = getGaussian()
-  #_t,_s = getMarmousi(0.2,1.0)
-  #_t,_s = getMarmousi(0.5,1.0)
-  _t,_s = getMarmousi(2.0,1.0)
-  #_t,_s = getMarmousi(2.0,0.95)
-  if sfile is not None:
-    print 'reading sfile'
-    _s = read(sfile)
-  if gfile is not None:
-    print 'reading gfile'
-    g = read(gfile)
-    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95)
-#    do = zerofloat(nt,nr,ns)
-#    d = modelData(_t,ns/2)
-#    e = modelDirectArrival(_t,ns/2)
-#    sub(d,e,d)
-#    plot(d,title='do')
-#    copy(d,do[ns/2])
-#    updateModel(WaveformMisfitFunction(g,ns/2,do))
-#    #updateModel(SplitMisfitFunction(g,ns/2,do))
-  g = sub(_s,_t); div(g,max(abs(g)),g)
-  plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
-  plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-       title='s_init')
-  plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_true')
-
-def showData():
-  sw = Stopwatch(); sw.restart()
-  do = modelData(_t) # observed data
-  ds = modelData(_s) # simulated data
-  eo = modelDirectArrival(_t)  # direct arrival for observed data
-  es = modelDirectArrival(_s)  # direct arrival for simulated data
-  sw.stop(); print 'data total: %.2fs'%sw.time()
-  do = do[ns/2]
-  ds = ds[ns/2]
-  eo = eo[ns/2]
-  es = es[ns/2]
-  sub(do,eo,do) # observed
-  sub(ds,es,ds) # simulated
-  rr = sub(ds,do)
-
-#  s,dw,_ = warp(ds,do) # right order
-#  rt = mul(s,timeDerivative(ds)) # traveltime residual
-#  rw = sub(ds,dw) # warped residual
-#  rc = add(rt,rw) # combined residual (traveltime+warped)
-#  """
-#  s,dw,_ = warp(do,ds) # wrong order
-#  rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
-#  rw = sub(dw,do) # warped residual
-#  rc = add(rt,rw) # combined residual (traveltime+warped)
-#  """
-
-  s,dw = like(do),like(do)
-  rt,rw,rc = makeWarpedResiduals(do,ds,s,dw)
-
-  smax = 0.9*max(abs(s))
-  rmin,rmax = 0.9*min(rr),0.9*max(rr)
-  dmin,dmax = 0.9*min(min(do),min(ds)),0.9*max(max(do),max(ds))
-  #emin,emax = 0.5*min(min(eo),min(es)),0.5*max(max(eo),max(es))
-  emin,emax = 2.0*dmin,2.0*dmax
-  plot(eo,cmin=emin,cmax=emax,title='direct arrival (observed)')
-  plot(es,cmin=emin,cmax=emax,title='direct arrival (simulated)')
-  plot(do,cmin=dmin,cmax=dmax,title='observed')
-  plot(ds,cmin=dmin,cmax=dmax,title='simulated')
-  plot(dw,cmin=dmin,cmax=dmax,title='warped')
-  plot(s,cmap=rwb,cmin=-smax,cmax=smax,title='shifts')
-  plot(rr,cmin=rmin,cmax=rmax,title='residual')
-  plot(rw,cmin=rmin,cmax=rmax,title='warped residual')
-  plot(rt,cmin=rmin,cmax=rmax,title='traveltime residual')
-  plot(rc,title='traveltime+warped residual')
-
-#############################################################################
 # Data
 
 def modelData(s,isou=None):
@@ -254,6 +208,51 @@ def modelDirectArrival(s,isou=None):
   #plot(t,cmap=jet)
 
   return modelData(t,isou)
+
+def showData():
+  sw = Stopwatch(); sw.restart()
+  do = modelData(_t) # observed data
+  ds = modelData(_s) # simulated data
+  eo = modelDirectArrival(_t)  # direct arrival for observed data
+  es = modelDirectArrival(_s)  # direct arrival for simulated data
+  sw.stop(); print 'data total: %.2fs'%sw.time()
+  do = do[ns/2]
+  ds = ds[ns/2]
+  eo = eo[ns/2]
+  es = es[ns/2]
+  sub(do,eo,do) # observed
+  sub(ds,es,ds) # simulated
+  rr = sub(ds,do)
+
+#  s,dw,_ = warp(ds,do) # right order
+#  rt = mul(s,timeDerivative(ds)) # traveltime residual
+#  rw = sub(ds,dw) # warped residual
+#  rc = add(rt,rw) # combined residual (traveltime+warped)
+#  """
+#  s,dw,_ = warp(do,ds) # wrong order
+#  rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
+#  rw = sub(dw,do) # warped residual
+#  rc = add(rt,rw) # combined residual (traveltime+warped)
+#  """
+
+  s,dw = like(do),like(do)
+  rt,rw,rc = makeWarpedResiduals(do,ds,s,dw)
+
+  smax = 0.9*max(abs(s))
+  rmin,rmax = 0.9*min(rr),0.9*max(rr)
+  dmin,dmax = 0.9*min(min(do),min(ds)),0.9*max(max(do),max(ds))
+  #emin,emax = 0.5*min(min(eo),min(es)),0.5*max(max(eo),max(es))
+  emin,emax = 2.0*dmin,2.0*dmax
+  plot(eo,cmin=emin,cmax=emax,title='direct arrival (observed)')
+  plot(es,cmin=emin,cmax=emax,title='direct arrival (simulated)')
+  plot(do,cmin=dmin,cmax=dmax,title='observed')
+  plot(ds,cmin=dmin,cmax=dmax,title='simulated')
+  plot(dw,cmin=dmin,cmax=dmax,title='warped')
+  plot(s,cmap=rwb,cmin=-smax,cmax=smax,title='shifts')
+  plot(rr,cmin=rmin,cmax=rmax,title='residual')
+  plot(rw,cmin=rmin,cmax=rmax,title='warped residual')
+  plot(rt,cmin=rmin,cmax=rmax,title='traveltime residual')
+  plot(rc,title='traveltime+warped residual')
 
 #############################################################################
 # Line Search
