@@ -267,14 +267,14 @@ class TraveltimeInversion(Inversion):
     rt,_,_ = makeWarpedResiduals(do,ds)
     return rt
   def getMisfitFunction(self,g,isou,do):
-    return TraveltimMisfitFunction(g,isou,do)
+    return TraveltimeMisfitFunction(g,isou,do)
 
 class SplitInversion(Inversion):
   def residual(self,do,ds):
     _,_,rc = makeWarpedResiduals(do,ds)
     return rc
   def getMisfitFunction(self,g,isou,do):
-    return TraveltimMisfitFunction(g,isou,do)
+    return TraveltimeMisfitFunction(g,isou,do)
     #return SplitMisfitFunction(g,isou,do)
 
 class WeightedInversion(Inversion):
@@ -286,7 +286,7 @@ class WeightedInversion(Inversion):
     rc = add(mul(w,ra),mul(m,rt)) # combined residual (traveltime+amplitude)
     return rc
   def getMisfitFunction(self,g,isou,do):
-    return TraveltimMisfitFunction(g,isou,do)
+    return TraveltimeMisfitFunction(g,isou,do)
 
 def makeWeights(v):
   w = zerofloat(nt,nr)
