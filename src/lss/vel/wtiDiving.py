@@ -11,28 +11,28 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 
 #kxs,kzs = [0],[0]
-#kxs,kzs = [nx/2],[0]
+kxs,kzs = [nx/2],[0]
 #kxs,kzs = [nx-1],[0]
 #kxs,kzs = rampint(8,50,16),fillint(0,16)
 #kxs,kzs = rampint(8,30,26),fillint(0,26)
 #kxs,kzs = rampint(3,20,39),fillint(0,39)
 #kxs,kzs = rampint(1,15,52),fillint(0,52)
-kxs,kzs = rampint(3,10,77),fillint(0,77)
+#kxs,kzs = rampint(3,10,77),fillint(0,77)
 kxr,kzr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(kxs),len(kxr)
 fpeak = 5.0
-niter = 5
+niter = 1
 
 pngDir = None
 datDir = None
-pngDir = os.getenv('HOME')+'/Desktop/png/'
-datDir = os.getenv('HOME')+'/Desktop/dat/'
+#pngDir = os.getenv('HOME')+'/Desktop/png/'
+#datDir = os.getenv('HOME')+'/Desktop/dat/'
 
 sfile = None
-#sfile = '/home/sluo/Desktop/10hz_newer/alt1/dat/s_iter3.dat'
+#sfile = '/home/sluo/Desktop/s_iter9.dat'
 
 gfile = None
-#gfile = '/home/sluo/Desktop/dat/g_iter0.dat'
+#gfile = '/home/sluo/Desktop/g_iter0.dat'
 
 #############################################################################
 
@@ -41,37 +41,22 @@ gfile = None
 # TODO: better agc
 def main(args):
   setModel()
-  #goWaveform()
-  #goTraveltime()
-  #goCombined()
+  showData()
   #goMigration()
-
-  #showData()
   #WaveformInversion()
-  SplitInversion()
+  #TraveltimeInversion()
+  #SplitInversion()
 
 def setModel():
   global _t,_s
   #_t,_s = getGaussian()
   #_t,_s = getMarmousi(0.2,1.0)
   #_t,_s = getMarmousi(0.5,1.0)
-  _t,_s = getMarmousi(2.0,1.0)
-  #_t,_s = getMarmousi(2.0,0.95)
+  #_t,_s = getMarmousi(2.0,1.0)
+  _t,_s = getMarmousi(2.0,0.95)
   if sfile is not None:
     print 'reading sfile'
     _s = read(sfile)
-  if gfile is not None:
-    print 'reading gfile'
-    g = read(gfile)
-    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95)
-    #do = zerofloat(nt,nr,ns)
-    #d = modelData(_t,ns/2)
-    #e = modelDirectArrival(_t,ns/2)
-    #sub(d,e,d)
-    #plot(d,title='do')
-    #copy(d,do[ns/2])
-    #updateModel(WaveformMisfitFunction(g,ns/2,do))
-    ##updateModel(SplitMisfitFunction(g,ns/2,do))
   g = sub(_s,_t); div(g,max(abs(g)),g)
   plot(_t,cmap=jet,cbar='Slowness (s/km)',title='s_true')
   plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
@@ -172,19 +157,8 @@ def modelData(s,isou=None):
   sw.stop(); print 'data: %.2fs'%sw.time()
   return d
 
-class DataP(Parallel.LoopInt):
-  def __init__(self,s,d):
-    self.s = s # slowness
-    self.d = d # output array
-  def compute(self,isou):
-    wave = Wavefield(sz,sx,st)
-    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-    receiver = Wavefield.Receiver(kzr,kxr)
-    wave.modelAcousticData(source,receiver,self.s,self.d[isou])
-
 def modelDirectArrival(s,isou=None):
   t = copy(s)
-
   # Find water bottom then flood below
   t00 = t[0][0]
   zbot = 0
@@ -193,7 +167,6 @@ def modelDirectArrival(s,isou=None):
   for ix in range(nx):
     for iz in range(zbot,nz):
       t[ix][iz] = t[ix][zbot] # flood
-  
   # Scale and smooth model
   t = transpose(t)
   sigma = 20.0
@@ -206,8 +179,17 @@ def modelDirectArrival(s,isou=None):
     sigma += 1.0
   t = transpose(t)
   #plot(t,cmap=jet)
-
   return modelData(t,isou)
+
+class DataP(Parallel.LoopInt):
+  def __init__(self,s,d):
+    self.s = s # slowness
+    self.d = d # output array
+  def compute(self,isou):
+    wave = Wavefield(sz,sx,st)
+    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
+    receiver = Wavefield.Receiver(kzr,kxr)
+    wave.modelAcousticData(source,receiver,self.s,self.d[isou])
 
 def showData():
   sw = Stopwatch(); sw.restart()
@@ -222,25 +204,12 @@ def showData():
   es = es[ns/2]
   sub(do,eo,do) # observed
   sub(ds,es,ds) # simulated
-  rr = sub(ds,do)
-
-#  s,dw,_ = warp(ds,do) # right order
-#  rt = mul(s,timeDerivative(ds)) # traveltime residual
-#  rw = sub(ds,dw) # warped residual
-#  rc = add(rt,rw) # combined residual (traveltime+warped)
-#  """
-#  s,dw,_ = warp(do,ds) # wrong order
-#  rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
-#  rw = sub(dw,do) # warped residual
-#  rc = add(rt,rw) # combined residual (traveltime+warped)
-#  """
-
+  ra = sub(ds,do) # amplitude residual
   s,dw = like(do),like(do)
-  rt,rw,rc = makeWarpedResiduals(do,ds,s,dw)
-
+  rt,rw,rc = makeWarpedResiduals(do,ds,s,dw) # warped residuals
   smax = 0.9*max(abs(s))
-  rmin,rmax = 0.9*min(rr),0.9*max(rr)
-  dmin,dmax = 0.9*min(min(do),min(ds)),0.9*max(max(do),max(ds))
+  rmin,rmax = 0.5*min(min(ra),min(rc)),0.5*max(max(ra),max(rc))
+  dmin,dmax = 0.5*min(min(do),min(ds)),0.5*max(max(do),max(ds))
   #emin,emax = 0.5*min(min(eo),min(es)),0.5*max(max(eo),max(es))
   emin,emax = 2.0*dmin,2.0*dmax
   plot(eo,cmin=emin,cmax=emax,title='direct arrival (observed)')
@@ -249,10 +218,10 @@ def showData():
   plot(ds,cmin=dmin,cmax=dmax,title='simulated')
   plot(dw,cmin=dmin,cmax=dmax,title='warped')
   plot(s,cmap=rwb,cmin=-smax,cmax=smax,title='shifts')
-  plot(rr,cmin=rmin,cmax=rmax,title='residual')
+  plot(ra,cmin=rmin,cmax=rmax,title='residual')
   plot(rw,cmin=rmin,cmax=rmax,title='warped residual')
   plot(rt,cmin=rmin,cmax=rmax,title='traveltime residual')
-  plot(rc,title='traveltime+warped residual')
+  plot(rc,cmin=rmin,cmax=rmax,title='traveltime+warped residual')
 
 #############################################################################
 # Line Search
@@ -270,52 +239,8 @@ def updateModel(misfitFunction):
   print 'line search: %.2fs'%sw.time()
   add(mul(step,misfitFunction.g),_s,_s)
 
-#def findStepLength(g,isou,do):
-def findStepLength(misfitFunction):
-  print 'searching for step length...'
-  #a = -0.5*max(abs(sub(_t,_s)))
-  g = misfitFunction.g
-  a = -0.5*(rms(sub(_t,_s))/rms(g))
-  tol = 0.2*(-a)
-  sw = Stopwatch(); sw.restart()
-  #step = BrentMinFinder(WaveformMisfitFunction(g,isou,do)).findMin(a,0,tol)
-  #step = BrentMinFinder(SplitMisfitFunction(g,isou,do)).findMin(a,0,tol)
-  step = BrentMinFinder(misfitFunction).findMin(a,0,tol)
-  sw.stop()
-  print 'a =',a
-  print 'step =',step
-  print 'line search: %.2fs'%sw.time()
-  return step
-
-class WaveformMisfitFunction(BrentMinFinder.Function):
-  def __init__(self,g,isou,do):
-  #def __init__(self,g,isou,do,da=None):
-    self.g = g
-    self.isou = isou
-    self.do = do[isou]
-    #self.da = None if da is None else da[isou]
-    self.wave = Wavefield(sz,sx,st)
-  def evaluate(self,a):
-    print 'evaluating'
-    s = add(_s,mul(a,self.g))
-    ds = modelData(s,self.isou)
-    es = modelDirectArrival(s,self.isou)
-    sub(ds,es,ds)
-    dif = sub(ds,self.do)
-    return sum(mul(dif,dif))
-  def xevaluate(self,a):
-    print 'evaluating'
-    s = add(_s,mul(a,self.g))
-    ds = zerofloat(nt,nr)
-    source = Wavefield.RickerSource(fpeak,kzs[self.isou],kxs[self.isou])
-    receiver = Wavefield.Receiver(kzr,kxr)
-    self.wave.modelAcousticData(source,receiver,s,ds) # simulated data
-    if self.da is not None:
-      sub(ds,self.da,ds) # subtract direct arrival
-    dif = sub(ds,self.do)
-    return sum(mul(dif,dif))
-
-class SplitMisfitFunction(BrentMinFinder.Function):
+class MisfitFunction(BrentMinFinder.Function):
+  """Abstract misfit function."""
   def __init__(self,g,isou,do):
     self.g = g
     self.isou = isou
@@ -327,28 +252,30 @@ class SplitMisfitFunction(BrentMinFinder.Function):
     ds = modelData(s,self.isou)
     es = modelDirectArrival(s,self.isou)
     sub(ds,es,ds)
-    rt,rw,rc = makeWarpedResiduals(self.do,ds) # residual
-    return sum(mul(rc,rc))
+    r = self.residual(self.do,ds)
+    return sum(mul(r,r))
+  def residual(self,do,ds):
+    pass
 
-class TraveltimeMisfitFunction(BrentMinFinder.Function):
-  def __init__(self,g,isou,do):
-    self.g = g
-    self.isou = isou
-    self.do = do[isou]
-    self.wave = Wavefield(sz,sx,st)
-  def evaluate(self,a):
-    print 'evaluating'
-    s = add(_s,mul(a,self.g))
-    ds = modelData(s,self.isou)
-    es = modelDirectArrival(s,self.isou)
-    sub(ds,es,ds)
-    rt,rw,rc = makeWarpedResiduals(self.do,ds) # residual
-    return sum(mul(rt,rt))
+class WaveformMisfitFunction(MisfitFunction):
+  def residual(self,do,ds):
+    return sub(ds,do)
+
+class TraveltimeMisfitFunction(MisfitFunction):
+  def residual(self,do,ds):
+    rt,_,_ = makeWarpedResiduals(do,ds)
+    return rt
+
+class SplitMisfitFunction(MisfitFunction):
+  def residual(self,do,ds):
+    _,_,rc = makeWarpedResiduals(do,ds)
+    return rc
 
 #############################################################################
-# Waveform
+# Inversion
 
-class WaveformInversion():
+class Inversion():
+  """Abstract inversion class."""
   def __init__(self):
     self.ds = zerofloat(nt,nr)
     self.u = zerofloat(nz,nx,nt)
@@ -357,6 +284,15 @@ class WaveformInversion():
     self.do = modelData(_t) # observed data
     eo = modelDirectArrival(_t) # direct arrival
     sub(self.do,eo,self.do)
+    if gfile is not None:
+      print 'reading gfile'
+      g = read(gfile)
+      updateModel(self.getMisfitFunction(g,ns/2,self.do))
+      plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter')
+      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
+           title='s_iter')
+    self.invert()
+  def invert(self):
     for iter in range(niter):
       print '\niteration',iter
       sw = Stopwatch(); sw.start()
@@ -364,7 +300,7 @@ class WaveformInversion():
       print 'gradient: %.2fm'%(sw.time()/60.0)
       plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
       if niter>1:
-        updateModel(WaveformMisfitFunction(g,ns/2,self.do))
+        updateModel(self.getMisfitFunction(g,ns/2,self.do))
         plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
              title='s_iter'+str(iter))
       sw.stop(); print 'iteration: %.2fm'%(sw.time()/60.0)
@@ -389,8 +325,7 @@ class WaveformInversion():
     print 'forward: %.2fs'%sw.time()
     sub(self.ds,es[isou],self.ds) # subtract direct arrival
     checkForNaN(self.ds) # throws an exception if NaN
-    r = sub(self.ds,self.do[isou]) # residual
-    #r = sub(self.do[isou],self.ds) # residual (wrong order)
+    r = self.residual(self.do[isou],self.ds) # residual
     source = Wavefield.AdjointSource(dt,kzr,kxr,r)
     sw.restart()
     self.wave.modelAcousticWavefield(source,_s,self.a)
@@ -398,279 +333,30 @@ class WaveformInversion():
     g,p = makeGradient(self.u,self.a)
     sw0.stop(); print 'source %d: %.2fs'%(isou,sw0.time())
     return g,p
+  def getMisfitFunction(g,isou,do):
+    pass
+  def residual(do,ds):
+    pass
 
-def goWaveform():
-  d = modelData(_t) # observed data
-  for iter in range(niter):
-    print '\niteration',iter
-    sw = Stopwatch(); sw.restart()
-    g =  waveformGradientS(d)
+class WaveformInversion(Inversion):
+  def residual(self,do,ds):
+    return sub(ds,do)
+  def getMisfitFunction(self,g,isou,do):
+    return WaveformMisfitFunction(g,isou,do)
 
-    #gg = zerofloat(nz,nx,ns)
-    #Parallel.loop(ns,WaveformParallelLoop(gg))
-    #li = LinearInterpolator()
-    #li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
-    #li.setUniform(nz,1.0,0.0,nx,1.0,0.0,ns,kzs[1]-kzs[0],kzs[0],gg)
-    #print 'interpolating...'
-    #class InterpolateParallel(Parallel.ReduceInt):
-    #  def compute(self,js):
-    #    g = zerofloat(nz,nx)
-    #    for ix in range(nx):
-    #      for iz in range(nz):
-    #        g[ix][iz] = li.interpolate(iz,ix,js)
-    #    return g
-    #  def combine(self,g1,g2):
-    #    return add(g1,g2)
-    #g = Parallel.reduce(nz,InterpolateParallel())
+class TraveltimeInversion(Inversion):
+  def residual(self,do,ds):
+    rt,_,_ = makeWarpedResiduals(do,ds)
+    return rt
+  def getMisfitFunction(self,g,isou,do):
+    return TraveltimMisfitFunction(g,isou,do)
 
-    sw.stop(); print 'gradient:',sw.time(),'s'
-    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
-    if niter>1:
-      step = findStepLength(g,ns/2,d)
-      add(mul(step,g),_s,_s)
-      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-           title='s_iter'+str(iter))
-
-def waveformGradientS(d):
-  g = zerofloat(nz,nx)
-  p = zerofloat(nz,nx) # preconditioner
-  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
-  for isou in range(ns):
-    print 'isou =',isou
-    num,den = waveformGradient(isou,d[isou],ds,u,a)
-    add(num,g,g)
-    add(den,p,p)
-  div(g,p,g)
-  maskWaterLayer(g)
-  div(g,max(abs(g)),g)
-  return g
-
-def waveformGradientP(d):
-  class Reducer(Parallel.ReduceInt):
-    def __init__(self,d):
-      self.d = d # observed data (precomputed)
-      self.ds = Parallel.Unsafe(); # simulated data
-      self.u = Parallel.Unsafe(); # source wavefield
-      self.a = Parallel.Unsafe(); # receiver wavefield
-    def compute(self,isou):
-      ds,u,a = self.initializeUnsafe()
-      return waveformGradient(isou,d[isou],ds,u,a)
-    def xcompute(self,isou):
-      sw = Stopwatch(); sw.restart()
-      wave = Wavefield(sz,sx,st)
-      ds,u,a = self.initializeUnsafe()
-      #print sw.time(),'(1)'
-      source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-      receiver = Wavefield.Receiver(kzr,kxr)
-      wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
-      #print sw.time(),'(2)'
-      r = sub(ds,self.d[isou]) # residual
-      source = Wavefield.AdjointSource(dt,kzr,kxr,r)
-      wave.modelAcousticWavefield(source,_s,a)
-      #print sw.time(),'(3)'
-      g = makeGradient(u,a)
-      #print sw.time(),'(4)'
-      #return makeGradient(u,a)
-      return g
-    def initializeUnsafe(self):
-      ds,u,a = self.ds.get(),self.u.get(),self.a.get()
-      if ds is None:
-        ds = zerofloat(nt,nr)
-        self.ds.set(ds)
-      if u is None:
-        u = zerofloat(nz,nx,nt)
-        self.u.set(u)
-      if a is None:
-        a = zerofloat(nz,nx,nt)
-        self.a.set(a)
-      return ds,u,a
-    def combine(self,g1,g2):
-      return add(g1,g2)
-  g = Parallel.reduce(ns,Reducer(d))
-  maskWaterLayer(g)
-  div(g,max(abs(g)),g)
-  return g
-
-
-def waveformGradient(isou,do,ds,u,a):
-  wave = Wavefield(sz,sx,st)
-  #ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
-  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-  receiver = Wavefield.Receiver(kzr,kxr)
-  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
-  #checkForNaN(ds)
-  r = sub(ds,do) # residual
-  source = Wavefield.AdjointSource(dt,kzr,kxr,r)
-  wave.modelAcousticWavefield(source,_s,a)
-  return makeGradient(u,a)
-
-#############################################################################
-# Split (Combined)
-
-class SplitInversion():
-  def __init__(self):
-    self.ds = zerofloat(nt,nr)
-    self.u = zerofloat(nz,nx,nt)
-    self.a = zerofloat(nz,nx,nt)
-    self.wave = Wavefield(sz,sx,st)
-    self.do = modelData(_t) # observed data
-    eo = modelDirectArrival(_t) # direct arrival
-    sub(self.do,eo,self.do)
-    for iter in range(niter):
-      print '\niteration',iter
-      sw = Stopwatch(); sw.start()
-      g = self.gradient()
-      print 'gradient: %.2fm'%(sw.time()/60.0)
-      plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
-      if niter>1:
-        #updateModel(SplitMisfitFunction(g,ns/2,self.do))
-        updateModel(TraveltimeMisfitFunction(g,ns/2,self.do))
-        plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-             title='s_iter'+str(iter))
-      sw.stop(); print 'iteration: %.2fm'%(sw.time()/60.0)
-  def gradient(self):
-    g = zerofloat(nz,nx)
-    p = zerofloat(nz,nx) # preconditioner
-    es = modelDirectArrival(_s) # direct arrival for simulated data
-    for isou in range(ns):
-      num,den = self.gradientForOneSource(isou,es)
-      add(num,g,g)
-      add(den,p,p)
-    div(g,p,g)
-    maskWaterLayer(g)
-    div(g,max(abs(g)),g)
-    return g
-  def gradientForOneSource(self,isou,es):
-    sw0 = Stopwatch(); sw0.start()
-    source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-    receiver = Wavefield.Receiver(kzr,kxr)
-    sw = Stopwatch(); sw.start()
-    self.wave.modelAcousticDataAndWavefield(source,receiver,_s,self.ds,self.u)
-    print 'forward: %.2fs'%sw.time()
-    sub(self.ds,es[isou],self.ds) # subtract direct arrival
-    checkForNaN(self.ds) # throws an exception if NaN
-    rt,rw,rc = makeWarpedResiduals(self.do[isou],self.ds) # residual
-    source = Wavefield.AdjointSource(dt,kzr,kxr,rc)
-    sw.restart()
-    self.wave.modelAcousticWavefield(source,_s,self.a)
-    print 'reverse: %.2fs'%sw.time()
-    g,p = makeGradient(self.u,self.a)
-    sw0.stop(); print 'source %d: %.2fs'%(isou,sw0.time())
-    return g,p
-
-def goCombined():
-  do = modelData(_t) # observed data
-  eo = modelDirectArrival(_t) # observed direct arrival
-  sub(do,eo,do) # subtract direct arrival
-
-  # XXX
-  #g = read('/home/sluo/Desktop/10hz_new/cmb/dat/g_iter0.dat')
-  #step = findStepLength(g,ns/2,do,da)
-  #add(mul(step,g),_s,_s)
-  #plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_init0')
-  #plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-  #     title='s_init0')
-
-  g = zerofloat(nz,nx)
-  for iter in range(niter):
-    print '\niteration',iter
-    sw = Stopwatch(); sw.restart()
-    g = combinedGradientS(do,es)
-    sw.stop(); print 'gradient:',sw.time(),'s'
-    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
-    if niter>1:
-      step = findStepLength(g,ns/2,do,es)
-      add(mul(step,g),_s,_s)
-      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-           title='s_iter'+str(iter))
-
-def combinedGradientS(do,es):
-  g = zerofloat(nz,nx)
-  p = zerofloat(nz,nx) # preconditioner
-  es = modelDirectArrival(_s) # simulated direct arrival
-  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
-  for isou in range(ns):
-    print 'isou =',isou
-    num,den = combinedGradient(isou,do[isou],es[isou],ds,u,a)
-    add(num,g,g)
-    add(den,p,p)
-  div(g,p,g)
-  maskWaterLayer(g)
-  div(g,max(abs(g)),g)
-  return g
-
-def combinedGradient(isou,do,es,ds,u,a):
-  wave = Wavefield(sz,sx,st)
-  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-  receiver = Wavefield.Receiver(kzr,kxr)
-  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
-  sub(ds,es,ds) # subtract direct arrival
-  #checkForNaN(ds)
-
-#  # Residual
-#  s,dw,_ = warp(do,ds) # wrong order
-#  rt = mul(mul(-1.0,s),timeDerivative(ds)) # traveltime residual
-#  rw = sub(dw,do) # warped residual
-#  rc = add(rt,rw) # combined
-
-  rt,rw,rc = makeWarpedResiduals(do,ds)
-
-  source = Wavefield.AdjointSource(dt,kzr,kxr,rc)
-  wave.modelAcousticWavefield(source,_s,a)
-  return makeGradient(u,a)
-
-#############################################################################
-# Traveltime
-
-def goTraveltime():
-  do = modelData(_t) # observed data
-  da = modelData(fillfloat(_t[0][0],nz,nx)) # direct arrival
-  sub(do,da,do)
-  g = zerofloat(nz,nx)
-  for iter in range(niter):
-    print '\niteration',iter
-    sw = Stopwatch(); sw.restart()
-    g = traveltimeGradientS(do,da)
-    sw.stop(); print 'gradient:',sw.time(),'s'
-    plot(g,cmap=rwb,cmin=-0.95,cmax=0.95,title='g_iter'+str(iter))
-    if niter>1:
-      step = findStepLength(g,ns/2,do,da)
-      add(mul(step,g),_s,_s)
-      plot(_s,cmap=jet,cmin=min(_t),cmax=max(_t),cbar='Slowness (s/km)',
-           title='s_iter'+str(iter))
-
-def traveltimeGradientS(do,da):
-  g = zerofloat(nz,nx)
-  ds,u,a = zerofloat(nt,nr),zerofloat(nz,nx,nt),zerofloat(nz,nx,nt)
-  for isou in range(ns):
-    print 'isou =',isou
-    num,den = traveltimeGradient(isou,do[isou],da[isou],ds,u,a)
-    add(num,g,g)
-    add(den,p,p)
-  div(g,p,g)
-  maskWaterLayer(g)
-  div(g,max(abs(g)),g)
-  return g
-
-def traveltimeGradient(isou,do,da,ds,u,a):
-  wave = Wavefield(sz,sx,st)
-  source = Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou])
-  receiver = Wavefield.Receiver(kzr,kxr)
-  wave.modelAcousticDataAndWavefield(source,receiver,_s,ds,u)
-  sub(ds,da,ds) # subtract direct arrival
-
-  # Residual
-  """
-  s,dw,_ = warp(ds,do) # order matters!
-  #r = mul(s,timeDerivative(dw))
-  r = mul(s,timeDerivative(ds))
-  """
-  s,dw,_ = warp(do,ds) # wrong order
-  r = mul(mul(-1.0,s),timeDerivative(ds))
-
-  source = Wavefield.AdjointSource(dt,kzr,kxr,r)
-  wave.modelAcousticWavefield(source,_s,a)
-  return makeGradient(u,a)
+class SplitInversion(Inversion):
+  def residual(self,do,ds):
+    _,_,rc = makeWarpedResiduals(do,ds)
+    return rc
+  def getMisfitFunction(self,g,isou,do):
+    return SplitMisfitFunction(g,isou,do)
 
 #############################################################################
 # Dynamic Warping
