@@ -10,10 +10,10 @@ sx = Sampling(501,0.012,0.0)
 st = Sampling(2750,0.0015,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-#kxs,kzs = [0],[0]
+kxs,kzs = [0],[0]
 #kxs,kzs = [nx/2],[0]
 #kxs,kzs = rampint(1,10,51),fillint(0,51)
-kxs,kzs = rampint(1,5,101),fillint(0,101)
+#kxs,kzs = rampint(1,5,101),fillint(0,101)
 kxr,kzr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(kxs),len(kxr)
 psou = min(18,ns)
@@ -40,7 +40,7 @@ niter = 10
 #niter = 10
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
@@ -54,14 +54,13 @@ sfile = None
 #pfile = '/home/sluo/Desktop/pngdat3/p_0.dat'
 #sfile = '/home/sluo/Desktop/pngdat3/s1_0.dat'
 
-REMOVE_DIRECT_ARRIVAL = True
 #############################################################################
 
 def main(args):
   initialize()
   #compareData()
   #showData()
-  WaveformInversion()
+  #WaveformInversion()
   #AmplitudeInversion()
 
   #plotWarpings()
@@ -268,8 +267,9 @@ def modelData(s,isou=None):
   return d
 
 def modelDirectArrival(s,isou=None):
+  removeDirectArrival = True
   removeWaterBottom = False
-  if REMOVE_DIRECT_ARRIVAL:
+  if removeDirectArrival:
     if removeWaterBottom:
       t = copy(s)
       # Find water bottom then flood below
