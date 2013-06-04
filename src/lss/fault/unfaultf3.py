@@ -26,12 +26,12 @@ h1s = [20,40,60]
 #############################################################################
 
 def main(args):
-  #show()
+  show()
   #goInterpolateThrows()
   #goCheckInterpolation()
   #goUnfault()
   #goFlatten()
-  goFlattenX()
+  #goFlattenX()
   #goMapping()
 
 def show():
@@ -50,7 +50,7 @@ def show():
   shiftsr = False
   shiftss = False
   mapping = False
-  horizon = True
+  horizon = False
   if seismic:
     g = read("g")
     h = read("h")

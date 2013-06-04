@@ -6,8 +6,10 @@ from imports import *
 #############################################################################
 # Parameters
 
-sz = Sampling(201,16.0,0.0)
-sx = Sampling(201,16.0,0.0)
+#sz = Sampling(201,16.0,0.0)
+#sx = Sampling(201,16.0,0.0)
+sz = Sampling(201,0.016,0.0)
+sx = Sampling(201,0.016,0.0)
 st = Sampling(2001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
@@ -24,10 +26,18 @@ def main(args):
   #u = wavefield.getWavefield()
   #display(u)
 
-  wavefield = AcousticWavefieldY(sz,sx,st)
-  source = AcousticWavefieldY.RickerSource(fpeak,kzs,kxs)
-  wavefield.propagate(source,v)
-  u = wavefield.getWavefield()
+  #wavefield = AcousticWavefieldY(sz,sx,st)
+  #source = AcousticWavefieldY.RickerSource(fpeak,kzs,kxs)
+  #wavefield.propagate(source,v)
+  #u = wavefield.getWavefield()
+
+  s = div(1000.0,v) # slowness (s/km)
+  u = zerofloat(nz,nx,nt)
+  wave = Wavefield(sz,sx,st)
+  wave.modelAcousticWavefield(
+    Wavefield.RickerSource(fpeak,kzs,kxs),
+    s,u)
+
   display(u)
   plot(u[900]);
   plot(u[1000]);

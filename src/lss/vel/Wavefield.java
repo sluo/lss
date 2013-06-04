@@ -18,62 +18,30 @@ public class Wavefield {
     _nz = sz.getCount()+2*_b;
     _nx = sx.getCount()+2*_b;
     _nt = st.getCount();
-    _u0m = new float[_nx][_nz];
-    _u0i = new float[_nx][_nz];
-    _u0p = new float[_nx][_nz];
-    _u1m = new float[_nx][_nz];
-    _u1i = new float[_nx][_nz];
-    _u1p = new float[_nx][_nz];
   }
 
   public void modelAcousticData(
-    Source source, Receiver receiver, float[][] s0, float[][] d)
+    Source source, Receiver receiver, float[][] s, float[][] d)
   {
-    modelAcousticDataAndWavefield(source,receiver,s0,d,null);
+    modelAcousticDataAndWavefield(source,receiver,s,d,null);
   }
 
   public void modelAcousticWavefield(
-    Source source, float[][] s0, float[][][] u0)
+    Source source, float[][] s, float[][][] u)
   {
-    modelAcousticDataAndWavefield(source,null,s0,null,u0);
+    modelAcousticDataAndWavefield(source,null,s,null,u);
   }
 
   public void modelAcousticDataAndWavefield(
     Source source, Receiver receiver,
-    float[][] s0, float[][] d, float[][][] u0)
+    float[][] s, float[][] d, float[][][] u)
   {
-    updateParameters(source,receiver,s0,null);
-    modelAcoustic(d,u0);
+    updateParameters(source,receiver,s,null);
+    modelAcoustic(d,u);
   }
-
-  public void modelBornData(
-    Source source, Receiver receiver, float[][] s0, float[][] s1, float[][] d)
-  {
-    modelBornDataAndWavefield(source,receiver,s0,s1,d,null,null);
-  }
-
-  public void modelBornWavefield(
-    Source source, float[][] s0, float[][] s1, float[][][] u0, float[][][] u1)
-  {
-    modelBornDataAndWavefield(source,null,s0,s1,null,u0,u1);
-  }
-
-  public void modelBornDataAndWavefield(
-    Source source, Receiver receiver, float[][] s0, float[][] s1, 
-    float[][] d, float[][][] u0, float[][][] u1)
-  {
-    updateParameters(source,receiver,s0,s1);
-    modelBorn(d,u0,u1);
-  }
-
-  public static abstract class Source {
-    public void add(double t, float[][] f) {
-      add(1.0f,t,f);
-    }
-    public void sub(double t, float[][] f) {
-      add(-1.0f,t,f);
-    }
-    abstract void add(float sign, double t, float[][] f);
+  
+  public static interface Source {
+    public void add(double t, float[][] f);
   }
 
   public static class Receiver {
@@ -89,7 +57,7 @@ public class Wavefield {
 
   //////////////////////////////////////////////////////////////////////////
 
-  private static int _b = 50; // absorbing boundary size
+  private static int _b = 20; // absorbing boundary size
 
   private Source _source;
   private Receiver _receiver;
@@ -97,50 +65,38 @@ public class Wavefield {
   private int _it; // current time index
   private int _nx,_nz,_nt; // number of samples
   private double _dx,_dz,_dt; // sampling intervals
-  private float[][] _s0; // slowness
-  private float[][] _s1; // perturbation slowness
-  private float[][] _r0; // dt^2/(dx^2*s0^2)
-  private float[][] _u0m,_u0i,_u0p; // u0(x;t-1), u0(x;t), u0(x;t+1)
-  private float[][] _u1m,_u1i,_u1p; // u1(x;t-1), u1(x;t), u1(x;t+1)
+  private float[][] _s; // slowness
+  private float[][] _r; // dt^2/(dx^2*s^2)
 
   private void updateParameters(
-    Source source, Receiver receiver, float[][] s0, float[][] s1)
+    Source source, Receiver receiver, float[][] s, float[][] s1)
   {
     _source = source;
     _receiver = receiver;
     float r = (float)(_dt*_dt/(_dx*_dx));
-    _s0 = extendModel(s0);
-    _r0 = copy(_s0);
-    mul(_r0,_r0,_r0);
-    div(  r,_r0,_r0);
-    if (s1!=null) {
-      _s1 = extendModel(s1);
-    }
-    //SimplePlot.asPixels(s0);
-    //SimplePlot.asPixels(s1);
+    _s = extendModel(s);
+    _r = copy(_s);
+    mul(_r,_r,_r);
+    div(  r,_r,_r);
   }
 
-  private void modelAcoustic(float[][] d, float[][][] u0) {
+  private void modelAcoustic(float[][] d, float[][][] u) {
     int nz = _nz-2*_b;
     int nx = _nx-2*_b;
     int nt = _nt;
-
-    zero(_u0m);
-    zero(_u0i);
-    zero(_u0p);
+    float[][] um = new float[_nx][_nz];
+    float[][] ui = new float[_nx][_nz];
+    float[][] up = new float[_nx][_nz];
     for (int it=0; it<nt; ++it) {
       
       // One time step
-      step(_u0m,_u0i,_u0p);
+      step(um,ui,up);
 
       // Source injection
-      _source.add(_dt*it,_u0p);
-      if (it>=2) {
-        _source.sub(_dt*(it-2),_u0m); // SEP trick?
-      }
+      _source.add(_dt*it,up);
 
       // Absorbing boundaries
-      absorb(_u0m,_u0i,_u0p);
+      absorb(um,ui,up);
 
       // Copy data and wavefield
       if (_receiver!=null) {
@@ -148,114 +104,35 @@ public class Wavefield {
         for (int ir=0; ir<nr; ++ir) {
           int kz = _receiver.kzr[ir]+_b;
           int kx = _receiver.kxr[ir]+_b;
-          d[ir][it] = _u0p[kx][kz];
+          d[ir][it] = ui[kx][kz];
         }
       }
-      if (u0!=null) {
-        copy(nz,nx,_b,_b,_u0p,0,0,u0[it]);
+      if (u!=null) {
+        copy(nz,nx,_b,_b,ui,0,0,u[it]);
       }
 
       // Rotate arrays
-      float[][] t = _u0m;
-      _u0m = _u0i;
-      _u0i = _u0p;
-      _u0p = t;
+      float[][] t = um;
+      um = ui;
+      ui = up;
+      up = t;
     }
 
     // Time reverse if necessary
     if (_source instanceof AdjointSource) {
-      reverse3(u0);
+      reverse3(u);
     }
   }
 
-  private void modelBorn(float[][] d, float[][][] u0, float[][][] u1) {
-    final int nz = _nz-2*_b;
-    final int nx = _nx-2*_b;
-    final int nt = _nt;
-
-    zero(_u0m);
-    zero(_u0i);
-    zero(_u0p);
-    zero(_u1m);
-    zero(_u1i);
-    zero(_u1p);
-    for (int it=0; it<nt; ++it) {
-      
-      // One time step
-      step(_u0m,_u0i,_u0p);
-      step(_u1m,_u1i,_u1p);
-
-      // Source injection for u0
-      _source.add(_dt*it,_u0p);
-      if (it>=2) {
-        _source.sub(_dt*(it-2),_u0m); // SEP trick?
-      }  
-
-      // Virtual source injection for u1
-      //for (int ix=0; ix<_nx; ++ix) {
-      /*
-      Parallel.loop(_nx,new Parallel.LoopInt() {
-      public void compute(int ix) {
-        for (int iz=0; iz<_nz; ++iz) {
-          _u1p[ix][iz] -= 2.0f*(_s1[ix][iz]/_s0[ix][iz])*(
-            _u0p[ix][iz]-2.0f*_u0i[ix][iz]+_u0m[ix][iz]);
-        }
-      }});
-      */
-      Parallel.loop(_b,_nx-_b,new Parallel.LoopInt() {
-      public void compute(int ix) {
-        for (int iz=_b; iz<_nz-_b; ++iz) {
-          _u1p[ix][iz] -= 2.0f*(_s1[ix][iz]/_s0[ix][iz])*(
-            _u0p[ix][iz]-2.0f*_u0i[ix][iz]+_u0m[ix][iz]);
-        }
-      }});
-      //}
-
-      // Absorbing boundaries
-      absorb(_u0m,_u0i,_u0p);
-      absorb(_u1m,_u1i,_u1p);
-
-      // Copy data and wavefield
-      if (_receiver!=null) {
-        int nr = _receiver.kzr.length;
-        for (int ir=0; ir<nr; ++ir) {
-          int kz = _receiver.kzr[ir]+_b;
-          int kx = _receiver.kxr[ir]+_b;
-          d[ir][it] = _u1p[kx][kz];
-        }
-      }
-      if (u0!=null) {
-        copy(nz,nx,_b,_b,_u0p,0,0,u0[it]);
-        copy(nz,nx,_b,_b,_u1p,0,0,u1[it]);
-      }
-
-      // Rotate arrays
-      float[][] t0 = _u0m;
-      _u0m = _u0i;
-      _u0i = _u0p;
-      _u0p = t0;
-      float[][] t1 = _u1m;
-      _u1m = _u1i;
-      _u1i = _u1p;
-      _u1p = t1;
-    }
-
-    // Time reverse if necessary
-    if (_source instanceof AdjointSource) {
-      reverse3(u0);
-      reverse3(u1);
-    }
-  }
-
-  public static class RickerSource extends Source {
+  public static class RickerSource implements Source {
     public RickerSource(double fpeak, int kzs, int kxs) {
       _fpeak = fpeak;
       _kzs = kzs+_b;
       _kxs = kxs+_b;
       _tdelay = 1.0/fpeak;
     }
-    public void add(float sign, double t, float[][] f) {
-      f[_kxs][_kzs] += sign*ricker(t-_tdelay);
+    public void add(double t, float[][] f) {
+      f[_kxs][_kzs] += ricker(t-_tdelay);
     }
     private float ricker(double t) {
       double x = PI*_fpeak*t;
@@ -266,7 +143,78 @@ public class Wavefield {
     private double _fpeak,_tdelay;
   }
 
-  public static class PlaneWaveSource extends Source {
+  private static abstract class TimeFunctionSource implements Source {
+    public TimeFunctionSource(double fpeak, int kzs, int kxs) {
+      _fpeak = fpeak;
+      _kzs = kzs+_b;
+      _kxs = kxs+_b;
+      _tdelay = 1.0/fpeak;
+    }
+    public void add(double t, float[][] f) {
+      f[_kxs][_kzs] += function(t-_tdelay);
+    }
+    public abstract float function(double t);
+    double _fpeak,_tdelay;
+    int _kzs,_kxs;
+  }
+  public static class GaussianSource extends TimeFunctionSource {
+    public GaussianSource(double fpeak, int kzs, int kxs) {
+      super(fpeak,kzs,kxs);
+    }
+    public float function(double t) {
+      double x = PI*_fpeak*t;
+      double xx = x*x;
+      return (float)exp(-xx);
+    }
+  }
+  public static class Gaussian2Source extends TimeFunctionSource {
+    public Gaussian2Source(double fpeak, int kzs, int kxs) {
+      super(fpeak,kzs,kxs);
+    }
+    public float function(double t) {
+      double x = PI*_fpeak*t;
+      double xx = x*x;
+      return (float)((1.0-2.0*xx)*exp(-xx));
+    }
+  }
+  public static class Gaussian4Source extends TimeFunctionSource {
+    public Gaussian4Source(double fpeak, int kzs, int kxs) {
+      super(fpeak,kzs,kxs);
+    }
+    public float function(double t) {
+      double a = PI*_fpeak;
+      double aa = a*a;
+      double x = a*t;
+      double xx = x*x;
+      //return (float)(2.0*aa*(3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+      return (float)((3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+    }
+  }
+
+  // 2nd derivative of Ricker wavelet
+  public static class Ricker2Source implements Source {
+    public Ricker2Source(double fpeak, int kzs, int kxs) {
+      _fpeak = fpeak;
+      _kzs = kzs+_b;
+      _kxs = kxs+_b;
+      _tdelay = 1.0/fpeak;
+    }
+    public void add(double t, float[][] f) {
+      f[_kxs][_kzs] += ricker(t-_tdelay);
+    }
+    private float ricker(double t) {
+      double a = PI*_fpeak;
+      double aa = a*a;
+      double x = a*t;
+      double xx = x*x;
+      //return (float)(2.0*aa*(3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+      return (float)((3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+    }
+    private int _kzs,_kxs;
+    private double _fpeak,_tdelay;
+  }
+
+  public static class PlaneWaveSource implements Source {
     public PlaneWaveSource(
       double angle, double tdelay, double fpeak,
       double dx, int kzs, int kxs, float[][] v)
@@ -283,12 +231,12 @@ public class Wavefield {
       //new RecursiveGaussianFilter(_nx/4).apply0(_w,_w); // taper
       div(_w,max(_w),_w);
     }
-    public void add(float sign, double t, float[][] f) {
+    public void add(double t, float[][] f) {
       //double p = sin(_angle)/_v[_kzs][_nx/2]; // TODO: function of x?
       for (int ix=0; ix<_nx; ++ix) {
         double t0 = _ps*(ix-_kxs)*_dx;
         // TODO + or - t0?
-        f[ix+_b][_kzs+_b] += sign*_w[ix]*ricker(t-_tdelay+t0);
+        f[ix+_b][_kzs+_b] += _w[ix]*ricker(t-_tdelay+t0);
       }
     }
     private float ricker(double t) {
@@ -301,43 +249,70 @@ public class Wavefield {
     private float[] _w; // weight for tapering sources
   }
 
-  public static class DefaultSource extends Source {
+  public static class DefaultSource implements Source {
     public DefaultSource(double dt, int kzs, int kxs, float[] s) {
       this(dt,new int[]{kzs},new int[]{kxs},new float[][]{s});
     }
     public DefaultSource(double dt, int[] kzs, int[] kxs, float[][] s) {
       Check.argument(kzs.length==kxs.length,"kzs.length=kxs.length");
       _ns = kzs.length;
-      _nt = s[0].length;
       _dt = dt;
       _kzs = kzs;
       _kxs = kxs;
       _s = s;
     }
-    public void add(float sign, double t, float[][] f) {
+    public void add(double t, float[][] f) {
       int it = (int)(t/_dt);
       for (int is=0; is<_ns; is++) {
         int kzs = _b+_kzs[is];
         int kxs = _b+_kxs[is];
-        f[kxs][kzs] += sign*_s[is][it];
+        f[kxs][kzs] += _s[is][it];
       }
     }
     private double _dt;
-    private int _ns,_nt;
+    private int _ns;
     private int[] _kzs = null;
     private int[] _kxs = null;
     private float[][] _s = null;
   }
 
-  public static class AdjointSource extends Source {
+  public static class WavefieldSource implements Source {
+    public WavefieldSource(double dt, float[][] r, float[][][] u) {
+      int nz = u[0][0].length;
+      int nx = u[0].length;
+      int nt = u.length;
+      _dt = dt;
+      _r = r;
+      _u = u;
+    }
+    public void add(final double t, final float[][] f) {
+      final float[][] uf = _u[(int)(t/_dt)];
+      final float[][] rf = _r;
+      final int nz = uf[0].length;
+      final int nx = uf.length;
+      Parallel.loop(nx,new Parallel.LoopInt() {
+      public void compute(int ix) {
+        for (int iz=0; iz<nz; ++iz) {
+          int kzs = _b+iz;
+          int kxs = _b+ix;
+          f[kxs][kzs] += uf[ix][iz]*rf[ix][iz];
+        }
+      }});
+    }
+    private double _dt;
+    private float[][] _r;
+    private float[][][] _u;
+  }
+
+  public static class AdjointSource implements Source {
     public AdjointSource(double dt, int kzs, int kxs, float[] s) {
       this(dt,new int[]{kzs},new int[]{kxs},new float[][]{s});
     }
     public AdjointSource(double dt, int[] kzs, int[] kxs, float[][] s) {
       _source = new DefaultSource(dt,kzs,kxs,reverse(s));
     }
-    public void add(float sign, double t, float[][] f) {
-      _source.add(sign,t,f);
+    public void add(double t, float[][] f) {
+      _source.add(t,f);
     }
     private static float[][] reverse(float[][] x) {
       int n1 = x[0].length;
@@ -378,7 +353,7 @@ public class Wavefield {
         for (int iz=1; iz<_nz-1; ++iz) {
           int izm1 = iz-1;
           int izp1 = iz+1;
-          float r = _r0[ix][iz];
+          float r = _r[ix][iz];
           up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
             D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
             D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
@@ -396,7 +371,7 @@ public class Wavefield {
           int iz = 1;
           int izm1 = iz-1;
           int izp1 = iz+1;
-          float r = _r0[ix][iz];
+          float r = _r[ix][iz];
           up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
             D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
             D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
@@ -408,7 +383,7 @@ public class Wavefield {
           int izp1 = iz+1;
           int izm2 = iz-2;
           int izp2 = iz+2;
-          float r = _r0[ix][iz];
+          float r = _r[ix][iz];
           up[ix][iz] = (2.0f+C6*r)*ui[ix][iz]-um[ix][iz]+r*(
             C5*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
             C4*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
@@ -422,7 +397,7 @@ public class Wavefield {
           int iz = _nz-2;
           int izm1 = iz-1;
           int izp1 = iz+1;
-          float r = _r0[ix][iz];
+          float r = _r[ix][iz];
           up[ix][iz] = (2.0f+D3*r)*ui[ix][iz]-um[ix][iz]+r*(
             D2*(ui[ixm1][iz  ]+ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixp1][iz  ])+
             D1*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1]));
@@ -434,20 +409,213 @@ public class Wavefield {
   private void absorb(
     final float[][] um, final float[][] ui, final float[][] up)
   {
-    absorbHale(um,ui,up);
-    Parallel.loop(0,_nx,new Parallel.LoopInt() {
-      public void compute(int ix) {
-        absorbSliceX(ix,_b,um);
-        absorbSliceX(ix,_b,ui);
-        absorbSliceX(ix,_b,up);
+    //absorbReynolds(um,ui,up);
+    absorbClayton(um,ui,up);
+    //absorbHale(um,ui,up);
+    //Parallel.loop(0,_nx,new Parallel.LoopInt() {
+    //  public void compute(int ix) {
+    //    absorbSliceX(ix,_b,um);
+    //    absorbSliceX(ix,_b,ui);
+    //    absorbSliceX(ix,_b,up);
+    //  }
+    //});
+  }
+
+  private void absorbReynolds(float[][] um, float[][] ui, float[][] up) {
+    float a = (float)(_dt/_dx);
+
+    for (int ix=0; ix<_b; ++ix) {
+      float w = (float)ix/(float)_b;
+      for (int iz=ix+1; iz<_nz-1-ix; ++iz) {
+        float vp = ui[ix][iz]+ui[ix+1][iz]-um[ix+1][iz]+
+          (a/_s[ix][iz])*(ui[ix+1][iz]-ui[ix][iz]-um[ix+2][iz]+um[ix+1][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
-    });
+    }
+
+    for (int ix=_nx-_b; ix<_nx; ++ix) {
+      float w = (float)((_nx-1)-ix)/(float)_b;
+      for (int iz=_nx-ix; iz<_nz-1-(_nx-1-ix); ++iz) {
+        float vp = ui[ix][iz]+ui[ix-1][iz]-um[ix-1][iz]+
+          (a/_s[ix][iz])*(ui[ix-1][iz]-ui[ix][iz]-um[ix-2][iz]+um[ix-1][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+
+    for (int iz=0; iz<_b; ++iz) {
+      float w = (float)iz/(float)_b;
+      for (int ix=iz+1; ix<_nx-1-iz; ++ix) {
+        float vp = ui[ix][iz]+ui[ix][iz+1]-um[ix][iz+1]+
+          (a/_s[ix][iz])*(ui[ix][iz+1]-ui[ix][iz]-um[ix][iz+2]+um[ix][iz+1]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+
+    for (int iz=_nz-_b; iz<_nz; ++iz) {
+      float w = (float)((_nz-1)-iz)/(float)_b;
+      for (int ix=_nz-iz; ix<_nx-1-(_nz-1-iz); ++ix) {
+        float vp = ui[ix][iz]+ui[ix][iz-1]-um[ix][iz-1]+
+          (a/_s[ix][iz])*(ui[ix][iz-1]-ui[ix][iz]-um[ix][iz-2]+um[ix][iz-1]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+
+//    // Corners
+////    iz = 0;
+////    ix = 0;
+//    for (ix=0,iz=0; ix<_b; ++ix,++iz) {
+//      vp[ix][iz] = ui[ix][iz]+(a/_s[ix][iz])*(ui[ix+1][iz+1]-ui[ix][iz]);
+//    }
+////
+////    iz = 0;
+////    ix = _nx-1;
+//    for (ix=_nx-1,iz=0; iz<_b; --ix,++iz) {
+//      vp[ix][iz] = ui[ix][iz]+(a/_s[ix][iz])*(ui[ix-1][iz+1]-ui[ix][iz]);
+//    }
+////
+////    iz = _nz-1;
+////    ix = 0;
+//    for (ix=0,iz=_nz-1; ix<_b; ++ix,--iz) {
+//      vp[ix][iz] = ui[ix][iz]+(a/_s[ix][iz])*(ui[ix+1][iz-1]-ui[ix][iz]);
+//    }
+////
+////    iz = _nz-1;
+////    ix = _nx-1;
+//    for (ix=_nx-1,iz=_nx-1; ix>=_nx-_b; --ix,--iz) {
+//      vp[ix][iz] = ui[ix][iz]+(a/_s[ix][iz])*(ui[ix-1][iz-1]-ui[ix][iz]);
+//    }
+
+
+
+  }
+
+  private void absorbClayton(
+    final float[][] um, final float[][] ui, final float[][] up)
+  {
+    final float oxt = (float)(1.0/(_dx*_dt));
+    final float oxx = (float)(1.0/(_dx*_dx));
+    final float ott = (float)(1.0/(_dt*_dt));
+    final float[][] cp = copy(up);
+
+    Parallel.loop(_b,new Parallel.LoopInt() {
+    public void compute(int ix) {
+    //for (int ix=0; ix<_b; ++ix) {
+      float w = (float)ix/(float)_b;
+      for (int iz=ix+1; iz<_nz-1-ix; ++iz) {
+        float si = _s[ix][iz];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
+          (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
+          (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
+          (um[ix+1][iz])*(b-a)
+        );
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }});
+
+    Parallel.loop(_nx-_b,_nx,new Parallel.LoopInt() {
+    public void compute(int ix) {
+    //for (int ix=_nx-_b; ix<_nx; ++ix) {
+      float w = (float)((_nx-1)-ix)/(float)_b;
+      for (int iz=_nx-ix; iz<_nz-1-(_nx-1-ix); ++iz) {
+        float si = _s[ix][iz];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[ix][iz-1]+um[ix][iz+1]+cp[ix-1][iz+1]+cp[ix-1][iz-1])*c+
+          (um[ix][iz]+cp[ix-1][iz])*(a+b-2.0f*c)+
+          (ui[ix][iz]+ui[ix-1][iz])*(-2.0f*b)+
+          (um[ix-1][iz])*(b-a)
+        );
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }});
+
+    Parallel.loop(_b,new Parallel.LoopInt() {
+    public void compute(int iz) {
+    //for (int iz=0; iz<_b; ++iz) {
+      float w = (float)iz/(float)_b;
+      for (int ix=iz+1; ix<_nx-1-iz; ++ix) {
+        float si = _s[ix][iz];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz+1]+cp[ix-1][iz+1])*c+
+          (um[ix][iz]+cp[ix][iz+1])*(a+b-2.0f*c)+
+          (ui[ix][iz]+ui[ix][iz+1])*(-2.0f*b)+
+          (um[ix][iz+1])*(b-a)
+        );
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }});
+
+    Parallel.loop(_nz-_b,_nz,new Parallel.LoopInt() {
+    public void compute(int iz) {
+    //for (int iz=_nz-_b; iz<_nz; ++iz) {
+      float w = (float)((_nz-1)-iz)/(float)_b;
+      for (int ix=_nz-iz; ix<_nx-1-(_nz-1-iz); ++ix) {
+      //for (int ix=_nz+1-iz; ix<_nx-2-(_nz-1-iz); ++ix) {
+        float si = _s[ix][iz];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz-1]+cp[ix-1][iz-1])*c+
+          (um[ix][iz]+cp[ix][iz-1])*(a+b-2.0f*c)+
+          (ui[ix][iz]+ui[ix][iz-1])*(-2.0f*b)+
+          (um[ix][iz-1])*(b-a)
+        );
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }});
+
+    // Corners
+    for (int ix=0; ix<_b; ++ix) {
+      float w = (float)ix/(float)_b;
+      for (int iz=0; iz<_b; ++iz) {
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+    for (int ix=0; ix<_b; ++ix) {
+      float w = (float)ix/(float)_b;
+      for (int iz=_nz-_b; iz<_nz; ++iz) {
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+    for (int ix=_nx-_b; ix<_nx; ++ix) {
+      float w = (float)((_nx-1)-ix)/(float)_b;
+      for (int iz=0; iz<_b; ++iz) {
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+    for (int ix=_nx-_b; ix<_nx; ++ix) {
+      float w = (float)((_nx-1)-ix)/(float)_b;
+      for (int iz=_nz-_b; iz<_nz; ++iz) {
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
+        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+      }
+    }
+
   }
 
   private void absorbSliceX(int ix ,int b, float[][] u) {
     int nzmb = _nz-b;
     //float w = 0.005f;
+    //float w = 0.0010f;
     float w = 0.0015f;
+    //float w = 0.0020f;
     //float w = 0.0025f;
     //float w = 0.0050f;
     float ws = w*w;
@@ -498,7 +666,7 @@ public class Wavefield {
 
     ix = 0;
     for (iz=1; iz<_nz-1; ++iz) {
-      float si = _s0[ix][iz];
+      float si = _s[ix][iz];
       float pz = odx*(ui[ix+1][iz+1]-ui[ix+1][iz-1]);
       float pt = odt*(up[ix+1][iz  ]-um[ix+1][iz  ]);
       float a = 1.0f-pz*pz/(si*si*pt*pt);
@@ -510,7 +678,7 @@ public class Wavefield {
 
     ix = _nx-1;
     for (iz=1; iz<_nz-1; ++iz) {
-      float si = _s0[ix][iz];
+      float si = _s[ix][iz];
       float pz = odx*(ui[ix-1][iz+1]-ui[ix-1][iz-1]);
       float pt = odt*(up[ix-1][iz  ]-um[ix-1][iz  ]);
       float a = 1.0f-pz*pz/(si*si*pt*pt);
@@ -522,7 +690,7 @@ public class Wavefield {
 
     iz = 0;
     for (ix=1; ix<_nx-1; ++ix) {
-      float si = _s0[ix][iz];
+      float si = _s[ix][iz];
       float px = odx*(ui[ix+1][iz+1]-ui[ix-1][iz+1]);
       float pt = odt*(up[ix  ][iz+1]-um[ix  ][iz+1]);
       float a = 1.0f-px*px/(si*si*pt*pt);
@@ -534,7 +702,7 @@ public class Wavefield {
 
     iz = _nz-1;
     for (ix=1; ix<_nx-1; ++ix) {
-      float si = _s0[ix][iz];
+      float si = _s[ix][iz];
       float px = odx*(ui[ix+1][iz-1]-ui[ix-1][iz-1]);
       float pt = odt*(up[ix  ][iz-1]-um[ix  ][iz-1]);
       float a = 1.0f-px*px/(si*si*pt*pt);
@@ -545,59 +713,13 @@ public class Wavefield {
     }
   }
 
-  private float[][] xextendModel(float[][] c) {
-    int nz = c[0].length;
-    int nx = c.length;
-    int nxp = nx+2*_b;
-    int nzp = nz+2*_b;
-    float[][] v = new float[nxp][nzp];
-    copy(nz,nx,0,0,c,_b,_b,v);
-    for (int ix=_b; ix<nx+_b; ++ix) {
-      float dv1 = v[ix][_b+1]-v[ix][_b];
-      float dv2 = v[ix][nz+_b-1]-v[ix][nz+_b-2];
-      for (int iz=0, jz=nz+_b; iz<_b; ++iz, ++jz) {
-        //v[ix][iz] = v[ix][_b]-(_b-iz)*dv1;
-        //v[ix][jz] = v[ix][nz+_b-1]+(jz-(nz+_b-1))*dv2;
-        v[ix][iz] = v[ix][_b];
-        v[ix][jz] = v[ix][nz+_b-1];
-      }
-    }
-    for (int ix=0, jx=nx+_b; ix<_b; ++ix, ++jx) {
-      copy(v[_b],v[ix]);
-      copy(v[nx+_b-1],v[jx]);
-    }
-
-    float[][] w = new float[nxp][nzp];
-    for (int ix=0; ix<=nxp/2; ++ix) {
-      for (int iz=0; iz<=nzp/2; ++iz) {
-        float xf = (ix<_b)?(float)(_b-ix):0.0f;
-        float zf = (iz<_b)?(float)(_b-iz):0.0f;
-        float wi = 1.0f-min(sqrt(xf*xf+zf*zf)/_b,1.0f);
-        w[ix      ][iz      ] = wi;
-        w[nxp-1-ix][iz      ] = wi;
-        w[ix      ][nzp-1-iz] = wi;
-        w[nxp-1-ix][nzp-1-iz] = wi;
-      }
-    }
-    mul(w,w,w);
-    float[][] t = copy(v);
-    RecursiveExponentialFilter ref = new RecursiveExponentialFilter(_b);
-    ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE);
-    ref.apply(t,t);
-    v = add(mul(w,v),mul(sub(1.0f,w),t));
-    return v;
-  }
   private float[][] extendModel(float[][] c) {
     int nz = c[0].length;
     int nx = c.length;
     float[][] v = new float[nx+2*_b][nz+2*_b];
     copy(nz,nx,0,0,c,_b,_b,v);
     for (int ix=_b; ix<nx+_b; ++ix) {
-      float dv1 = v[ix][_b+1]-v[ix][_b];
-      float dv2 = v[ix][nz+_b-1]-v[ix][nz+_b-2];
       for (int iz=0, jz=nz+_b; iz<_b; ++iz, ++jz) {
-        //v[ix][iz] = v[ix][_b]-(_b-iz)*dv1;
-        //v[ix][jz] = v[ix][nz+_b-1]+(jz-(nz+_b-1))*dv2;
         v[ix][iz] = v[ix][_b];
         v[ix][jz] = v[ix][nz+_b-1];
       }

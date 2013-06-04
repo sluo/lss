@@ -16,10 +16,18 @@ d1,d2,d3 = 0.004,0.025,0.025
 #f1,f2,f3 = 1.204 if subset=='a' else 3.044,1.25,2.5
 f1,f2,f3 = 1.484 if subset=='a' else 1.024,1.25,2.5
 s1,s2,s3 = Sampling(n1,d1,f1),Sampling(n2,d2,f2),Sampling(n3,d3,f3)
-k1 =  22 if subset=='a' else 56
-k2 =  48 if subset=='a' else 48
+
+#k1 =  22 if subset=='a' else 56
+#k2 =  48 if subset=='a' else 48
+#k3 = 151 if subset=='a' else 150
+
+#k1 =  40 if subset=='a' else 56
+#k1 =  30 if subset=='a' else 56
+k1 =  25 if subset=='a' else 56
+k2 = 110 if subset=='a' else 48
 k3 = 151 if subset=='a' else 150
-azimuth,elevation =210,25 # for 3D views
+
+azimuth,elevation = 210,25 # for 3D views
 h1s = [32] if subset=="a" else [55] # horizons
 
 #############################################################################
@@ -189,54 +197,63 @@ def goSeg():
   plot3 = True
 
   def goPlot3():
-    seismic = False
-    blended = True
-    shiftss = True
-    if seismic:
-      g = read("g")
-      h = read("h")
-      f = read("f")
-      cmin,cmax = 0.8*min(g),0.8*max(g)
-      plot3(g,cmin=cmin,cmax=cmax,cbar="Amplitude",name="g"+subset)
-      plot3(h,cmin=cmin,cmax=cmax,cbar="Amplitude",name="h"+subset)
-      plot3(f,cmin=cmin,cmax=cmax,cbar="Amplitude",name="f"+subset)
-      #display(g,cmin=cmin,cmax=cmax);
-    if blended:
-      g,h,f = read('g'),read('h'),read('f')
-      r = array(read('r1'),read('r2'),read('r3'))
-      t1 = mul(d1*1000.0,read("t1"))
-      q1 = mul(-d1*1000.0,read("q1"))
-      ming,maxg = 0.8*min(g),0.8*max(g)
-      
-      null = -0.4938
-      minq,_ = getClipsForPlot3(q1); maxq = 0.4*max(q1)
-      knotch = int(256.0*abs((null-minq)/(maxq-minq)))
-      amap = getNotchAlphaColorMap(jet,knotch)
-      """
-      """
-      minq,maxq = getClipsForPlot3(q1,0.4)
-      amap = getLinearAlphaColorMap(jet)
+    g,h,f = read('g'),read('h'),read('f')
+    r = array(read('r1'),read('r2'),read('r3'))
+    t1 = mul(d1*1000.0,read("t1"))
+    q1 = mul(-d1*1000.0,read("q1"))
+    ming,maxg = 0.8*min(g),0.8*max(g)
+    
+    null = -0.493800014257
+    minq,_ = getClipsForPlot3(q1); maxq = 0.4*max(q1)
+    knotch = int(256.0*abs((null-minq)/(maxq-minq)))
+    amap = getNotchAlphaColorMap(jet,knotch)
 
-      plot3(g,cmin=ming,cmax=maxg,
-            t=t1,cmap1=amap,cmin1=minq,cmax1=maxq,
-            cbar="Vertical component of fault throw (ms)",name="t"+subset)
+    #minq,maxq = getClipsForPlot3(q1,0.4)
+    bmap = getLinearAlphaColorMap(jet)
+    print 'max(t1) =',max(t1)
+    print 'min(t1) =',min(t1)
+    print t1[0][0][0]
 
-      plot3(h,cmin=ming,cmax=maxg,
-            t=t1,cmap1=amap,cmin1=minq,cmax1=maxq,
-            cbar="Vertical component of fault throw (ms)",name="h"+subset)
-      #plot3(h,cmin=ming,cmax=maxg,cbar="Amplitude",name="h"+subset)
+    plot3(g,cmin=ming,cmax=maxg,
+          t=t1,cmap1=amap,cmin1=minq,cmax1=maxq,
+          cbar="Fault throw (ms)",name="t"+subset)
 
-      #plot3(f,FlattenerUtil.applyShiftsR(t1,r),cmin=cmin,cmax=cmax,
-      #      cbar="Vertical component of fault throw (ms)",name="t"+subset)
-      plot3(f,cmin=ming,cmax=maxg,cbar="Amplitude",name="f"+subset)
+    mint1 = min(t1)
+    class Loop(Parallel.LoopInt):
+      def compute(self,i3):
+        for i2 in range(n2):
+          for i1 in range(n1):
+            if abs(t1[i3][i2][i1]-null)<0.001:
+              t1[i3][i2][i1] = mint1
+    Parallel.loop(n3,Loop())
+    print t1[0][0][0]
+    plot3(g,cmin=ming,cmax=maxg,
+          t=t1,cmap1=bmap,cmin1=minq,cmax1=maxq,
+          cbar="Fault throw (ms)",name="tt"+subset)
 
-      #plot3(q1,cmap=jet,cmin=minq,cmax=maxq,nearest=False,
-      #      cbar="Vertical component of fault throw (ms)",name="q"+subset)
+    #plot3(h,cmin=ming,cmax=maxg,
+    #      t=t1,cmap1=amap,cmin1=minq,cmax1=maxq,
+    #      cbar="Vertical component of fault throw (ms)",name="h"+subset)
+    plot3(h,cmin=ming,cmax=maxg,cbar="Amplitude",name="h"+subset)
 
-    if shiftss:
-      s1 = mul(d1*1000.0,read('s1'))
-      plot3(s1,cmap=jet,cbar="Vertical component of composite shift (ms)",
-            name="s1"+subset)
+    #plot3(f,FlattenerUtil.applyShiftsR(t1,r),cmin=cmin,cmax=cmax,
+    #      cbar="Vertical component of fault throw (ms)",name="t"+subset)
+    plot3(f,cmin=ming,cmax=maxg,cbar="Amplitude",name="f"+subset)
+
+    plot3(q1,cmap=jet,cmin=minq,cmax=maxq,nearest=False,
+          cbar="Fault throw (ms)",name="q"+subset)
+
+    s1 = mul(d1*1000.0,read('s1'))
+    plot3(s1,cmap=jet,cbar="Vertical component of composite shift (ms)",
+          name="s1"+subset)
+    s2 = mul(d2*1000.0,read('s2'))
+    plot3(s2,cmap=jet,perc=97.0,
+          cbar="Inline component of composite shift (m)",
+          name="s2"+subset)
+    s3 = mul(d3*1000.0,read('s3'))
+    plot3(s3,cmap=jet,perc=97.0,
+          cbar="Crossline component of composite shift (m)",
+          name="s3"+subset)
 
   def goTeaser():
     def p(x,cmap=gray,cmin=0.0,cmax=0.0,name=None):
@@ -267,7 +284,7 @@ def goSeg():
     p(f,cmin=cmin,cmax=cmax,name="f")
 
   def plot3(f,cmap=gray,cmin=0.0,cmax=0.0,perc=100.0,
-            t=None,cmap1=jet,cmin1=0.0,cmax1=0.0,perc1=0.0,
+            t=None,cmap1=jet,cmin1=0.0,cmax1=0.0,
             nearest=False,cbar=None,name=None):
     o = PlotPanelPixels3.Orientation.X1DOWN_X2RIGHT
     a = PlotPanelPixels3.AxesPlacement.LEFT_BOTTOM
@@ -299,7 +316,8 @@ def goSeg():
     panel.setLineColor(Color.YELLOW)
     if (cbar):
       panel.addColorBar(cbar)
-      panel.setColorBarWidthMinimum(125)
+      #panel.setColorBarWidthMinimum(125)
+      panel.setColorBarWidthMinimum(90)
     panel.setBackground(Color.WHITE)
     panel.setInterval1(0.1)
     panel.setInterval2(1.0)
@@ -307,17 +325,19 @@ def goSeg():
     if cmin<cmax:
       panel.setClips(cmin,cmax)
     if perc<100.0:
-      panel.setPercentiles(100-perc,perc)
+      panel.setPercentiles(100.0-perc,perc)
     #panel.mosaic.setWidthElastic(1,100)
     #panel.mosaic.setHeightElastic(0,205)
-    panel.mosaic.setHeightElastic(0,215)
+    panel.mosaic.setHeightElastic(0,245)
     frame = PlotFrame(panel)
-    frame.setFontSizeForPrint(8.0,288.0)
+    #frame.setFontSizeForPrint(8.0,288.0)
+    frame.setFontSizeForPrint(8.0,469.0)
     #frame.setSize(1150,800)
     frame.setSize(1200,795)
     frame.setVisible(True)
     if name and pngDir:
-      frame.paintToPng(720,4.0,pngDir+name+".png")
+      #frame.paintToPng(720,4.0,pngDir+name+".png")
+      frame.paintToPng(720,7.0,pngDir+name+".png")
     return frame
   if plot3:
     goPlot3()
