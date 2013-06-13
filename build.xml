@@ -2,7 +2,7 @@
 <project name="lss" default="all" basedir=".">
 
   <description>
-    Java packages for research.
+    Java packages for research by Simon Luo.
   </description>
 
   <!-- Project directories -->
@@ -12,12 +12,13 @@
   <property name="build.jar" value="${build}/jar"/>
 
   <!-- Other global settings -->
-  <property name="title" value="Simon's Java"/>
+  <property name="title" value="Simon Luo's Java"/>
   <property environment="env"/>
   <path id="classpath">
+    <fileset dir="${java.home}" includes="lib/javaws.jar"/>
     <fileset dir="${basedir}/../jtk">
-      <include name="jar/*.jar"/>
-      <include name="build/jar/edu_mines_jtk.jar"/>
+      <include name="libs/*.jar"/>
+      <include name="build/libs/edu_mines_jtk.jar"/>
     </fileset>
     <fileset dir="${basedir}/../idh/bench">
       <include name="build/jar/idh.jar"/>
@@ -32,14 +33,16 @@
     <mkdir dir="${build.jar}"/>
   </target>
 
-  <!-- Compile Java -->
+  <!-- Compile Java sources -->
   <target name="compile-java" depends="init">
     <javac srcdir="${src}" destdir="${build.cls}" 
-      compiler="javac1.6"
+      compiler="javac1.7"
+      memoryMaximumSize="500m"
+      fork="true"
       debug="on" 
-      listfiles="yes"
       deprecation="on"
-      includeantruntime="false">
+      includeantruntime="false"
+      listfiles="yes">
       <compilerarg value="-Xlint:all,-serial"/>
       <classpath refid="classpath"/>
       <exclude name="**/old/**"/>
