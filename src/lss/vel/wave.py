@@ -1,55 +1,50 @@
-"""
-Acoustic wavefield modeling
-"""
+#############################################################################
+# Wavefield modeling demo
+
 from imports import *
 
 #############################################################################
-# Parameters
 
-#sz = Sampling(201,16.0,0.0)
-#sx = Sampling(201,16.0,0.0)
 sz = Sampling(201,0.016,0.0)
 sx = Sampling(201,0.016,0.0)
 st = Sampling(2001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-v = fillfloat(2000.0,nz,nx) # velocity
-kzs,kxs = nz/2,nx/2 # source location
-fpeak = 5.0 # Ricker wavelet peak frequency
-
-#############################################################################
+kzs,kxs = [0],[nx/2] # source location
+kxr,kzr = rampint(0,1,nx),fillint(0,nx) # receiver locations
+ns,nr = len(kxs),len(kxr)
+fpeak = 10.0 # Ricker wavelet peak frequency
 
 def main(args):
-  #wavefield = AcousticWavefield(sz,sx,st)
-  #wavelet = AcousticWavefield.SourceWavelet.RICKER;
-  #wavefield.forwardPropagate(wavelet,fpeak,kzs,kxs,v)
-  #u = wavefield.getWavefield()
-  #display(u)
-
-  #wavefield = AcousticWavefieldY(sz,sx,st)
-  #source = AcousticWavefieldY.RickerSource(fpeak,kzs,kxs)
-  #wavefield.propagate(source,v)
-  #u = wavefield.getWavefield()
-
-  s = div(1000.0,v) # slowness (s/km)
-  u = zerofloat(nz,nx,nt)
+  s = getLayeredModel() # slowness model
+  u = zerofloat(nz,nx,nt) # wavefield
+  d = zerofloat(nt,nr) # data
   wave = Wavefield(sz,sx,st)
-  wave.modelAcousticWavefield(
-    Wavefield.RickerSource(fpeak,kzs,kxs),
-    s,u)
+  wave.modelAcousticDataAndWavefield(
+    Wavefield.RickerSource(fpeak,kzs[0],kxs[0]),
+    Wavefield.Receiver(kzr,kxr),
+    s,d,u)
+  display(u,perc=99.0,title="wavefield")
+  plot(d,cmap=gray,perc=99.0,title="data")
+  plot(s,cmap=jet,title="slowness (s/km)")
 
-  display(u)
-  plot(u[900]);
-  plot(u[1000]);
-  plot(u[1800]);
-  print sum(abs(u[1800]));
+def getLayeredModel():
+  """Make slowness (s/km) model."""
+  s = fillfloat(0.5,nz,nx)
+  for ix in range(nx):
+    for iz in range(nz/3,2*nz/3):
+      s[ix][iz] = 0.35
+    for iz in range(2*nz/3,nz):
+      s[ix][iz] = 0.25
+  return s
 
 #############################################################################
+# plotting
 
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
-def plot(x,cmap=gray,title=None):
+def plot(x,cmap=gray,perc=100.0,title=None):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   sp.addColorBar()
   sp.setSize(600,600)
@@ -57,17 +52,13 @@ def plot(x,cmap=gray,title=None):
     sp.addTitle(title)
   pv = sp.addPixels(x)
   pv.setColorModel(cmap)
+  if perc<100.0:
+    pv.setPercentiles(100.0-perc,perc)
 
-def display(image,cmap=gray,cmin=0,cmax=0,perc=100,name=None):
+def display(image,cmap=gray,cmin=0,cmax=0,perc=100,title=None):
   world = World()
   addImageToWorld(world,image,cmap,cmin,cmax,perc)
-  makeFrame(world,name)
-
-def display2(image1,image2,cmap1=gray,cmap2=gray,name=None):
-  world = World()
-  addImageToWorld(world,image1,cmap1)
-  addImageToWorld(world,image2,cmap2)
-  makeFrame(world,name)
+  makeFrame(world,title)
 
 def addImageToWorld(world,image,cmap=gray,cmin=0,cmax=0,perc=100):
   ipg = ImagePanelGroup(image)
@@ -87,13 +78,13 @@ def addColorBar(frame,label):
   #frame.viewCanvas.setBackground(frame.getBackground())
   return cbar
 
-def makeFrame(world,name=None):
+def makeFrame(world,title=None):
   frame = SimpleFrame(world)
-  if name:
-    frame.setTitle(name)
+  if title:
+    frame.setTitle(title)
   view = frame.getOrbitView()
-  view.setAxesScale(1.0,1.0,1.0)
-  view.setScale(2.5)
+  view.setAxesScale(1.0,10.0,10.0)
+  view.setScale(1.2)
   #view.setAzimuth(250)
   #view.setElevation(50)
   #frame.viewCanvas.setBackground(frame.getBackground())
@@ -103,13 +94,8 @@ def makeFrame(world,name=None):
 
 #############################################################################
 # Do everything on Swing thread.
-import sys,time
+
 class RunMain(Runnable):
   def run(self):
-    start = time.time()
     main(sys.argv)
-    s = time.time()-start
-    h = int(s/3600); s -= h*3600
-    m = int(s/60); s -= m*60
-    print '%02d:%02d:%02ds'%(h,m,s)
 SwingUtilities.invokeLater(RunMain())
