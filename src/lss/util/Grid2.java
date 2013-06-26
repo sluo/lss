@@ -252,7 +252,7 @@ public class Grid2 {
     /*
     // serial nearest neighbor
     System.out.print("nearest neighbor (serial): ");
-    gridder.setParallel(false);
+    Grid2.setParallel(false);
     s.restart();
     float[][] nears = gridder.gridNearest(s1,s2);
     s.stop();
@@ -264,7 +264,7 @@ public class Grid2 {
     */
     // parallel nearest neighbor
     System.out.print("nearest neighbor (parallel): ");
-    gridder.setParallel(true);
+    Grid2.setParallel(true);
     s.restart();
     float[][] nearp = gridder.gridNearest(s1,s2);
     s.stop();
@@ -277,7 +277,7 @@ public class Grid2 {
     /*
     // serial discrete Sibson
     System.out.print("discrete sibson (serial): ");
-    gridder.setParallel(false);
+    Grid2.setParallel(false);
     s.restart();
     float[][] sibs = gridder.gridSibson(s1,s2);
     s.stop();
@@ -288,7 +288,7 @@ public class Grid2 {
     /*
     // parallel discrete Sibson
     System.out.print("discrete sibson (parallel): ");
-    gridder.setParallel(true);
+    Grid2.setParallel(true);
     s.restart();
     float[][] sibp = gridder.gridSibson(s1,s2);
     s.stop();
