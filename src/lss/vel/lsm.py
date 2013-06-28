@@ -57,11 +57,12 @@ def setupForMarmousi():
   ns,nr = len(kxs),len(kxr)
   #tt,t0,t1,s0,s1 = getMarmousi()
   #tt,t0,t1,s0,s1 = getMarmousi(s0mul=0.95) # constant perturbation
-  tt,t0,t1,s0,s1 = getMarmousi(s0perturb=0.10) # random perturbation
+  tt,t0,t1,s0,s1 = getMarmousi(s0perturb=0.20) # random perturbation
   plots(tt,t0,t1,s0,s1)
   if sfile is not None:
     s1 = read(sfile)
   psou = min(14,ns)
+  #psou = min(8,ns)
   fpeak = 10.0
   niter = 10
   sw = Stopwatch(); sw.start()
@@ -276,7 +277,7 @@ def modelBornData(s0,s1,isou=None,d=None):
     if d is None:
       d = zerofloat(nt,nr,ns)
     def compute(isou,fsou,lsou):
-      ui = _u[isou-fsou]
+      ui = u[isou-fsou]
       wave = Wavefield(sz,sx,st)
       wave.modelAcousticWavefield(
         Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),s0,ui)
@@ -288,7 +289,7 @@ def modelBornData(s0,s1,isou=None,d=None):
   else:
     if d is None:
       d = zerofloat(nt,nr)
-    ui = _u[0]
+    ui = u[0]
     wave = Wavefield(sz,sx,st)
     wave.modelAcousticWavefield(
       Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),s0,ui)
@@ -506,21 +507,21 @@ class Inversion():
     points(res,title='res')
   def computeGradient(self,iter):
     def compute(isou,fsou,lsou):
-      u,a = _u[isou-fsou],_a[isou-fsou]
+      ui,ai = u[isou-fsou],a[isou-fsou]
       do,ds,r = self.do[isou],self.ds[isou],self.r[isou]
       wave = Wavefield(sz,sx,st)
       wave.modelAcousticWavefield(
-        Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),s0,u)
+        Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),s0,ui)
       if iter>0:
         wave.modelAcousticData(
-          Wavefield.WavefieldSource(dt,s1,u),
+          Wavefield.WavefieldSource(dt,s1,ui),
           Wavefield.Receiver(kzr,kxr),
           s0,ds)
       self.residual(ds,do,r)
       #GaussianTaper.apply(r,r) # taper
       wave.modelAcousticWavefield(
-        Wavefield.AdjointSource(dt,kzr,kxr,r),s0,a)
-      return makeGradient(u,a,d2=False)
+        Wavefield.AdjointSource(dt,kzr,kxr,r),s0,ai)
+      return makeGradient(ui,ai,d2=False)
     sw = Stopwatch(); sw.start()
     g = zerofloat(nz,nx)
     ChunkReduceInt(compute,g)
@@ -1048,7 +1049,7 @@ def getMarmousi(sigma=0.1,s0mul=1.0,s0perturb=0.0):
     mul(scale/max(abs(r)),r,r)
     add(r,s0,s0)
     #print 'scale =',scale
-    #plot(r)
+    plot(r,sperc=100,title='s0_perturbation')
   return t,t0,t1,s0,s1
 
 def linearRegression(x,y):
@@ -1146,6 +1147,7 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
     clips = Clips(100-sperc,sperc,f)
     clip = max(abs(clips.getClipMin()),abs(clips.getClipMax()))
     pixel.setClips(-clip,clip)
+    pixel.setColorModel(rwb)
   pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
   frame = PlotFrame(panel)
   frame.setFontSizeForSlide(1.5,1.5)
