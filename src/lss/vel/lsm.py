@@ -1,43 +1,10 @@
-"""
-Least-squares RTM
-"""
+#############################################################################
+# Least-squares migration
+
 from imports import *
 from warp import *
 
 #############################################################################
-sz = Sampling(301,0.012,0.0)
-sx = Sampling(501,0.012,0.0)
-st = Sampling(2750,0.0015,0.0)
-nz,nx,nt = sz.count,sx.count,st.count
-dz,dx,dt = sz.delta,sx.delta,st.delta
-kxs,kzs = [0],[0]
-#kxs,kzs = [nx/2],[0]
-#kxs,kzs = rampint(1,10,51),fillint(0,51)
-#kxs,kzs = rampint(1,5,101),fillint(0,101)
-kxr,kzr = rampint(0,1,nx),fillint(0,nx)
-ns,nr = len(kxs),len(kxr)
-psou = min(18,ns)
-fpeak = 10.0
-niter = 10
-
-#sz = Sampling(265,0.012,0.0)
-#sx = Sampling(767,0.012,0.0)
-#st = Sampling(4001,0.0015,0.0)
-#nz,nx,nt = sz.count,sx.count,st.count
-#dz,dx,dt = sz.delta,sx.delta,st.delta
-##kxs,kzs = [0],[0]
-##kxs,kzs = [nx/2],[0]
-##kxs,kzs = [nx-1],[0]
-##kxs,kzs = rampint(6,58,14),fillint(0,14)
-##kxs,kzs = rampint(3,33,24),fillint(0,24)
-##kxs,kzs = rampint(1,15,52),fillint(0,52)
-##kxs,kzs = rampint(3,10,77),fillint(0,77)
-#kxs,kzs = rampint(3,5,153),fillint(0,153)
-#kxr,kzr = rampint(0,1,nx),fillint(0,nx)
-#ns,nr = len(kxs),len(kxr)
-#psou = min(14,ns)
-#fpeak = 10.0
-#niter = 10
 
 pngdatDir = None
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
@@ -54,10 +21,11 @@ sfile = None
 #pfile = '/home/sluo/Desktop/pngdat3/p_0.dat'
 #sfile = '/home/sluo/Desktop/pngdat3/s1_0.dat'
 
-#############################################################################
-
 def main(args):
-  initialize()
+  #setupForLayered()
+  setupForMarmousi()
+
+  #initialize()
   #compareData()
   #showData()
   #WaveformInversion()
@@ -67,17 +35,94 @@ def main(args):
   #plotDataResiduals()
   #plotLastResidual()
 
+def setupForMarmousi():
+  global sz,sx,st,nz,nx,nt,dz,dx,dt
+  global kzs,kxs,kzr,kxr,ns,nr
+  global fpeak,psou,niter
+  global tt,t0,t1,s0,s1,u,a
+  sz = Sampling(265,0.012,0.0)
+  sx = Sampling(767,0.012,0.0)
+  st = Sampling(4001,0.0015,0.0)
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  kxs,kzs = [0],[0]
+  #kxs,kzs = [nx/2],[0]
+  #kxs,kzs = [nx-1],[0]
+  #kxs,kzs = rampint(6,58,14),fillint(0,14)
+  #kxs,kzs = rampint(3,33,24),fillint(0,24)
+  #kxs,kzs = rampint(1,15,52),fillint(0,52)
+  #kxs,kzs = rampint(3,10,77),fillint(0,77)
+  #kxs,kzs = rampint(3,5,153),fillint(0,153)
+  kxr,kzr = rampint(0,1,nx),fillint(0,nx)
+  ns,nr = len(kxs),len(kxr)
+  #tt,t0,t1,s0,s1 = getMarmousi()
+  #tt,t0,t1,s0,s1 = getMarmousi(s0mul=0.95) # constant perturbation
+  tt,t0,t1,s0,s1 = getMarmousi(s0perturb=0.10) # random perturbation
+  plots(tt,t0,t1,s0,s1)
+  if sfile is not None:
+    s1 = read(sfile)
+  psou = min(14,ns)
+  fpeak = 10.0
+  niter = 10
+  sw = Stopwatch(); sw.start()
+  u = zeros(nz,nx,nt,psou)
+  a = zeros(nz,nx,nt,psou)
+  report('allocate',sw)
+
+def setupForLayered():
+  global sz,sx,st,nz,nx,nt,dz,dx,dt
+  global kzs,kxs,kzr,kxr,ns,nr
+  global fpeak,psou,niter
+  global t0,t1,s0,s1,u,a
+  sz = Sampling(301,0.012,0.0)
+  sx = Sampling(501,0.012,0.0)
+  st = Sampling(2750,0.0015,0.0)
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  kxs,kzs = [0],[0]
+  #kxs,kzs = [nx/2],[0]
+  #kxs,kzs = rampint(1,10,51),fillint(0,51)
+  #kxs,kzs = rampint(1,5,101),fillint(0,101)
+  kxr,kzr = rampint(0,1,nx),fillint(0,nx)
+  ns,nr = len(kxs),len(kxr)
+  #tt,t0,t1,s0,s1 = getLayered1(s0mul=0.95)
+  #tt,t0,t1,s0,s1 = getLayered1(s0mul=1.0)
+  #tt,t0,t1,s0,s1 = getLayered2(s0mul=0.95)
+  tt,t0,t1,s0,s1 = getLayered2(s0mul=1.0)
+  #tt,t0,t1,s0,s1 = getLayered2(s0mul=1.05)
+  plots(tt,t0,t1,s0,s1)
+  if sfile is not None:
+    s1 = read(sfile)
+  psou = min(18,ns)
+  fpeak = 10.0
+  niter = 10
+  sw = Stopwatch(); sw.start()
+  u = zeros(nz,nx,nt,psou)
+  a = zeros(nz,nx,nt,psou)
+  report('allocate',sw)
+
+def plots(tt,t0,t1,s0,s1):
+  s0min,s0max = min(t0),max(t0)
+  #s0min,s0max = min(min(s0),min(t0)),max(max(s0),max(t0))
+  s1min,s1max = -max(abs(t1)),max(abs(t1))
+  plot(tt,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',title='s_true')
+  plot(t0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
+       title='s0_true')
+  plot(t1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_true')
+  plot(s0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
+       title='s0_init')
+  plot(s1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_init')
+
 def initialize():
   global _t,_t0,_t1,_s0,_s1,_u,_a
   #_t,_t0,_t1,_s0,_s1 = getGaussian1(gmul=0.5)
-  _t,_t0,_t1,_s0,_s1 = getLayered1(s0mul=0.95)
+  #_t,_t0,_t1,_s0,_s1 = getLayered1(s0mul=0.95)
   #_t,_t0,_t1,_s0,_s1 = getLayered1(s0mul=1.0)
   #_t,_t0,_t1,_s0,_s1 = getLayered2(s0mul=0.95)
   #_t,_t0,_t1,_s0,_s1 = getLayered2(s0mul=1.0)
   #_t,_t0,_t1,_s0,_s1 = getLayered2(s0mul=1.05)
-  #_t,_t0,_t1,_s0,_s1 = getMarmousi(sigmaT=0.1,sigmaS=0.1)
-  #_t,_t0,_t1,_s0,_s1 = getMarmousi(sigmaT=0.1,sigmaS=0.1,s0mul=0.95)
-  #_t,_t0,_t1,_s0,_s1 = getMarmousi(sigmaT=0.1,sigmaS=0.5)
+  #_t,_t0,_t1,_s0,_s1 = getMarmousi(sigma=0.1)
+  _t,_t0,_t1,_s0,_s1 = getMarmousi(sigma=0.1,s0mul=0.95)
   sw = Stopwatch(); sw.start()
   _u = zeros(nz,nx,nt,psou)
   _a = zeros(nz,nx,nt,psou)
@@ -99,6 +144,8 @@ def initialize():
     #plot(_s1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_file')
     plot(_s1,cmap=rwb,cmin=s1min,cmax=s1max,
       cbar='Reflectivity',title='s1_file')
+
+#############################################################################
 
 def plotLastResidual():
   iiter = '19'
@@ -205,11 +252,10 @@ def plotWarpings():
     plot(vi,cmap=rwb,sperc=100,title='v_'+str(im))
     print 'dv=%f'%(total/count)
 
-
 def compareData():
-  dob = modelBornData(_t0,_t1); dob = dob[ns/2]
-  #GaussianTaper.apply(0.8,_s1,_s1)
-  dsb = modelBornData(_s0,_s1); dsb = dsb[ns/2]
+  dob = modelBornData(t0,t1); dob = dob[ns/2]
+  #GaussianTaper.apply(0.8,s1,s1)
+  dsb = modelBornData(s0,s1); dsb = dsb[ns/2]
   ra,v = like(dsb),like(dsb)
   makeWarpedResidual(dsb,dob,ra=ra,v=v) # warped residuals
   cmin = -0.5*max(abs(dob))
@@ -310,8 +356,8 @@ class DataP(Parallel.LoopInt):
 
 def showData():
   sw = Stopwatch(); sw.restart()
-  do = modelBornData(_t0,_t1,isou=ns/2)
-  ds = modelBornData(_s0,_s1,isou=ns/2)
+  do = modelBornData(t0,t1,isou=ns/2)
+  ds = modelBornData(s0,s1,isou=ns/2)
   sw.stop(); print 'data total: %.2fs'%sw.time()
   rd = sub(ds,do) # data residual
   ra,rt,rc,dw,s = like(do),like(do),like(do),like(do),like(do)
@@ -334,11 +380,11 @@ def showData():
 
 def updateModel(misfitFunction):
   print 'searching for step length...'
-  #a,b = -1.0*max(abs(_t1)),0.1*max(abs(_t1)); tol = 0.10*abs(b-a)
-  #a,b = -1.0*max(abs(_t1)),0.1*max(abs(_t1)); tol = 0.20*abs(b-a)
-  #a,b = -1.0*max(abs(_t1)),0.0*max(abs(_t1)); tol = 0.20*abs(b-a)
-  a,b = -0.5*max(abs(_t1)),0.1*max(abs(_t1)); tol = 0.20*abs(b-a)
-  #a,b = -0.5*max(abs(_t1)),0.0*max(abs(_t1)); tol = 0.20*abs(b-a)
+  #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.10*abs(b-a)
+  #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.20*abs(b-a)
+  #a,b = -1.0*max(abs(t1)),0.0*max(abs(t1)); tol = 0.20*abs(b-a)
+  a,b = -0.5*max(abs(t1)),0.1*max(abs(t1)); tol = 0.20*abs(b-a)
+  #a,b = -0.5*max(abs(t1)),0.0*max(abs(t1)); tol = 0.20*abs(b-a)
   sw = Stopwatch(); sw.restart()
   step = BrentMinFinder(misfitFunction).findMin(a,b,tol)
   print 'a =',a
@@ -346,7 +392,7 @@ def updateModel(misfitFunction):
   #print 'tol =',tol
   print 'step =',step
   report('line search',sw)
-  add(mul(step,misfitFunction.p),_s1,_s1)
+  add(mul(step,misfitFunction.p),s1,s1)
 
 class MisfitFunction(BrentMinFinder.Function):
   def __init__(self,p,isou,do):
@@ -356,8 +402,8 @@ class MisfitFunction(BrentMinFinder.Function):
     #plot(self.do,title='do')
   def evaluate(self,a):
     print 'evaluating'
-    s1 = add(_s1,mul(a,self.p))
-    ds = modelBornData(_s0,s1,self.isou)
+    s1p = add(s1,mul(a,self.p))
+    ds = modelBornData(s0,s1p,self.isou)
     #plot(ds,title='a='+str(a))
     r = self.residual(ds,self.do)
     return sum(mul(r,r))
@@ -427,7 +473,7 @@ def processGradient(g):
 class Inversion():
   """Abstract inversion class."""
   def __init__(self):
-    self.do = modelBornData(_t0,_t1) # observed data
+    self.do = modelBornData(t0,t1) # observed data
     self.ds = zerofloat(nt,nr,ns) # simulated data
     self.r = zerofloat(nt,nr,ns) # residual
     plot(self.do[ns/2],title='do')
@@ -439,7 +485,7 @@ class Inversion():
       giter = int(gfile[-5:-4])
       if sfile is None or int(sfile[-5:-4])<giter:
         updateModel(self.getMisfitFunction(pm,ns/2,self.do))
-      self.plots(gm,pm,_s1,giter)
+      self.plots(gm,pm,s1,giter)
       fiter = giter+1
     else:
       gm = None
@@ -455,7 +501,7 @@ class Inversion():
       if niter>1:
         updateModel(self.getMisfitFunction(p,ns/2,self.do)) # line search
       gm,pm = g,p
-      self.plots(g,p,_s1,iter)
+      self.plots(g,p,s1,iter)
       report('iteration',sw)
     points(res,title='res')
   def computeGradient(self,iter):
@@ -464,16 +510,16 @@ class Inversion():
       do,ds,r = self.do[isou],self.ds[isou],self.r[isou]
       wave = Wavefield(sz,sx,st)
       wave.modelAcousticWavefield(
-        Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),_s0,u)
+        Wavefield.RickerSource(fpeak,kzs[isou],kxs[isou]),s0,u)
       if iter>0:
         wave.modelAcousticData(
-          Wavefield.WavefieldSource(dt,_s1,u),
+          Wavefield.WavefieldSource(dt,s1,u),
           Wavefield.Receiver(kzr,kxr),
-          _s0,ds)
+          s0,ds)
       self.residual(ds,do,r)
       #GaussianTaper.apply(r,r) # taper
       wave.modelAcousticWavefield(
-        Wavefield.AdjointSource(dt,kzr,kxr,r),_s0,a)
+        Wavefield.AdjointSource(dt,kzr,kxr,r),s0,a)
       return makeGradient(u,a,d2=False)
     sw = Stopwatch(); sw.start()
     g = zerofloat(nz,nx)
@@ -911,10 +957,10 @@ def conjugateDirection(g,gm=None,pm=None):
 
 
 def maskWaterLayer(g,value=0.0):
-  t0 = _t[0][0]
+  t0 = tt[0][0]
   for ix in range(nx):
     iz = 0
-    while _t[ix][iz]==t0:
+    while tt[ix][iz]==t0:
       g[ix][iz] = value
       iz += 1
 
@@ -982,7 +1028,7 @@ def getLayered2(s0mul=1.0):
   return t,t0,t1,s0,s1
 
 import socket
-def getMarmousi(sigmaT=0.1,sigmaS=0.1,s0mul=1.0):
+def getMarmousi(sigma=0.1,s0mul=1.0,s0perturb=0.0):
   p = zerofloat(751,2301)
   if socket.gethostname()=='backus.Mines.EDU':
     read("/data/sluo/marmousi/marmousi.dat",p)
@@ -992,11 +1038,17 @@ def getMarmousi(sigmaT=0.1,sigmaS=0.1,s0mul=1.0):
   div(1000.0,p,p) # slowness (s/km)
   t = fillfloat(2.0/3.0,nz,nx)
   copy(248,767,0,0,3,3,p,17,0,1,1,t)
-  t0,t1 = makeBornModel(t,sigmaT)
-  s0,_ = makeBornModel(t,sigmaS)
-  mul(s0mul,s0,s0)
-  s1 = like(s0)
-  mask(t1,15)
+  t0,t1 = makeBornModel(t,sigma); mask(t1,15)
+  s0,s1 = mul(s0mul,t0),like(t1)
+  if s0perturb>0.0:
+    random = Random(0)
+    r = sub(randfloat(random,nz,nx),0.5)
+    RecursiveGaussianFilter(62.5).apply00(r,r)
+    scale = s0perturb*sum(s0)/(nz*nx)
+    mul(scale/max(abs(r)),r,r)
+    add(r,s0,s0)
+    #print 'scale =',scale
+    #plot(r)
   return t,t0,t1,s0,s1
 
 def linearRegression(x,y):
