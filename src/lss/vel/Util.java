@@ -1,4 +1,5 @@
 package lss.vel;
+import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Util {
 
