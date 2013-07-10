@@ -6,15 +6,6 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 public class WaveAdjointTest {
 
-  public WaveAdjointTest(
-    Sampling sz, Sampling sx, Sampling st)
-  {
-    _dx = sx.getDelta();
-    _dt = st.getDelta();
-    _nx = sx.getCount();
-    _nt = st.getCount();
-  }
-
   public static void propagateForward(float[] a, float[][] u) {
     int nx = u[0].length;
     int nt = u.length;
@@ -32,6 +23,26 @@ public class WaveAdjointTest {
   public static void propagateAdjoint(float[] a, float[][] u) {
     int nx = u[0].length;
     int nt = u.length;
+    float[] ut = new float[nx];
+    float[] um = new float[nx];
+    float[] ui = new float[nx];
+    float[] up = new float[nx];
+    float[][] p = copy(u);
+    for (int it=nt-2; it>0; --it) {
+      um = u[it-1];
+      //ui = u[it  ];
+      //up = u[it+1];
+      mul(-1.0f,up,um);
+      applyAdjoint(a,up,ut);
+      add(ut,ui,ui);
+
+      copy(ui,up);
+      add(um,p[it-1],ui);
+    }
+  }
+  public static void xpropagateAdjoint(float[] a, float[][] u) {
+    int nx = u[0].length;
+    int nt = u.length;
     float[] um,ui,up;
     float[] ut = new float[nx];
     for (int it=nt-2; it>0; --it) {
@@ -45,6 +56,43 @@ public class WaveAdjointTest {
   }
 
   public static void propagateBackward(float[] a, float[][] u) {
+    int nx = u[0].length;
+    int nt = u.length;
+    float[] ut = new float[nx];
+    float[] um = new float[nx];
+    float[] ui = new float[nx];
+    float[] up = new float[nx];
+    //float[] um = u[nt-3];
+    //float[] ui = u[nt-2];
+    //float[] up = u[nt-1];
+    float[][] p = copy(u);
+//    for (int it=nt-2; it>0; --it) {
+//      zero(um);
+//      zero(ui);
+//      zero(up);
+//      zero(ut);
+//      copy(u[it-1],um);
+//      copy(u[it  ],ui);
+//      copy(u[it+1],up);
+//      applyForward(a,ui,ut);
+//      sub(ut,up,um);
+//      copy(ui,up);
+//      add(um,p[it-1],ui);
+//      copy(um,u[it-1]);
+//      copy(ui,u[it  ]);
+//      copy(up,u[it+1]);
+//    }
+    for (int it=nt-2; it>0; --it) {
+      um = u[it-1];
+      //ui = u[it  ];
+      //up = u[it+1];
+      applyForward(a,ui,ut);
+      sub(ut,up,um);
+      copy(ui,up);
+      add(um,p[it-1],ui);
+    }
+  }
+  public static void xpropagateBackward(float[] a, float[][] u) {
     int nx = u[0].length;
     int nt = u.length;
     float[] um,ui,up;
@@ -99,15 +147,6 @@ public class WaveAdjointTest {
   }
 
   //////////////////////////////////////////////////////////////////////////
-  // private
-
-  private int _it; // current time index
-  private int _nt;
-  private int _nx;
-  private double _dt;
-  private double _dx;
-
-  //////////////////////////////////////////////////////////////////////////
   // testing
   
   public static void main(String[] args) {
@@ -127,7 +166,7 @@ public class WaveAdjointTest {
     float[][] u = new float[nt][nx];
     u[0][nx/2] = 1.0f;
     //new RecursiveGaussianFilter(0.050/0.012).apply0(u[0],u[0]);
-    new RecursiveGaussianFilter(0.100/0.012).apply20(u,u);
+    new RecursiveGaussianFilter(0.200/0.012).apply20(u,u);
     propagateForward(a,u);
     SimplePlot.asPixels(u);
     SimplePlot.asPoints(u[0]);
