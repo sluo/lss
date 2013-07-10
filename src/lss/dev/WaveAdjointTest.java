@@ -156,7 +156,7 @@ public class WaveAdjointTest {
 
   private static void propagationTest() {
     Sampling sx = new Sampling(501,0.0120,0.0);
-    Sampling st = new Sampling(2001,0.0015,0.0);
+    Sampling st = new Sampling(1001,0.0015,0.0);
     int nx = sx.getCount();
     int nt = st.getCount();
     double dx = sx.getDelta();
@@ -175,8 +175,8 @@ public class WaveAdjointTest {
     for (int it=0; it<nt; ++it)
       for (int ix=1; ix<nx; ++ix)
         v[it][ix] = 0.0f;
-    //propagateAdjoint(a,v);
-    propagateBackward(a,v);
+    propagateAdjoint(a,v);
+    //propagateBackward(a,v);
     SimplePlot.asPixels(v);
     SimplePlot.asPoints(v[0]);
    
