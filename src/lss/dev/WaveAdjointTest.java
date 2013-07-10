@@ -29,6 +29,35 @@ public class WaveAdjointTest {
     }
   }
 
+  public static void propagateAdjoint(float[] a, float[][] u) {
+    int nx = u[0].length;
+    int nt = u.length;
+    float[] um,ui,up;
+    float[] ut = new float[nx];
+    for (int it=nt-2; it>0; --it) {
+      um = u[it-1];
+      ui = u[it  ];
+      up = u[it+1];
+      um = mul(-1.0f,up);
+      applyAdjoint(a,up,ut);
+      add(ut,ui,ui);
+    }
+  }
+
+  public static void propagateBackward(float[] a, float[][] u) {
+    int nx = u[0].length;
+    int nt = u.length;
+    float[] um,ui,up;
+    float[] ut = new float[nx];
+    for (int it=nt-2; it>0; --it) {
+      um = u[it-1];
+      ui = u[it  ];
+      up = u[it+1];
+      applyForward(a,ui,ut);
+      sub(ut,up,um);
+    }
+  }
+
   private static float[] applyForward(float[] a, float[] x) {
     float[] y = new float[x.length];
     applyForward(a,x,y);
@@ -99,9 +128,19 @@ public class WaveAdjointTest {
     u[0][nx/2] = 1.0f;
     //new RecursiveGaussianFilter(0.050/0.012).apply0(u[0],u[0]);
     new RecursiveGaussianFilter(0.100/0.012).apply20(u,u);
-    SimplePlot.asPoints(u[0]);
     propagateForward(a,u);
     SimplePlot.asPixels(u);
+    SimplePlot.asPoints(u[0]);
+
+    float[][] v = copy(u);
+    for (int it=0; it<nt; ++it)
+      for (int ix=1; ix<nx; ++ix)
+        v[it][ix] = 0.0f;
+    //propagateAdjoint(a,v);
+    propagateBackward(a,v);
+    SimplePlot.asPixels(v);
+    SimplePlot.asPoints(v[0]);
+   
   }
 
   private static void adjointTest() {
