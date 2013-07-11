@@ -64,6 +64,35 @@ public class WaveOperator {
       um = (it>0)?u[it-1]:new float[nz];
       ui = u[it];
       up = (it<nt-1)?u[it+1]:new float[nz];
+      for (int iz=1; iz<nz-1; ++iz)
+        up[iz] = a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
+      up[0   ] = a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
+      up[nz-1] = a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
+    }
+    //System.out.println(sum(u));
+    //SimplePlot.asPixels(u);
+    float[] d = new float[nt];
+    for (int it=0; it<nt; ++it)
+      d[it] = u[it][0];
+    return d;
+  }
+
+  /**
+   * Applies the forward operator (old version).
+   */
+  public float[] applyForwardX(float[] m) {
+    int nz = _nz;
+    int nt = _nt;
+    float[] a = _a;
+    float[] um,ui,up;
+    float[] ut = new float[nz];
+    float[][] u = new float[nt][nz];
+    // Set the initial values.
+    copy(m,u[0]);
+    for (int it=0; it<nt; ++it) {
+      um = (it>0)?u[it-1]:new float[nz];
+      ui = u[it];
+      up = (it<nt-1)?u[it+1]:new float[nz];
       applyForwardT(a,ui,ut);
       sub(ut,um,up);
     }
@@ -189,6 +218,52 @@ public class WaveOperator {
       up = (it<nt-1)?u[it+1]:new float[nz];
       ui = u[it];
       um = (it>0)?u[it-1]:new float[nz];
+
+      um[0] -= up[0];
+      ui[0] += 2.0f*(1.0f-a[0])*up[0];
+      ui[1] += a[0]*up[0];
+      up[0] = 0.0f;
+      um[nz-1] -= up[nz-1];
+      ui[nz-2] += a[nz-1]*up[nz-1];
+      ui[nz-1] += 2.0f*(1.0f-a[nz-1])*up[nz-1];
+      up[nz-1] = 0.0f;
+      for (int iz=1; iz<nz-1; ++iz) {
+        um[iz  ] -= up[iz];
+        ui[iz-1] += a[iz]*up[iz];
+        ui[iz  ] += 2.0f*(1.0f-a[iz])*up[iz];
+        ui[iz+1] += a[iz]*up[iz];
+      }
+      /*
+      sub(um,up,um);
+      ui[0   ] += 2.0f*(1.0f-a[0   ])*up[0   ]+a[1   ]*up[1   ];
+      ui[nz-1] += 2.0f*(1.0f-a[nz-1])*up[nz-1]+a[nz-2]*up[nz-2];
+      for (int iz=1; iz<nz-1; ++iz)
+        ui[iz] += 2.0f*(1.0f-a[iz])*up[iz]+a[iz+1]*up[iz+1]+a[iz-1]*up[iz-1];
+      */
+
+    }
+    //System.out.println(sum(u));
+    //SimplePlot.asPixels(u);
+    return u[0];
+  }
+
+  /**
+   * Applies the adjoint operator (old version).
+   */
+  public float[] applyAdjointX(float[] d) {
+    int nz = _nz;
+    int nt = _nt;
+    float[] a = _a;
+    float[] um,ui,up;
+    float[] ut = new float[nz];
+    float[][] u = new float[nt][nz];
+    // Set boundary values.
+    for (int it=0; it<nt; ++it)
+      u[it][0] = d[it];
+    for (int it=nt-1; it>=0; --it) {
+      up = (it<nt-1)?u[it+1]:new float[nz];
+      ui = u[it];
+      um = (it>0)?u[it-1]:new float[nz];
       sub(um,up,um);
       applyAndAddAdjointT(a,up,ui);
     }
@@ -276,8 +351,8 @@ public class WaveOperator {
   // testing
   
   public static void main(String[] args) {
-    //propagationDemo();
-    adjointTest();
+    propagationDemo();
+    //adjointTest();
     //adjointTestT();
   }
 
@@ -322,8 +397,8 @@ public class WaveOperator {
   }
 
   private static void adjointTest() {
-    Sampling sz = new Sampling(51,0.0120,0.0);
-    Sampling st = new Sampling(101,0.0015,0.0);
+    Sampling sz = new Sampling(1001,0.0120,0.0);
+    Sampling st = new Sampling(1001,0.0015,0.0);
     int nz = sz.getCount();
     int nt = st.getCount();
     double dz = sz.getDelta();
@@ -335,6 +410,8 @@ public class WaveOperator {
     float[] d = sub(randfloat(random,nt),0.5f);
     float sum1 = dot(wave.applyForward(m),d);
     float sum2 = dot(wave.applyAdjoint(d),m);
+    //float sum1 = dot(wave.applyForwardX(m),d); // old
+    //float sum2 = dot(wave.applyAdjointX(d),m); // version
     //float sum1 = dot(wave.applyForwardJ(m),d); // Ji's
     //float sum2 = dot(wave.applyAdjointJ(d),m); // code
     System.out.println("adjoint test:");
@@ -360,4 +437,5 @@ public class WaveOperator {
       sum += x[i]*y[i];
     return sum;
   }
+
 }
