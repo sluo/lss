@@ -187,6 +187,11 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
   panel.setHLabel('Time (s)')
   panel.setVLabel('Amplitude')
   panel.setHInterval(2.0)
+  grid = True
+  if grid:
+    gv = panel.addGrid("H0Vk--")
+    gv.setColor(Color.BLACK)
+    gv.setStyle(GridView.Style.DASH)
   if widthPoints is None:
     lineWidth = 3.0
   elif widthPoints==223.0:

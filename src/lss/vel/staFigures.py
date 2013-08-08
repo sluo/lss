@@ -1,6 +1,6 @@
 from imports import *
 import wtiDiving
-import lsrtm
+import lsm
 
 #############################################################################
 #sz = Sampling(301,0.012,0.0)
@@ -11,7 +11,7 @@ import lsrtm
 
 sz = Sampling(265,0.012,0.0)
 sx = Sampling(767,0.012,0.0)
-st = Sampling(2700,0.0015,0.0)
+st = Sampling(2650,0.0015,0.0)
 #st = Sampling(4001,0.0015,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
@@ -19,24 +19,39 @@ dz,dx,dt = sz.delta,sx.delta,st.delta
 pngDir = None
 pngDir = '/Users/sluo/Desktop/pngdat/'
 
-widthPoints = None # slides
-#widthPoints = 240.0 # 1 column
+#widthPoints = None # slides
+#widthPoints = 175.0 # 1/3 column
+widthPoints = 240.0 # 1 column
 #widthPoints = 260.0 # 1/2 page
-#widthPoints = 469.0 # 2 column (full page)
+#widthPoints = 504.0 # 2 column (full page)
 
 #############################################################################
 
 def main(args):
-  plotFwi()
+  #plotFwi()
   #plotLsm()
-  #plotData()
-  #plotBornData()
+  #plotFwiData()
+  #plotLsmData() # Born data
   #plotObjectiveFunction()
   #plotFwiObjectiveFunctions()
-  #plotLsmObjectiveFunctions()
+  plotLsmObjectiveFunctions()
   #plotFiles()
 
-def plotData():
+  #plotDataFromFile()
+
+def plotDataFromFile():
+  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
+  #ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  #ddir,iiter = lsmDir+'marmousi/95p/dres3/','19'
+  ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
+  #ddir,iiter = lsmDir+'marmousi/random/pos/dres/','9'
+  #ddir,iiter = lsmDir+'marmousi/random/pos/ares/','9'
+  do = zerofloat(4001,nx)
+  read(ddir+'do.dat',do)
+  cmin,cmax = -0.3*max(abs(do)),0.3*max(abs(do))
+  plot(do,cmin=cmin,cmax=cmax,cbar='Amplitude',grid=True,title='do')
+
+def plotFwiData():
   ddir,iiter = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/fwi/',None
   t = read(ddir+'s_true.dat')
   s = read(ddir+'s_'+iiter+'.dat') if iiter else read(ddir+'s_init.dat')
@@ -84,9 +99,13 @@ def modelDirectArrival(s):
   t = transpose(t)
   return modelData(t)
 
-def plotBornData():
-  #ddir,iiter = '/Users/sluo/Dropbox/save/lsm/marmousi/95p/amp5/','19'
-  ddir,iiter = '/Users/sluo/Dropbox/save/lsm/layered1/95p/amp/','9'
+def plotLsmData():
+  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
+  #ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  #ddir,iiter = lsmDir+'marmousi/95p/dres3/','19'
+  ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
+  #ddir,iiter = lsmDir+'marmousi/random/25p/plus/dres/','9'
+  #ddir,iiter = lsmDir+'marmousi/random/25p/plus/ares/','9'
   t0 = read(ddir+'s0_true.dat')
   t1 = read(ddir+'s1_true.dat')
   s0 = read(ddir+'s0_init.dat')
@@ -103,9 +122,13 @@ def plotBornData():
   plot(s0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='s0')
   plot(s1,cmap=rwb,cmin=-max(abs(t1)),cmax=max(abs(t1)),
     cbar='Reflectivity',title='s1')
-  ra,rt,rc,dw,v = like(do),like(do),like(do),like(do),like(do)
-  lsrtm.makeWarpedResidual(ds,do,ra,rt,rc,dw,v)
+  dw,v,rt = like(do),like(do),like(do)
+  warp(ds,do,dw,v,rt) # right order
+  ra = sub(ds,dw)
+  rc = sub(ds,dw)
+  add(rt,rc,rc)
   plotResiduals(do,ds,ra,rt,rc,dw,v)
+
 def modelBornData(s0,s1):
   fpeak = 10.0
   kxs,kzs = nx/2,0
@@ -122,40 +145,197 @@ def modelBornData(s0,s1):
   return d
 
 def plotResiduals(do,ds,ra,rt,rc,dw,v):
+  grid,hint,vint = True,2.0,1.0
+  #grid,hint,vint = False,None,None
+  rd = sub(ds,do)
   cmin,cmax = -0.3*max(abs(do)),0.3*max(abs(do))
+  rmin,rmax = cmin,cmax
+  #rmin,rmax = -1.0*max(abs(rd)),1.0*max(abs(rd))
+  #rmin,rmax = -1.0*max(abs(ra)),1.0*max(abs(ra))
   #rmin,rmax = cmin,cmax
-  rmin,rmax = -1.0*max(abs(ra)),1.0*max(abs(ra))
-  plot(do,cmin=cmin,cmax=cmax,cbar='Amplitude',title='do')
-  plot(ds,cmin=cmin,cmax=cmax,cbar='Amplitude',title='ds')
-  plot(dw,cmin=cmin,cmax=cmax,cbar='Amplitude',title='dw')
-  plot(mul(dt,v),cmap=rwb,sperc=100.0,cbar='Traveltime shift (s)',title='v')
-  plot(sub(ds,do),cmin=rmin,cmax=rmax,cbar='Amplitude',title='rd')
+  plot(do,cmin=cmin,cmax=cmax,cbar='Amplitude',hint=hint,vint=vint,
+    grid=grid,title='do')
+  plot(ds,cmin=cmin,cmax=cmax,cbar='Amplitude',hint=hint,vint=vint,
+    grid=grid,title='ds')
+  plot(dw,cmin=cmin,cmax=cmax,cbar='Amplitude',hint=hint,vint=vint,
+    grid=grid,title='dw')
+  plot(mul(dt,v),cmap=rwb,sperc=100.0,cbar='Traveltime shift (s)',
+    hint=hint,vint=vint,cint=0.1,grid=grid,title='v')
   plot(ra,cmin=rmin,cmax=rmax,cbar='Amplitude',title='ra')
-  plot(rt,cmin=rmin,cmax=rmax,cbar='Amplitude',title='rt')
-  plot(rc,cmin=rmin,cmax=rmax,cbar='Amplitude',title='rc')
+  #plot(rt,cmin=rmin,cmax=rmax,cbar='Amplitude',title='rt')
+  #plot(rc,cmin=rmin,cmax=rmax,cbar='Amplitude',title='rc')
+  plot(sub(ds,do),cmin=rmin,cmax=rmax,cbar='Amplitude',title='rd')
+
+def warp(ds,do,dw=None,v=None,rt=None):
+  nt,nr = len(ds[0]),len(ds)
+  doRmsFilter = True # filter by local rms amplitudes
+  doEgain = False # exponential gain from first arrivals
+  doAgc = False # agc
+  td = 5 # time decimation
+  rd = 1 # receiver decimation
+  maxShift = 0.5 # max shift in seconds
+  sw = Stopwatch(); sw.start()
+  doc = copy(do)
+  if doRmsFilter:
+    ds,do = rmsFilter(ds,do,sigma=0.5*maxShift)
+  if doEgain:
+    ds = egain(ds)
+    do = egain(do)
+  if doAgc:
+    ds,do = agc(ds,do)
+  ds,do = addRandomNoise(10.0,ds,do,sigma=1.0)
+  ds = copy(nt/td,nr/rd,0,0,td,rd,ds)
+  do = copy(nt/td,nr/rd,0,0,td,rd,do)
+  strainMax1,strainMax2 = 1.00,0.50
+  #strainMax1,strainMax2 = 0.50,0.20
+  #strainMax1,strainMax2 = 0.25,0.10
+  #strainMax1,strainMax2 = 0.10,0.05
+  shiftMax = int(maxShift/(td*dt))
+  warp = DynamicWarping(-shiftMax,shiftMax)
+  warp.setErrorExponent(1.0)
+  warp.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE)
+  warp.setStrainMax(strainMax1,strainMax2)
+  warp.setShiftSmoothing(32.0/td,8.0/rd) # shift smoothing
+  warp.setErrorSmoothing(2) # number of smoothings of alignment errors
+  u = warp.findShifts(ds,do)
+  mul(td,u,u) # scale shifts to compensate for decimation
+  li = LinearInterpolator()
+  li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
+  li.setUniform(nt/td,td*dt,0.0,nr/rd,rd*dx,0.0,u)
+  if v is None:
+    v = zerofloat(nt,nr)
+  for ir in range(nr):
+    z = ir*dz
+    for it in range(nt):
+      t = it*dt
+      v[ir][it] = li.interpolate(t,z) # interpolate shifts
+  if dw is None:
+    dw = zerofloat(nt,nr)
+  warp.applyShifts(v,doc,dw)
+  if rt is not None:
+    warp.applyShifts(v,timeDerivative(doc),rt)
+    mul(v,rt,rt)
+  #report('warping',sw)
+  #plot(ds,title='f') # used for dynamic warping
+  #plot(do,title='g') # used for dynamic warping
+  #plot(dw,title='h') # warped
+  #plot(v,cmap=rwb,sperc=100.0,title='shifts')
+  return dw,v
+def rmsFilter(ds,do,sigma=0.1):
+  x,y = copy(ds),copy(do)
+  rmsx = rms(x)
+  rmsy = rms(y)
+  # equalize rms
+  if rmsx>rmsy:
+    mul(rms(y)/rms(x),x,x)
+  else:
+    mul(rms(x)/rms(y),y,y)
+  xx = mul(x,x)
+  yy = mul(y,y)
+  rgf = RecursiveGaussianFilter(sigma/dt)
+  rgf.apply00(xx,xx)
+  rgf.apply00(yy,yy)
+  num = mul(mul(2.0,xx),yy)
+  den = add(mul(xx,xx),mul(yy,yy))
+  add(1.0e-6,den,den)
+  div(num,den,den)
+  mul(den,x,x)
+  mul(den,y,y)
+  #plot(den,cmap=jet,title='rms_weights')
+  return x,y
+def rms(x):
+  return sqrt(sum(mul(x,x))/len(x[0])/len(x))
+def timeDerivative(f):
+  """Derivative in time, assumed to be the 1st dimension."""
+  n = len(f)
+  #odt = 0.5/dt
+  odt = 0.5
+  g = like(f)
+  for i in range(n):
+    for it in range(1,nt-1):
+      g[i][it] = odt*(f[i][it+1]-f[i][it-1])
+  return g
+def addRandomNoise(snr,f,g,sigma=1.0):
+  n1,n2 = len(f[0]),len(f)
+  frms = sqrt(sum(mul(f,f))/n1/n2)
+  grms = sqrt(sum(mul(g,g))/n1/n2)
+  xrms = 0.5*(frms+grms)  # (average) rms of signal
+  random = Random(314159)
+  s = sub(randfloat(random,n1,n2),0.5)
+  RecursiveGaussianFilter(sigma).apply00(s,s) # bandlimited noise
+  srms = sqrt(sum(mul(s,s))/n1/n2) # rms of noise
+  mul(xrms/(srms*snr),s,s)
+  return add(f,s),add(g,s)
 
 def plotLsm():
-  ddir,iiter = '/Users/sluo/Dropbox/save/lsm/marmousi/95p/fwi3/','19'
-  #ddir,iiter = '/Users/sluo/Dropbox/save/lsm/layered1/95p/fwi/','9'
+  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
+  #ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  #ddir,iiter = lsmDir+'marmousi/95p/dres3/','19'
+  ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
+  #ddir,iiter = lsmDir+'marmousi/random/10p/plus/dres/','19'
+  #ddir,iiter = lsmDir+'marmousi/random/10p/plus/ares/','19'
+  t = read(ddir+'s_true.dat')
   t0 = read(ddir+'s0_true.dat')
   t1 = read(ddir+'s1_true.dat')
   s0 = read(ddir+'s0_init.dat')
   s1 = read(ddir+'s1_'+iiter+'.dat')
   g = read(ddir+'g_'+iiter+'.dat'); mul(g,1.0/max(abs(g)),g)
   p = read(ddir+'p_'+iiter+'.dat'); mul(p,1.0/max(abs(p)),p)
-  mul(s1,0.15/max(abs(s1)),s1)
+  #mul(s1,0.10/max(abs(s1)),s1) # XXX
+  #mul(s1,0.15/max(abs(s1)),s1) # XXX
+  cmap1 = rwb
+  cmap1 = gray
+  #clip1 = max(abs(t1))
+  clip1 = 0.05
+  #clipDiff = 0.0
+  clipDiff = 0.04
+  plot(t,cmap=jet,cbar='Slowness (s/km)',title='t')
   plot(t0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='t0')
-  plot(t1,cmap=rwb,cmin=-max(abs(t1)),cmax=max(abs(t1)),
-    cbar='Reflectivity',title='t1')
+  plot(t1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='t1')
+  #plot(sub(t0,s0),cmap=rwb,cmin=-clipDiff,cmax=clipDiff,sperc=100.0,
+  #  cint=0.04,cbar='Slowness (s/km)',title='t0-s0')
+  plot(mul(1000,sub(t0,s0)),cmap=rwb,cmin=-1000*clipDiff,cmax=1000*clipDiff,
+    sperc=100.0,cint=40,cbar='Slowness (ms/km)',title='t0-s0')
   plot(s0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='s0')
-  plot(s1,cmap=rwb,cmin=-max(abs(t1)),cmax=max(abs(t1)),
-    cbar='Reflectivity',title='s1')
-  plot(g,cmap=rwb,cmin=-1.0,cmax=1.0,title='g')
-  plot(p,cmap=rwb,cmin=-1.0,cmax=1.0,title='p')
+  plot(s1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='s1')
+  #plot(g,cmap=rwb,cmin=-1.0,cmax=1.0,title='g')
+  #plot(p,cmap=rwb,cmin=-1.0,cmax=1.0,title='p')
+  zmin,zmax,xmin,xmax,width,height = 0.25,1.25,3.5,5.5,1024,494
+  plotSubset(s1,zmin,zmax,xmin,xmax,width,height,-clip1,clip1,'s1_sub')
+  plotSubset(t1,zmin,zmax,xmin,xmax,width,height,-clip1,clip1,'t1_sub')
+
+def plotSubset(f,zmin,zmax,xmin,xmax,width,height,cmin,cmax,title):
+  widthPoints = 240.0
+  j1,n1 = int(zmin/dz),int((zmax-zmin)/dz)
+  j2,n2 = int(xmin/dx),int((xmax-xmin)/dx)
+  s1 = Sampling(n1,dz,zmin)
+  s2 = Sampling(n2,dx,xmin)
+  g = copy(n1,n2,j1,j2,f)
+  panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
+  panel.setHLabel('Distance (km)')
+  panel.setVLabel('Depth (km)')
+  panel.setHInterval(0.5)
+  panel.setVInterval(0.5)
+  cb = panel.addColorBar('Reflectivity')
+  cb.setWidthMinimum(150)
+  cb.setInterval(0.05)
+  pixel = panel.addPixels(s1,s2,g)
+  pixel.setColorModel(gray)
+  pixel.setClips(cmin,cmax)
+  pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
+  frame = PlotFrame(panel)
+  frame.setFontSizeForPrint(8.0,widthPoints)
+  #frame.setSize(1024,670)
+  frame.setSize(width,height)
+  frame.setTitle(title)
+  frame.setVisible(True)
+  if title and pngDir:
+    frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
 
 def plotFwi():
   iiter = '19'
-  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
+  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/cres4/'
+  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
   t = read(ddir+'s_true.dat')
   s = read(ddir+'s_init.dat')
   r = read(ddir+'s_'+iiter+'.dat')
@@ -266,16 +446,21 @@ def plotFwiObjectiveFunctions():
   plotTemplatesForLegend()
 
 def plotLsmObjectiveFunctions():
+
+  #slides = True
+  slides = True if widthPoints is None else False
+
   alsm_ra95p = zerofloat(21)
   alsm_rd95p = zerofloat(21)
-  lsm_rd100p = zerofloat(21)
   lsm_rd95p = zerofloat(21)
+  lsm_rd100p = zerofloat(21)
   ddir = '/Users/sluo/Dropbox/save/lsm/marmousi/'
   read(ddir+'95p/ares5/ares.dat',alsm_ra95p)
   read(ddir+'95p/ares5/dres.dat',alsm_rd95p)
   read(ddir+'100p/dres2/dres.dat',lsm_rd100p)
   #read(ddir+'95p/dres2/dres.dat',lsm_rd95p)
   read(ddir+'95p/dres3/dres.dat',lsm_rd95p)
+  
 
   def normal(x):
     div(x,x[0],x)
@@ -290,42 +475,71 @@ def plotLsmObjectiveFunctions():
 
   panel = PlotPanel()
   panel.setHLabel('Iteration')
-  #panel.setVLabel('Error')
-  panel.setVLimits(0.0,1.7)
+  if not slides:
+    panel.setVLabel('Objective')
+    panel.setVInterval(1.0)
+  if slides:
+    panel.setVLimits(0.0,1.7)
+  else:
+    panel.setVLimits(0.0,2.0)
 
-  pd = panel.addPoints(alsm_ra95p)
-  pd.setLineColor(Color.RED)
-  pd.setMarkColor(Color.RED)
-  pd.setLineWidth(1.5)
-  pd.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+  # Reverse order for colors and styles
+  arrays = [alsm_ra95p,alsm_rd95p,lsm_rd95p,lsm_rd100p]
+  if slides:
+    colors = [Color.RED,Color.RED,Color.BLUE,Color.BLACK]
+    styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
+              PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
+  else:
+    colors = [Color.BLACK,Color.BLACK,Color.BLACK,Color.BLACK]
+    styles = [PointsView.Mark.FILLED_SQUARE,PointsView.Mark.CROSS,
+              PointsView.Mark.HOLLOW_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
+  for i in range(4):
+    p = panel.addPoints(arrays[i])
+    p.setLineColor(colors[i])
+    p.setMarkColor(colors[i])
+    if slides:
+      p.setLineWidth(1.5)
+    else:
+      p.setLineWidth(3.0)
+    p.setMarkStyle(styles[i])
 
-  pc = panel.addPoints(alsm_rd95p)
-  pc.setLineColor(Color.RED)
-  pc.setMarkColor(Color.RED)
-  pc.setLineWidth(1.5)
-  pc.setMarkStyle(PointsView.Mark.HOLLOW_CIRCLE)
-
-  pb = panel.addPoints(lsm_rd95p)
-  pb.setLineColor(Color.BLUE)
-  pb.setMarkColor(Color.BLUE)
-  pb.setLineWidth(1.5)
-  pb.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
-
-  pa = panel.addPoints(lsm_rd100p)
-  pa.setLineColor(Color.BLACK)
-  pa.setMarkColor(Color.BLACK)
-  pa.setLineWidth(1.5)
-  pa.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+#  pd = panel.addPoints(alsm_ra95p)
+#  pd.setLineColor(Color.RED)
+#  pd.setMarkColor(Color.RED)
+#  pd.setLineWidth(1.5)
+#  pd.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+#
+#  pc = panel.addPoints(alsm_rd95p)
+#  pc.setLineColor(Color.RED)
+#  pc.setMarkColor(Color.RED)
+#  pc.setLineWidth(1.5)
+#  pc.setMarkStyle(PointsView.Mark.HOLLOW_CIRCLE)
+#
+#  pb = panel.addPoints(lsm_rd95p)
+#  pb.setLineColor(Color.BLUE)
+#  pb.setMarkColor(Color.BLUE)
+#  pb.setLineWidth(1.5)
+#  pb.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+#
+#  pa = panel.addPoints(lsm_rd100p)
+#  pa.setLineColor(Color.BLACK)
+#  pa.setMarkColor(Color.BLACK)
+#  pa.setLineWidth(1.5)
+#  pa.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
 
   frame = PlotFrame(panel)
-  frame.setFontSizeForSlide(1.0,1.0)
-  frame.setSize(1000,500)
+  if slides:
+    frame.setFontSizeForSlide(1.0,1.0)
+    frame.setSize(1000,500)
+  else:
+    frame.setFontSizeForPrint(8.0,widthPoints)
+    frame.setSize(1000,600)
   frame.setVisible(True)
   if pngDir:
     frame.paintToPng(1024,2.0,pngDir+'obj.png')
-  plotTemplatesForLegend()
+  plotTemplatesForLegend(slides,colors,styles)
 
-def plotTemplatesForLegend():
+def plotTemplatesForLegend(slides,colors,styles):
   def template(color,markStyle,title):
     t = zerofloat(3)
     panel = PlotPanel()
@@ -333,18 +547,35 @@ def plotTemplatesForLegend():
     point = panel.addPoints(t)
     point.setLineColor(color)
     point.setMarkColor(color)
-    #point.setLineWidth(1.5)
+    if slides:
+      #point.setLineWidth(1.5)
+      pass
+    else:
+      point.setLineWidth(3.0)
     point.setMarkStyle(markStyle)
     frame = PlotFrame(panel)
     frame.setFontSizeForSlide(1.0,1.0)
     frame.setSize(1000,500)
     frame.setVisible(True)
     if pngDir:
-      frame.paintToPng(1024,2.0,pngDir+title+'.png')
-  template(Color.BLACK,PointsView.Mark.FILLED_CIRCLE,'black_filled')
-  template(Color.BLUE,PointsView.Mark.FILLED_CIRCLE,'blue_filled')
-  template(Color.RED,PointsView.Mark.FILLED_CIRCLE,'red_filled')
-  template(Color.RED,PointsView.Mark.HOLLOW_CIRCLE,'red_hollow')
+      if slides:
+        frame.paintToPng(1024,2.0,pngDir+title+'.png')
+      else:
+        frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
+  #if slides:
+  #  colors = [Color.BLACK,Color.BLUE,Color.RED,Color.RED]
+  #  styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE,
+  #            PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE]
+  #  titles = ['black_filled','blue_filled','red_filled','red_hollow']
+  #else:
+  #  pass
+  titles = ['template1','template2','template3','template4']
+  for i in range(4):
+    template(colors[i],styles[i],titles[i])
+  #template(Color.BLACK,PointsView.Mark.FILLED_CIRCLE,'black_filled')
+  #template(Color.BLUE,PointsView.Mark.FILLED_CIRCLE,'blue_filled')
+  #template(Color.RED,PointsView.Mark.FILLED_CIRCLE,'red_filled')
+  #template(Color.RED,PointsView.Mark.HOLLOW_CIRCLE,'red_hollow')
 
 def points(f,title=None):
   panel = PlotPanel()
@@ -406,19 +637,29 @@ def getMarmousi(sigmaC=0.5,smul=1.0):
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
-def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
+def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,cwidth=None,
+  cint=None,hint=None,vint=None,grid=False,title=None):
   panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
   cb = panel.addColorBar()
-  if len(f[0])==nz:
-    cb.setInterval(0.1)
   if cbar:
     cb.setLabel(cbar)
-  if widthPoints is None:
+  if cint:
+    cb.setInterval(cint)
+  if cwidth:
+    cb.setWidthMinimum(cwidth)
+  elif widthPoints is None:
     cb.setWidthMinimum(140)
+  elif widthPoints==175.0:
+    cb.setWidthMinimum(200)
   elif widthPoints==240.0:
-    cb.setWidthMinimum(150)
+    #cb.setWidthMinimum(150)
+    cb.setWidthMinimum(160)
   elif widthPoints==260.0:
     cb.setWidthMinimum(140)
+  if hint:
+    panel.setHInterval(hint)
+  if vint:
+    panel.setVInterval(vint)
   if len(f[0])==nz and len(f)==nx:
     pixel = panel.addPixels(sz,sx,f)
     panel.setHLabel('Distance (km)')
@@ -430,15 +671,19 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
   else:
     pixel = panel.addPixels(f)
   pixel.setColorModel(cmap)
-  if cmin<cmax:
-    pixel.setClips(cmin,cmax)
   if perc<100:
     pixel.setPercentiles(100-perc,perc)
   if sperc is not None: # symmetric percentile clip (for plotting gradients)
     clips = Clips(100-sperc,sperc,f)
     clip = max(abs(clips.getClipMin()),abs(clips.getClipMax()))
     pixel.setClips(-clip,clip)
+  if cmin<cmax:
+    pixel.setClips(cmin,cmax)
   pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
+  if grid:
+    gv = panel.addGrid()
+    gv.setColor(Color.ORANGE)
+    gv.setStyle(GridView.Style.DASH)
   frame = PlotFrame(panel)
   if widthPoints is None:
     frame.setFontSizeForSlide(1.0,1.0)
@@ -448,18 +693,20 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
     if widthPoints is None:
       #frame.setSize(1200,770)
       frame.setSize(1024,670)
-    elif widthPoints==240.0:
-      frame.setSize(1200,468)
+    elif widthPoints==240.0 or widthPoints==175.0:
+      #frame.setSize(1200,468)
+      frame.setSize(1200,464)
     elif widthPoints==260.0:
       frame.setSize(1200,465)
-    elif widthPoints==469.0:
+    elif widthPoints==504.0:
       frame.setSize(1200,445)
   else:
     if widthPoints is None:
       #frame.setSize(1200,770)
       frame.setSize(1024,670)
     else:
-      frame.setSize(1200,1000)
+      #frame.setSize(1200,1000)
+      frame.setSize(1200,800)
   if title:
     frame.setTitle(title)
   frame.setVisible(True)
@@ -468,6 +715,7 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
       frame.paintToPng(1024,2.0,pngDir+title+'.png')
     else:
       frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
+      #frame.paintToPng(3000.0,widthPoints/72.0,pngDir+title+'.png') # poster
   return panel
 
 def read(name,image=None):
