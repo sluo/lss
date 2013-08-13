@@ -29,15 +29,77 @@ widthPoints = 240.0 # 1 column
 
 def main(args):
   #plotFwi()
-  #plotLsm()
+  plotLsm()
   #plotFwiData()
   #plotLsmData() # Born data
   #plotObjectiveFunction()
   #plotFwiObjectiveFunctions()
-  plotLsmObjectiveFunctions()
+  #plotLsmObjectiveFunctions()
+  #plotLsmModelMisfit()
   #plotFiles()
 
   #plotDataFromFile()
+
+def plotLsmModelMisfit():
+  nm = 20 # number of iterations run
+  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
+
+  #ddir1 = lsmDir+'marmousi/100p/dres2/'
+  #ddir2 = lsmDir+'marmousi/95p/dres3/'
+  #ddir3 = lsmDir+'marmousi/95p/ares5/'
+  ddir1 = lsmDir+'marmousi/100p/dres2/'
+  ddir2 = lsmDir+'marmousi/random/10p/plus/dres/'
+  ddir3 = lsmDir+'marmousi/random/10p/plus/ares/'
+
+  def computeMisfit(ffile,t1):
+    s1 = read(ffile)
+    sub(t1,s1,s1)
+    return sum(mul(s1,s1))
+  mres1 = zerofloat(nm+1)
+  mres2 = zerofloat(nm+1)
+  mres3 = zerofloat(nm+1)
+  t1 = read(ddir1+'s1_true.dat')
+  mres1[0] = mres2[0] = mres3[0] = sum(mul(t1,t1))
+  for im in range(nm):
+    mres1[im+1] = computeMisfit(ddir1+'s1_'+str(im)+'.dat',t1)
+    mres2[im+1] = computeMisfit(ddir2+'s1_'+str(im)+'.dat',t1)
+    mres3[im+1] = computeMisfit(ddir3+'s1_'+str(im)+'.dat',t1)
+
+  def normal(x):
+    div(x,x[0],x)
+  normal(mres1)
+  normal(mres2)
+  normal(mres3)
+
+  panel = PlotPanel()
+  panel.setHLabel('Iteration')
+  panel.setVLabel('Normalized misfit')
+  panel.setVInterval(1.0)
+  panel.setVLimits(0.0,1.3)
+  #panel.setVLimits(0.0,2.0)
+
+  # Reverse order for colors and styles
+  arrays = [mres1,mres2,mres3]
+  colors = [Color.BLACK,Color.BLACK,Color.BLACK]
+  styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
+            PointsView.Mark.FILLED_SQUARE]
+  for i in range(len(arrays)):
+    p = panel.addPoints(arrays[i])
+    p.setLineColor(colors[i])
+    p.setMarkColor(colors[i])
+    #p.setLineWidth(1.5)
+    p.setLineWidth(3.0)
+    p.setMarkStyle(styles[i])
+
+  frame = PlotFrame(panel)
+  #frame.setFontSizeForSlide(1.0,1.0)
+  #frame.setSize(1000,500)
+  frame.setFontSizeForPrint(8.0,widthPoints)
+  frame.setSize(1000,600)
+  frame.setVisible(True)
+  if pngDir:
+    frame.paintToPng(1080,3.5,pngDir+'mres.png')
+  #plotTemplatesForLegend(slides,colors,styles)
 
 def plotDataFromFile():
   lsmDir = '/Users/sluo/Dropbox/save/lsm/'
@@ -300,7 +362,10 @@ def plotLsm():
   plot(s1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='s1')
   #plot(g,cmap=rwb,cmin=-1.0,cmax=1.0,title='g')
   #plot(p,cmap=rwb,cmin=-1.0,cmax=1.0,title='p')
-  zmin,zmax,xmin,xmax,width,height = 0.25,1.25,3.5,5.5,1024,494
+
+  zmin,zmax,xmin,xmax,width,height = 1.00,2.02,4.5,6.5,1024,494
+  #zmin,zmax,xmin,xmax,width,height = 1.00,2.00,4.0,6.0,1024,494
+  #zmin,zmax,xmin,xmax,width,height = 0.25,1.25,3.5,5.5,1024,494
   plotSubset(s1,zmin,zmax,xmin,xmax,width,height,-clip1,clip1,'s1_sub')
   plotSubset(t1,zmin,zmax,xmin,xmax,width,height,-clip1,clip1,'t1_sub')
 
@@ -455,11 +520,14 @@ def plotLsmObjectiveFunctions():
   lsm_rd95p = zerofloat(21)
   lsm_rd100p = zerofloat(21)
   ddir = '/Users/sluo/Dropbox/save/lsm/marmousi/'
-  read(ddir+'95p/ares5/ares.dat',alsm_ra95p)
-  read(ddir+'95p/ares5/dres.dat',alsm_rd95p)
+  #read(ddir+'95p/ares5/ares.dat',alsm_ra95p)
+  #read(ddir+'95p/ares5/dres.dat',alsm_rd95p)
+  #read(ddir+'95p/dres3/dres.dat',lsm_rd95p)
+  #read(ddir+'100p/dres2/dres.dat',lsm_rd100p)
+  read(ddir+'random/10p/plus/ares/ares.dat',alsm_ra95p)
+  read(ddir+'random/10p/plus/ares/dres.dat',alsm_rd95p)
+  read(ddir+'random/10p/plus/dres/dres.dat',lsm_rd95p)
   read(ddir+'100p/dres2/dres.dat',lsm_rd100p)
-  #read(ddir+'95p/dres2/dres.dat',lsm_rd95p)
-  read(ddir+'95p/dres3/dres.dat',lsm_rd95p)
   
 
   def normal(x):
@@ -476,12 +544,13 @@ def plotLsmObjectiveFunctions():
   panel = PlotPanel()
   panel.setHLabel('Iteration')
   if not slides:
-    panel.setVLabel('Objective')
+    panel.setVLabel('Normalized misfit')
     panel.setVInterval(1.0)
   if slides:
     panel.setVLimits(0.0,1.7)
   else:
-    panel.setVLimits(0.0,2.0)
+    panel.setVLimits(0.0,1.3)
+    #panel.setVLimits(0.0,2.0)
 
   # Reverse order for colors and styles
   arrays = [alsm_ra95p,alsm_rd95p,lsm_rd95p,lsm_rd100p]
@@ -536,7 +605,7 @@ def plotLsmObjectiveFunctions():
     frame.setSize(1000,600)
   frame.setVisible(True)
   if pngDir:
-    frame.paintToPng(1024,2.0,pngDir+'obj.png')
+    frame.paintToPng(1080,3.5,pngDir+'obj.png')
   plotTemplatesForLegend(slides,colors,styles)
 
 def plotTemplatesForLegend(slides,colors,styles):
