@@ -17,11 +17,11 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 
 pngDir = None
-pngDir = '/Users/sluo/Desktop/pngdat/'
+#pngDir = '/Users/sluo/Desktop/pngdat/'
 
-#widthPoints = None # slides
+widthPoints = None # slides
 #widthPoints = 175.0 # 1/3 column
-widthPoints = 240.0 # 1 column
+#widthPoints = 240.0 # 1 column
 #widthPoints = 260.0 # 1/2 page
 #widthPoints = 504.0 # 2 column (full page)
 
@@ -29,27 +29,35 @@ widthPoints = 240.0 # 1 column
 
 def main(args):
   #plotFwi()
-  plotLsm()
+  #plotLsm()
   #plotFwiData()
   #plotLsmData() # Born data
   #plotObjectiveFunction()
   #plotFwiObjectiveFunctions()
   #plotLsmObjectiveFunctions()
-  #plotLsmModelMisfit()
+  plotModelMisfits()
   #plotFiles()
 
   #plotDataFromFile()
 
-def plotLsmModelMisfit():
+def plotModelMisfits():
   nm = 20 # number of iterations run
-  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
+  slides = True if widthPoints is None else False
 
-  #ddir1 = lsmDir+'marmousi/100p/dres2/'
-  #ddir2 = lsmDir+'marmousi/95p/dres3/'
-  #ddir3 = lsmDir+'marmousi/95p/ares5/'
+  lsmDir = '/Users/sluo/Dropbox/save/lsm/'
   ddir1 = lsmDir+'marmousi/100p/dres2/'
-  ddir2 = lsmDir+'marmousi/random/10p/plus/dres/'
-  ddir3 = lsmDir+'marmousi/random/10p/plus/ares/'
+  ddir2 = lsmDir+'marmousi/95p/dres3/'
+  ddir3 = lsmDir+'marmousi/95p/ares5/'
+  #ddir1 = lsmDir+'marmousi/100p/dres2/'
+  #ddir2 = lsmDir+'marmousi/random/10p/plus/dres/'
+  #ddir3 = lsmDir+'marmousi/random/10p/plus/ares/'
+  sname = 's1'
+
+  #fwiDir = '/Users/sluo/Dropbox/save/fwi/'
+  #ddir1 = fwiDir+'marmousi/2000m_100p/dres2/'
+  #ddir2 = fwiDir+'marmousi/2000m_100p/cres4/'
+  #ddir3 = None
+  #sname = 's'
 
   def computeMisfit(ffile,t1):
     s1 = read(ffile)
@@ -58,12 +66,14 @@ def plotLsmModelMisfit():
   mres1 = zerofloat(nm+1)
   mres2 = zerofloat(nm+1)
   mres3 = zerofloat(nm+1)
-  t1 = read(ddir1+'s1_true.dat')
-  mres1[0] = mres2[0] = mres3[0] = sum(mul(t1,t1))
+  t1 = read(ddir1+sname+'_true.dat')
+  tt = read(ddir1+sname+'_init.dat') if sname=='s' else like(t1)
+  mres1[0] = mres2[0] = mres3[0] = sum(mul(sub(t1,tt),sub(t1,tt)))
   for im in range(nm):
-    mres1[im+1] = computeMisfit(ddir1+'s1_'+str(im)+'.dat',t1)
-    mres2[im+1] = computeMisfit(ddir2+'s1_'+str(im)+'.dat',t1)
-    mres3[im+1] = computeMisfit(ddir3+'s1_'+str(im)+'.dat',t1)
+    mres1[im+1] = computeMisfit(ddir1+sname+'_'+str(im)+'.dat',t1)
+    mres2[im+1] = computeMisfit(ddir2+sname+'_'+str(im)+'.dat',t1)
+    if ddir3:
+      mres3[im+1] = computeMisfit(ddir3+sname+'_'+str(im)+'.dat',t1)
 
   def normal(x):
     div(x,x[0],x)
@@ -73,29 +83,44 @@ def plotLsmModelMisfit():
 
   panel = PlotPanel()
   panel.setHLabel('Iteration')
-  panel.setVLabel('Normalized misfit')
-  panel.setVInterval(1.0)
-  panel.setVLimits(0.0,1.3)
-  #panel.setVLimits(0.0,2.0)
+  if slides:
+    panel.setVLimits(0.0,1.7)
+  else:
+    panel.setVLabel('Normalized misfit')
+    panel.setVInterval(1.0)
+    panel.setVLimits(0.0,1.3)
+    #panel.setVLimits(0.0,2.0)
 
   # Reverse order for colors and styles
   arrays = [mres1,mres2,mres3]
-  colors = [Color.BLACK,Color.BLACK,Color.BLACK]
-  styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
-            PointsView.Mark.FILLED_SQUARE]
-  for i in range(len(arrays)):
+  if slides:
+    if ddir3:
+      colors = [Color.BLACK,Color.BLUE,Color.RED]
+    else:
+      colors = [Color.BLACK,Color.RED,Color.RED]
+    styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE,
+              PointsView.Mark.FILLED_CIRCLE]
+  else:
+    colors = [Color.BLACK,Color.BLACK,Color.BLACK]
+    styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
+              PointsView.Mark.FILLED_SQUARE]
+  for i in range(3 if ddir3 else 2):
     p = panel.addPoints(arrays[i])
     p.setLineColor(colors[i])
     p.setMarkColor(colors[i])
-    #p.setLineWidth(1.5)
-    p.setLineWidth(3.0)
+    if slides:
+      p.setLineWidth(1.5)
+    else:
+      p.setLineWidth(3.0)
     p.setMarkStyle(styles[i])
 
   frame = PlotFrame(panel)
-  #frame.setFontSizeForSlide(1.0,1.0)
-  #frame.setSize(1000,500)
-  frame.setFontSizeForPrint(8.0,widthPoints)
-  frame.setSize(1000,600)
+  if slides:
+    frame.setFontSizeForSlide(1.0,1.0)
+    frame.setSize(1000,500)
+  else:
+    frame.setFontSizeForPrint(8.0,widthPoints)
+    frame.setSize(1000,600)
   frame.setVisible(True)
   if pngDir:
     frame.paintToPng(1080,3.5,pngDir+'mres.png')
@@ -345,10 +370,10 @@ def plotLsm():
   p = read(ddir+'p_'+iiter+'.dat'); mul(p,1.0/max(abs(p)),p)
   #mul(s1,0.10/max(abs(s1)),s1) # XXX
   #mul(s1,0.15/max(abs(s1)),s1) # XXX
-  cmap1 = rwb
-  cmap1 = gray
-  #clip1 = max(abs(t1))
-  clip1 = 0.05
+  cmap1,cint = rwb,0.1
+  #cmap1,cint = gray,None
+  clip1 = max(abs(t1))
+  #clip1 = 0.05
   #clipDiff = 0.0
   clipDiff = 0.04
   plot(t,cmap=jet,cbar='Slowness (s/km)',title='t')
@@ -356,10 +381,15 @@ def plotLsm():
   plot(t1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='t1')
   #plot(sub(t0,s0),cmap=rwb,cmin=-clipDiff,cmax=clipDiff,sperc=100.0,
   #  cint=0.04,cbar='Slowness (s/km)',title='t0-s0')
-  plot(mul(1000,sub(t0,s0)),cmap=rwb,cmin=-1000*clipDiff,cmax=1000*clipDiff,
-    sperc=100.0,cint=40,cbar='Slowness (ms/km)',title='t0-s0')
+  if widthPoints:
+    plot(mul(1000,sub(t0,s0)),cmap=rwb,cmin=-1000*clipDiff,cmax=1000*clipDiff,
+      sperc=100.0,cint=40,cbar='Slowness (ms/km)',title='t0-s0')
+  else:
+    plot(sub(t0,s0),cmap=rwb,sperc=100.0,cbar='Slowness (s/km)',
+      cint=0.03,title='t0-s0')
   plot(s0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='s0')
-  plot(s1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='s1')
+  plot(s1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',
+    cint=cint,title='s1')
   #plot(g,cmap=rwb,cmin=-1.0,cmax=1.0,title='g')
   #plot(p,cmap=rwb,cmin=-1.0,cmax=1.0,title='p')
 
@@ -399,8 +429,9 @@ def plotSubset(f,zmin,zmax,xmin,xmax,width,height,cmin,cmax,title):
 
 def plotFwi():
   iiter = '19'
-  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/cres4/'
-  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
+  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/cres4/'
+  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
+  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/200m_100p/dres/'
   t = read(ddir+'s_true.dat')
   s = read(ddir+'s_init.dat')
   r = read(ddir+'s_'+iiter+'.dat')
