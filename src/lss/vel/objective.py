@@ -20,10 +20,72 @@ widthPoints = None # slides
 #############################################################################
 
 def main(args):
-  #goAmplitudeAndTraveltime() # amplitude and traveltime misfit
-  goAmplitudeAndScale() # amplitude and scale misfit
+  #goAmplitudeAndTraveltime() # amplitude and traveltime misfit (nonlinear)
+  #goAmplitudeAndScale() # amplitude and index scale misfit (linear?)
+  goAmplitudeAndAmplitude() # amplitude and amplitude misfit (linear?)
+
+def goAmplitudeAndAmplitude():
+
+  showGlobalMinimum = False
+
+  # Amplitude scale sampling
+  fa = 0.0
+  la = 2.0
+  da = 0.05
+  na = 1+int((la-fa)/da)
+  sa = Sampling(na,da,fa)
+
+  # Amplitude scale sampling
+  fb = -2.75
+  lb = 2.75
+  db = 0.05
+  nb = 1+int((lb-fb)/db)
+  sb = Sampling(nb,db,fb)
+
+  # Simulated data
+  ds = zerofloat(nt)
+  for it in range(nt):
+    t = ft+it*dt
+    ds[it] = cos(t)
+  w = zerofloat(nt); w[nt/2] = 1.0
+  RecursiveGaussianFilter(3.0*PI/dt).apply0(w,w)
+  mul(w,ds,ds)
+  div(ds,max(abs(ds)),ds)
+
+  # Observed data
+  amplitudeScaleA = 1.5
+  amplitudeScaleB = 0.2
+  do = mul(amplitudeScaleA+amplitudeScaleB,ds)
+
+  # Objective function
+  def makeObjectiveFunction(ds,do):
+    ob = zerofloat(nb,na)
+    class Loop(Parallel.LoopInt):
+      def compute(self,ia):
+        a = fa+ia*da
+        for ib in range(nb):
+          b = fb+ib*db
+          dss = mul(a+b,ds)
+          ob[ia][ib] = sum(mul(sub(dss,do),sub(dss,do)))
+    Parallel.loop(na,Loop())
+    div(ob,max(abs(ob)),ob)
+    return ob
+
+  ob = makeObjectiveFunction(ds,do)
+  plot(ob,sb,sa,jet,cmin=0.0,cmax=1.0,title='obj')
+
+  if showGlobalMinimum:
+    copy(do,ds)
+
+  cmax = la; cmin = -cmax
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
+  #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
 
 def goAmplitudeAndScale():
+
+  showGlobalMinimum = True
 
   # Amplitude scale sampling
   fa = 0.0
@@ -33,8 +95,8 @@ def goAmplitudeAndScale():
   sa = Sampling(na,da,fa)
 
   # Index scale sampling
-  fb = 1.0
-  lb = 3.0
+  fb = 0.5
+  lb = 1.5
   #db = 0.001*PI
   db = 0.05
   nb = 1+int((lb-fb)/db)
@@ -52,7 +114,7 @@ def goAmplitudeAndScale():
 
   # Observed data
   amplitudeScale = 1.5
-  indexScale = 1.5
+  indexScale = 1.2
   do = zerofloat(nt)
   si = SincInterp()
   for it in range(nt):
@@ -81,6 +143,9 @@ def goAmplitudeAndScale():
 
   ob = makeObjectiveFunction(ds,do)
   plot(ob,sb,sa,jet,cmin=0.0,cmax=1.0,title='obj')
+
+  if showGlobalMinimum:
+    copy(do,ds)
 
   cmax = la; cmin = -cmax
   points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
@@ -176,8 +241,8 @@ def goAmplitudeAndTraveltime():
   cmax = la; cmin = -cmax
   points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
   points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
-  #points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
-  points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
+  #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
   points(Sampling(nt,0.1*dt,0.1*ft),do,ds,shift(do,-timeShift),
     cmin=cmin,cmax=cmax,title='do_ds_shift')
 
