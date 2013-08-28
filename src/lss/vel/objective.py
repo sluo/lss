@@ -14,12 +14,148 @@ st = Sampling(nt,dt,ft)
 pngdatDir = None
 pngdatDir = '/Users/sluo/Desktop/pngdat/'
 
-#widthPoints = None # slides
-widthPoints = 223.0 # single column
+widthPoints = None # slides
+#widthPoints = 240.0 # single column
 
 #############################################################################
 
 def main(args):
+  #goAmplitudeAndTraveltime() # amplitude and traveltime misfit (nonlinear)
+  #goAmplitudeAndScale() # amplitude and index scale misfit (linear?)
+  goAmplitudeAndAmplitude() # amplitude and amplitude misfit (linear?)
+
+def goAmplitudeAndAmplitude():
+
+  showGlobalMinimum = False
+
+  # Amplitude scale sampling
+  fa = 0.0
+  la = 2.0
+  da = 0.05
+  na = 1+int((la-fa)/da)
+  sa = Sampling(na,da,fa)
+
+  # Amplitude scale sampling
+  fb = -2.75
+  lb = 2.75
+  db = 0.05
+  nb = 1+int((lb-fb)/db)
+  sb = Sampling(nb,db,fb)
+
+  # Simulated data
+  ds = zerofloat(nt)
+  for it in range(nt):
+    t = ft+it*dt
+    ds[it] = cos(t)
+  w = zerofloat(nt); w[nt/2] = 1.0
+  RecursiveGaussianFilter(3.0*PI/dt).apply0(w,w)
+  mul(w,ds,ds)
+  div(ds,max(abs(ds)),ds)
+
+  # Observed data
+  amplitudeScaleA = 1.5
+  amplitudeScaleB = 0.2
+  do = mul(amplitudeScaleA+amplitudeScaleB,ds)
+
+  # Objective function
+  def makeObjectiveFunction(ds,do):
+    ob = zerofloat(nb,na)
+    class Loop(Parallel.LoopInt):
+      def compute(self,ia):
+        a = fa+ia*da
+        for ib in range(nb):
+          b = fb+ib*db
+          dss = mul(a+b,ds)
+          ob[ia][ib] = sum(mul(sub(dss,do),sub(dss,do)))
+    Parallel.loop(na,Loop())
+    div(ob,max(abs(ob)),ob)
+    return ob
+
+  ob = makeObjectiveFunction(ds,do)
+  plot(ob,sb,sa,jet,cmin=0.0,cmax=1.0,title='obj')
+
+  if showGlobalMinimum:
+    copy(do,ds)
+
+  cmax = la; cmin = -cmax
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
+  #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
+
+def goAmplitudeAndScale():
+
+  showGlobalMinimum = True
+
+  # Amplitude scale sampling
+  fa = 0.0
+  la = 2.0
+  da = 0.05
+  na = 1+int((la-fa)/da)
+  sa = Sampling(na,da,fa)
+
+  # Index scale sampling
+  fb = 0.5
+  lb = 1.5
+  #db = 0.001*PI
+  db = 0.05
+  nb = 1+int((lb-fb)/db)
+  sb = Sampling(nb,db,fb)
+
+  # Simulated data
+  ds = zerofloat(nt)
+  for it in range(nt):
+    t = ft+it*dt
+    ds[it] = cos(t)
+  w = zerofloat(nt); w[nt/2] = 1.0
+  RecursiveGaussianFilter(3.0*PI/dt).apply0(w,w)
+  mul(w,ds,ds)
+  div(ds,max(abs(ds)),ds)
+
+  # Observed data
+  amplitudeScale = 1.5
+  indexScale = 1.2
+  do = zerofloat(nt)
+  si = SincInterp()
+  for it in range(nt):
+    t = st.getValue(it)
+    do[it] = si.interpolate(st,ds,indexScale*t)
+  mul(amplitudeScale,do,do) # scale
+
+  # Objective function
+  def makeObjectiveFunction(ds,do):
+    ob = zerofloat(nb,na)
+    class Loop(Parallel.LoopInt):
+      def compute(self,ia):
+        a = fa+ia*da
+        for ib in range(nb):
+          b = fb+ib*db
+          dss = zerofloat(nt)
+          for it in range(nt):
+            t = st.getValue(it)
+            dss[it] = si.interpolate(st,ds,b*t)
+          mul(a,dss,dss)
+          #ob[ia][ib] = sum(abs(sub(dss,do)))
+          ob[ia][ib] = sum(mul(sub(dss,do),sub(dss,do)))
+    Parallel.loop(na,Loop())
+    div(ob,max(abs(ob)),ob)
+    return ob
+
+  ob = makeObjectiveFunction(ds,do)
+  plot(ob,sb,sa,jet,cmin=0.0,cmax=1.0,title='obj')
+
+  if showGlobalMinimum:
+    copy(do,ds)
+
+  cmax = la; cmin = -cmax
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
+  #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
+
+
+
+def goAmplitudeAndTraveltime():
 
   useAmplitudeResidual = False
   showGlobalMinimum = False
@@ -39,7 +175,7 @@ def main(args):
   na = 1+int((la-fa)/da)
   sa = Sampling(na,da,fa)
 
-  # Simulate data
+  # Simulated data
   ds = zerofloat(nt)
   for it in range(nt):
     t = ft+it*dt
@@ -105,8 +241,8 @@ def main(args):
   cmax = la; cmin = -cmax
   points(Sampling(nt,0.1*dt,0.1*ft),ds,cmin=cmin,cmax=cmax,title='ds')
   points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
-  #points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
-  points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
+  #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
   points(Sampling(nt,0.1*dt,0.1*ft),do,ds,shift(do,-timeShift),
     cmin=cmin,cmax=cmax,title='do_ds_shift')
 
@@ -138,19 +274,22 @@ def plot(f,s1=None,s2=None,cmap=jet,
   panel = PlotPanel()
   panel.setHLimits(s1.first,s1.last)
   panel.setVLimits(s2.first,s2.last)
-  panel.setHLabel('Time shift (s)')
+  #panel.setHLabel('Traveltime shift (s)')
+  panel.setHLabel('Traveltime scale')
   panel.setVLabel('Amplitude scale')
   cb = panel.addColorBar()
-  cb.setLabel('Normalized error')
+  #cb.setLabel('Normalized misfit')
+  cb.setLabel('Misfit')
+  cb.setInterval(1.0)
   if widthPoints is None:
     cb.setWidthMinimum(160)
-  elif widthPoints==223.0:
-    cb.setWidthMinimum(140)
+  elif widthPoints==240.0:
+    cb.setWidthMinimum(130)
   if s1 is not None and s2 is not None:
     pixel = panel.addPixels(s1,s2,f)
     contour = panel.addContours(s1,s2,f)
     contour.setLineColor(Color.BLACK)
-    contour.setLineWidth(1.0)
+    contour.setLineWidth(3.0)
   else:
     pixel = panel.addPixels(f)
   pixel.setColorModel(cmap)
@@ -167,7 +306,7 @@ def plot(f,s1=None,s2=None,cmap=jet,
   if widthPoints is None:
     frame.setFontSizeForSlide(1.0,1.0)
     frame.setSize(1200,500)
-  elif widthPoints==223.0:
+  elif widthPoints==240.0:
     frame.setFontSizeForPrint(8,widthPoints)
     frame.setSize(1200,500)
   if title:
@@ -178,8 +317,8 @@ def plot(f,s1=None,s2=None,cmap=jet,
       #frame.paintToPng(360,3.0,pngdatDir+title+'.png')
       frame.paintToPng(720,3.08,pngdatDir+title+'.png')
       #write(pngdatDir+title+'.dat',f)
-    elif widthPoints==223.0:
-      frame.paintToPng(360,widthPoints/72.0,pngdatDir+title+'.png')
+    elif widthPoints==240.0:
+      frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
   return panel
 
 def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
@@ -187,14 +326,14 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
   panel.setHLabel('Time (s)')
   panel.setVLabel('Amplitude')
   panel.setHInterval(2.0)
-  grid = True
+  grid = False
   if grid:
     gv = panel.addGrid("H0Vk--")
     gv.setColor(Color.BLACK)
     gv.setStyle(GridView.Style.DASH)
   if widthPoints is None:
     lineWidth = 3.0
-  elif widthPoints==223.0:
+  elif widthPoints==240.0:
     lineWidth = 4.0
   point1 = panel.addPoints(s,x1)
   point1.setLineColor(Color.BLACK)
@@ -219,7 +358,7 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
   if widthPoints is None:
     frame.setFontSizeForSlide(0.86,0.86)
     frame.setSize(1200,500)
-  elif widthPoints==223.0:
+  elif widthPoints==240.0:
     frame.setFontSizeForPrint(8,widthPoints)
     frame.setSize(1200,500)
   if title:
@@ -230,7 +369,7 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
       #frame.paintToPng(360,3.0,pngdatDir+title+'.png')
       frame.paintToPng(720,3.08,pngdatDir+title+'.png')
       #write(pngdatDir+title+'.dat',f)
-    elif widthPoints==223.0:
+    elif widthPoints==240.0:
       frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
 
 def read(name,image=None):
