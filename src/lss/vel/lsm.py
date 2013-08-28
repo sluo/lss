@@ -14,12 +14,12 @@ pngdatDir = None
 gfile = None
 pfile = None
 sfile = None
+#gfile = '/home/sluo/Desktop/pngdat/g_2.dat'
+#pfile = '/home/sluo/Desktop/pngdat/p_2.dat'
+#sfile = '/home/sluo/Desktop/pngdat/s1_2.dat'
 #gfile = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares2/g_4.dat'
 #pfile = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares2/p_4.dat'
 #sfile = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares2/s1_4.dat'
-#gfile = '/home/sluo/Desktop/pngdat3/g_0.dat'
-#pfile = '/home/sluo/Desktop/pngdat3/p_0.dat'
-#sfile = '/home/sluo/Desktop/pngdat3/s1_0.dat'
 
 def main(args):
   #setupForLayered()
@@ -30,6 +30,7 @@ def main(args):
   #showData()
   #WaveformInversion()
   #AmplitudeInversion()
+  #plotFiles()
 
   #plotWarpings()
   #plotDataResiduals()
@@ -42,11 +43,12 @@ def setupForMarmousi():
   global tt,t0,t1,s0,s1,u,a
   sz = Sampling(265,0.012,0.0)
   sx = Sampling(767,0.012,0.0)
-  st = Sampling(4001,0.0015,0.0)
+  #st = Sampling(4001,0.0015,0.0)
+  st = Sampling(5001,0.0012,0.0)
   nz,nx,nt = sz.count,sx.count,st.count
   dz,dx,dt = sz.delta,sx.delta,st.delta
-  kxs,kzs = [0],[0]
-  #kxs,kzs = [nx/2],[0]
+  #kxs,kzs = [0],[0]
+  kxs,kzs = [nx/2],[0]
   #kxs,kzs = [nx-1],[0]
   #kxs,kzs = rampint(6,58,14),fillint(0,14)
   #kxs,kzs = rampint(3,33,24),fillint(0,24)
@@ -55,16 +57,20 @@ def setupForMarmousi():
   #kxs,kzs = rampint(3,5,153),fillint(0,153)
   kxr,kzr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(kxs),len(kxr)
-  #tt,t0,t1,s0,s1 = getMarmousi()
-  #tt,t0,t1,s0,s1 = getMarmousi(s0mul=0.95) # constant perturbation
-  tt,t0,t1,s0,s1 = getMarmousi(s0perturb=0.20) # random perturbation
+  #tt,t0,t1,s0,s1 = getMarmousi() # no error in background slowness s0
+  #tt,t0,t1,s0,s1 = getMarmousi(econst=-0.05) # constant error in s0
+  #tt,t0,t1,s0,s1 = getMarmousi(egauss=0.25) # gaussian error in s0
+  #tt,t0,t1,s0,s1 = getMarmousi(erand=0.25) # random error in s0
+  #tt,t0,t1,s0,s1 = getMarmousi(erand=-0.25) # random error in s0
+  tt,t0,t1,s0,s1 = getMarmousi(erand=0.10) # random error in s0
+  #tt,t0,t1,s0,s1 = getMarmousi(erand=-0.10) # random error in s0
   plots(tt,t0,t1,s0,s1)
   if sfile is not None:
     s1 = read(sfile)
   psou = min(14,ns)
   #psou = min(8,ns)
   fpeak = 10.0
-  niter = 10
+  niter = 20
   sw = Stopwatch(); sw.start()
   u = zeros(nz,nx,nt,psou)
   a = zeros(nz,nx,nt,psou)
@@ -109,10 +115,10 @@ def plots(tt,t0,t1,s0,s1):
   plot(tt,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',title='s_true')
   plot(t0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
        title='s0_true')
-  plot(t1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_true')
+  plot(t1,sperc=100,cbar='Reflectivity',title='s1_true')
   plot(s0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
        title='s0_init')
-  plot(s1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_init')
+  plot(s1,sperc=100,cbar='Reflectivity',title='s1_init')
 
 def initialize():
   global _t,_t0,_t1,_s0,_s1,_u,_a
@@ -134,19 +140,27 @@ def initialize():
   plot(_t,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',title='s_true')
   plot(_t0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
        title='s0_true')
-  plot(_t1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_true')
+  plot(_t1,sperc=100,cbar='Reflectivity',title='s1_true')
   #plot(_s,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
   #     title='s_init')
   plot(_s0,cmap=jet,cmin=s0min,cmax=s0max,cbar='Slowness (s/km)',
        title='s0_init')
-  plot(_s1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_init')
+  plot(_s1,sperc=100,cbar='Reflectivity',title='s1_init')
   if sfile is not None:
     _s1 = read(sfile)
-    #plot(_s1,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_file')
+    #plot(_s1,sperc=100,cbar='Reflectivity',title='s1_file')
     plot(_s1,cmap=rwb,cmin=s1min,cmax=s1max,
       cbar='Reflectivity',title='s1_file')
 
 #############################################################################
+
+def plotFiles():
+  if gfile is not None:
+    plot(read(gfile),sperc=100,title='gfile')
+  if pfile is not None:
+    plot(read(pfile),sperc=100,title='pfile')
+  if sfile is not None:
+    plot(read(sfile),cmap=jet,cbar='Slowness (s/km)',title='sfile')
 
 def plotLastResidual():
   iiter = '19'
@@ -169,11 +183,13 @@ def plotLastResidual():
   points(rres,title=t)
 
 def plotDataResiduals():
-  nm = 20
-
+  nm = 20 # number of iterations run
   #sdir = '/home/sluo/Desktop/save/lsm/marmousi/100p/dres2/'; ampRes = False
   #sdir = '/home/sluo/Desktop/save/lsm/marmousi/95p/dres2/'; ampRes = False
-  sdir = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/'; ampRes = True
+  #sdir = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/'; ampRes = True
+  sdir = '/home/sluo/Desktop/save/lsm/marmousi/random/10p/plus/dres/'
+  #ampRes = True
+  ampRes = False
 
   s0 = read(sdir+'s0_true.dat')
   s1 = read(sdir+'s1_true.dat')
@@ -203,7 +219,6 @@ def plotDataResiduals():
   points(dres,title='dres')
   if ampRes:
     points(ares,title='ares')
-
 
 def plotWarpings():
   computeData = False
@@ -250,7 +265,7 @@ def plotWarpings():
           e = vii-vmi
           total += e*e
           count += 1.0
-    plot(vi,cmap=rwb,sperc=100,title='v_'+str(im))
+    plot(vi,sperc=100,title='v_'+str(im))
     print 'dv=%f'%(total/count)
 
 def compareData():
@@ -264,14 +279,12 @@ def compareData():
   plot(dob,cmin=cmin,cmax=cmax,title='dob')
   plot(dsb,cmin=cmin,cmax=cmax,title='dsb')
   plot(ra,cmin=cmin,cmax=cmax,title='ra')
-  plot(v,cmap=rwb,sperc=100,title='v')
+  plot(v,sperc=100,title='v')
   #dof = sub(modelData(_t),modelDirectArrival(_t)); plot(dof[ns/2],title='dof')
 
 #############################################################################
 # Data
 
-#def modelBornData(s0,s1,kzs=None,kxs=None):
-#  if kzs is None and kxs is None:
 def modelBornData(s0,s1,isou=None,d=None):
   if isou is None:
     if d is None:
@@ -370,7 +383,7 @@ def showData():
   plot(do,cmin=dmin,cmax=dmax,cbar='Amplitude',title='observed')
   plot(ds,cmin=dmin,cmax=dmax,cbar='Amplitude',title='simulated')
   plot(dw,cmin=dmin,cmax=dmax,cbar='Amplitude',title='warped')
-  plot(s,cmap=rwb,sperc=100.0,cbar='Traveltime shift (s)',title='shifts')
+  plot(s,sperc=100.0,cbar='Traveltime shift (s)',title='shifts')
   plot(rd,cmin=rmin,cmax=rmax,cbar='Amplitude',title='data_residual')
   plot(ra,cmin=rmin,cmax=rmax,cbar='Amplitude',title='amplitude_residual')
   plot(rt,cmin=rmin,cmax=rmax,cbar='Amplitude',title='traveltime_residual')
@@ -467,8 +480,8 @@ def processGradient(g):
   if maskWater:
     #mask(h,17) # mask water layer
     mask(h,15) # mask water layer
-  #plot(g,cmap=rwb,sperc=100,title='before')
-  #plot(h,cmap=rwb,sperc=100,title='after')
+  #plot(g,sperc=100,title='before')
+  #plot(h,sperc=100,title='after')
   copy(h,g)
 
 class Inversion():
@@ -530,9 +543,9 @@ class Inversion():
     return g
   def plots(self,g,p,m,iter=None):
     post = 'file' if iter is None else str(iter)
-    plot(g,cmap=rwb,sperc=100,title='g_'+post)
-    plot(p,cmap=rwb,sperc=100,title='p_'+post)
-    plot(m,cmap=rwb,sperc=100,cbar='Reflectivity',title='s1_'+post)
+    plot(g,sperc=100,title='g_'+post)
+    plot(p,sperc=100,title='p_'+post)
+    plot(m,sperc=100,cbar='Reflectivity',title='s1_'+post)
     plot(self.ds[ns/2],cmin=min(self.do[ns/2]),cmax=max(self.do[ns/2]),
       title='ds_'+post)
   def getMisfitFunction(g,isou,do):
@@ -673,6 +686,7 @@ def xmakeWarpedResidual(ds,do,u=None,wd=None):
   return rt,ra,add(rt,ra)
 
 def xwarp(ds,do,dw=None,v=None,rt=None):
+  """Smooth dynamic warping"""
   doRmsFilter = True # filter by local rms amplitudes
   doEgain = False # exponential gain from first arrivals
   maxShift = 0.5 # max shift in seconds
@@ -708,7 +722,7 @@ def xwarp(ds,do,dw=None,v=None,rt=None):
   #plot(ds,title='f') # used for dynamic warping
   #plot(do,title='g') # used for dynamic warping
   #plot(dw,title='h') # warped
-  #plot(v,cmap=rwb,sperc=100.0,title='shifts')
+  #plot(v,sperc=100.0,title='shifts')
   return dw,v
 
 def warp(ds,do,dw=None,v=None,rt=None):
@@ -763,7 +777,7 @@ def warp(ds,do,dw=None,v=None,rt=None):
   #plot(ds,title='f') # used for dynamic warping
   #plot(do,title='g') # used for dynamic warping
   #plot(dw,title='h') # warped
-  #plot(v,cmap=rwb,sperc=100.0,title='shifts')
+  #plot(v,sperc=100.0,title='shifts')
   return dw,v
   
 def rmsFilter(ds,do,sigma=0.1):
@@ -1029,7 +1043,20 @@ def getLayered2(s0mul=1.0):
   return t,t0,t1,s0,s1
 
 import socket
-def getMarmousi(sigma=0.1,s0mul=1.0,s0perturb=0.0):
+def getMarmousi(sigma=0.1,econst=0.0,egauss=0.0,erand=0.0):
+  """Marmousi model.
+  Parameters:
+    sigma - half-width of smoothing window for scale separation
+    econst - constant error in background slowness s0
+    egauss - gaussian error in background slowness s0
+    erand - random error in background slowness s0
+  Returns:
+    tt - true model
+    t0 - true background slowness
+    t1 - true reflectivity
+    s0 - true background slowness
+    s1 - true reflectivity
+  """
   p = zerofloat(751,2301)
   if socket.gethostname()=='backus.Mines.EDU':
     read("/data/sluo/marmousi/marmousi.dat",p)
@@ -1040,16 +1067,23 @@ def getMarmousi(sigma=0.1,s0mul=1.0,s0perturb=0.0):
   t = fillfloat(2.0/3.0,nz,nx)
   copy(248,767,0,0,3,3,p,17,0,1,1,t)
   t0,t1 = makeBornModel(t,sigma); mask(t1,15)
-  s0,s1 = mul(s0mul,t0),like(t1)
-  if s0perturb>0.0:
+  s0,s1 = mul(1.0+econst,t0),like(t1)
+  if erand!=0.0:
     random = Random(0)
     r = sub(randfloat(random,nz,nx),0.5)
     RecursiveGaussianFilter(62.5).apply00(r,r)
-    scale = s0perturb*sum(s0)/(nz*nx)
+    scale = erand*sum(s0)/(nz*nx) # 
     mul(scale/max(abs(r)),r,r)
     add(r,s0,s0)
-    #print 'scale =',scale
-    plot(r,sperc=100,title='s0_perturbation')
+    plot(mul(-1.0,r),sperc=100,title='s0_error')
+  if egauss!=0.0:
+    r = zerofloat(nz,nx);
+    r[nx/2][nz/2] = 1.0
+    RecursiveGaussianFilter(62.5).apply00(r,r)
+    scale = egauss*sum(s0)/(nz*nx) # 
+    mul(scale/max(abs(r)),r,r)
+    add(r,s0,s0)
+    plot(mul(-1.0,r),sperc=100,title='s0_error')
   return t,t0,t1,s0,s1
 
 def linearRegression(x,y):

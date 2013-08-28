@@ -22,7 +22,7 @@ kxs,kzs = rampint(3,10,77),fillint(0,77)
 kxr,kzr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(kxs),len(kxr)
 fpeak = 5.0
-niter = 5
+niter = 20
 
 pngdatDir = None
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
@@ -44,18 +44,18 @@ def main(args):
   setModel()
   #showData()
   #goMigration()
-  #WaveformInversion()
+  WaveformInversion()
   #TraveltimeInversion()
   #CombinedInversion()
-  plotDataResiduals()
+  #plotDataResiduals()
   #plotLastResidual()
 
 def setModel():
   global _t,_s
   #_t,_s = getGaussian()
-  #_t,_s = getMarmousi(sigma=0.2,smul=1.0)
+  _t,_s = getMarmousi(sigma=0.2,smul=1.0)
   #_t,_s = getMarmousi(sigma=0.5,smul=1.0)
-  _t,_s = getMarmousi(sigma=2.0,smul=1.0)
+  #_t,_s = getMarmousi(sigma=2.0,smul=1.0)
   #_t,_s = getMarmousi(sigma=2.0,smul-0.95)
   #_t,_s = getMarmousi(None,1.0) # linear initial model
   #_t,_s = getMarmousi(None,0.95) # linear initial model
