@@ -53,21 +53,28 @@ public class WaveOperator {
   public float[] applyForward(float[] m, float[][] u) {
     int nz = _nz;
     int nt = _nt;
-    float[] a = _a;
-    float[] um,ui,up;
-    float[] ut = new float[nz];
     if (u==null)
       u = new float[nt][nz];
-    // Set the initial values.
+    // Set the initial values at t=0.
     copy(m,u[0]);
+    return applyForward(u);
+  }
+  public float[] applyForward(float[][] u) {
+    int nz = _nz;
+    int nt = _nt;
+    float[] a = _a;
+    float[] um,ui,up;
     for (int it=0; it<nt; ++it) {
       um = (it>0)?u[it-1]:new float[nz];
       ui = u[it];
       up = (it<nt-1)?u[it+1]:new float[nz];
       for (int iz=1; iz<nz-1; ++iz)
-        up[iz] = a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
-      up[0   ] = a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
-      up[nz-1] = a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
+      //  up[iz] = a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
+      //up[0   ] = a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
+      //up[nz-1] = a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
+        up[iz] += a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
+      up[0   ] += a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
+      up[nz-1] += a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
     }
     //System.out.println(sum(u));
     //SimplePlot.asPixels(u);
@@ -351,8 +358,8 @@ public class WaveOperator {
   // testing
   
   public static void main(String[] args) {
-    propagationDemo();
-    //adjointTest();
+    //propagationDemo();
+    adjointTest();
     //adjointTestT();
   }
 
@@ -405,7 +412,8 @@ public class WaveOperator {
     double dt = st.getDelta();
     float[] s = fillfloat(0.25f,nz); // slowness
     WaveOperator wave = new WaveOperator(sz,st,s);
-    Random random = new Random(0123);
+    //Random random = new Random(0123);
+    Random random = new Random();
     float[] m = sub(randfloat(random,nz),0.5f);
     float[] d = sub(randfloat(random,nt),0.5f);
     float sum1 = dot(wave.applyForward(m),d);
