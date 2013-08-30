@@ -23,6 +23,8 @@ import dnp.*;
 public class WaveOperator {
 
   public WaveOperator(Sampling sz, Sampling st, float[] s) {
+    _sz = sz;
+    _st = st;
     _nz = sz.getCount();
     _nt = st.getCount();
     _dz = sz.getDelta();
@@ -51,9 +53,9 @@ public class WaveOperator {
     for (int it=0; it<_nt; ++it)
       d[it] = u[it][0];
 
-    //pixels(b,"incident wavefield");
-    //pixels(u,"scattered wavefield");
-    //points(d,"data");
+    //pixels(getBackgroundWavefield(),_sz,_st,"incident wavefield");
+    //pixels(u,_sz,_st,"scattered wavefield");
+    //points(d,_st,"Time (s)","data");
     return d;
   }
 
@@ -78,8 +80,8 @@ public class WaveOperator {
     for (int it=0; it<_nt; ++it)
       add(u[it],m,m);
 
-    //pixels(u,"adjoint wavefield");
-    //points(m,"gradient");
+    //pixels(u,_sz,_st,"adjoint wavefield");
+    //points(m,_sz,"Depth (km)", "gradient");
     return m;
   }
 
@@ -104,8 +106,8 @@ public class WaveOperator {
     for (int it=0; it<_nt; ++it)
       add(u[it],m,m);
 
-    //pixels(u,"backward wavefield");
-    //points(m,"gradient");
+    //pixels(u,_sz,_st,"backward wavefield");
+    //points(m,_sz,"Depth (km)", "gradient");
     return m;
   }
 
@@ -141,6 +143,13 @@ public class WaveOperator {
       up = (it<nt-1)?u[it+1]:new float[nz];
       ui = u[it];
       um = (it>0)?u[it-1]:new float[nz];
+
+      for (int iz=1; iz<nz-1; ++iz)
+        um[iz] += a[iz+1]*ui[iz+1]+a[iz-1]*ui[iz-1]+
+          2.0f*(1.0f-a[iz])*ui[iz]-up[iz];
+      um[0   ] += a[1   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-up[0   ];
+      um[nz-1] += a[nz-2]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-up[nz-1];
+      /*
       um[0] -= up[0];
       ui[0] += 2.0f*(1.0f-a[0])*up[0];
       ui[1] += a[0]*up[0];
@@ -153,6 +162,7 @@ public class WaveOperator {
         ui[iz+1] += a[iz]*up[iz];
         ui[iz  ] += 2.0f*(1.0f-a[iz])*up[iz];
       }
+      */
     }
   }
 
@@ -182,10 +192,12 @@ public class WaveOperator {
   private static final double FPEAK = 10.0; // Ricker peak frequency
   private float[][] _b = null; // background wavefield
   private float[] _a;
-  private double _dz;
-  private double _dt;
   private int _nz;
   private int _nt;
+  private double _dz;
+  private double _dt;
+  private Sampling _sz;
+  private Sampling _st;
 
   // Computes wavefield for background model.
   private float[][] getBackgroundWavefield() {
@@ -196,6 +208,7 @@ public class WaveOperator {
         _b[it][0] = ricker(t);
       }
       extrapolateForwardWavefield(_b);
+      //new RecursiveGaussianFilter(1.0).applyX2(_b,_b);
 
       // Fake absorbing boundary. XXX
       //for (int it=2*_nt/3; it<_nt; ++it)
@@ -256,11 +269,11 @@ public class WaveOperator {
     CgSolver cg = new CgSolver(0.0001f,niter);
     cg.solve(lop,vb,vx);
     
-    points(s,"background slowness");
-    points(m,"true reflectivity",-1.0,1.0);
-    points(x,"computed reflectivity",-1.0,1.0);
-    points(d,"observed data");
-    points(wave.applyForward(x),"predicted data");
+    points(s,sz,"Depth (km)", "background slowness");
+    points(m,sz,"Depth (km)", "true reflectivity",-1.0,1.0);
+    points(x,sz,"Depth (km)", "computed reflectivity",-1.0,1.0);
+    points(d,st,"Time (s)","observed data",min(d),max(d));
+    points(wave.applyForward(x),st,"Time (s)","predicted data",min(d),max(d));
   }
 
   private static float[] getConstantSlowness(float ss, int nz) {
@@ -293,7 +306,7 @@ public class WaveOperator {
     t[nz/2] = 1.0f;
     new RecursiveGaussianFilter(nz/8.0).apply0(t,t);
     mul(t,m,m);
-    //points(t,"taper");
+    //points(t,_sz,"Depth (km)","taper");
     mul(1.0f/max(abs(m)),m,m);
     return m;
   }
@@ -379,23 +392,27 @@ public class WaveOperator {
     return sum;
   }
 
-  private static void pixels(float[][] x, String title) {
-    SimplePlot sp = SimplePlot.asPixels(x);
+  private static void pixels(
+    float[][] x, Sampling s1, Sampling s2, String title) {
+    SimplePlot sp = SimplePlot.asPixels(s1,s2,x);
     sp.setTitle(title);
-    sp.setSize(1000,700);
-  }
-  private static void points(float[] x, String title) {
-    SimplePlot sp = SimplePlot.asPoints(x);
-    sp.setTitle(title);
-    sp.setSize(1000,700);
+    sp.setSize(1010,740);
+    sp.setVLabel("Depth (km)");
+    sp.setHLabel("Time (s)");
   }
   private static void points(
-    float[] x, String title, double vmin, double vmax)
-  {
-    SimplePlot sp = SimplePlot.asPoints(x);
+    float[] x, Sampling s, String label, String title) {
+    points(x,s,label,title,0.0,0.0);
+  }
+  private static void points(
+    float[] x, Sampling s, String label,
+    String title, double vmin, double vmax) {
+    SimplePlot sp = SimplePlot.asPoints(s,x);
     sp.setTitle(title);
-    sp.setVLimits(vmin,vmax);
-    sp.setSize(1000,700);
+    sp.setHLabel(label);
+    if (vmin<vmax)
+      sp.setVLimits(vmin,vmax);
+    sp.setSize(1010,740);
   }
 
 }
