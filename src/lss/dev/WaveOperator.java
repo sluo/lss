@@ -5,36 +5,22 @@ import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.mosaic.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
+import dnp.*;
+
 /**
  * Forward, backward, and adjoint 1D wave operator.
  * <p>
- * The forward operator models data from a model, while the backward
- * and adjoint operators migrate data to produce an image of the model.
- * In this case, the model is not a velocity model, but rather the
- * initial condition of the wavefield at time t = 0.
+ * The forward operator models data from a reflectivity model, while 
+ * the backward and adjoint operators migrate data to produce a
+ * reflectivity image.
  * <p>
- * See Ji, J., 2009, An exact adjoint operation pair in time extrapolation
- * and its application in least-squares reverse-time migration.
- *
+ * Also included are forward, backward, and adjoint 1D wavefield
+ * extrapolation operators.
+ * <p>
  * @author Simon Luo
- * @version 2013.07.11
+ * @version 2013.08.30
  */
 public class WaveOperator {
-
-//      // Forward.
-//      for (int iz=1; iz<nz-1; ++iz)
-//        up[iz] = a[iz]*(ui[iz+1]-2.0f*ui[iz]+ui[iz-1])-um[iz]+2.0f*ui[iz];
-//      up[0   ] = a[0   ]*(ui[1   ]-2.0f*ui[0   ])-um[0   ]+2.0f*ui[0   ];
-//      up[nz-1] = a[nz-1]*(ui[nz-2]-2.0f*ui[nz-1])-um[nz-1]+2.0f*ui[nz-1];
-//
-//      // Adjoint.
-//      ui[0   ] += a[1   ]*um[1   ]-2.0f*a[0   ]*um[0   ]+2.0f*um[0   ];
-//      ui[nz-1] += a[nz-2]*um[nz-2]-2.0f*a[nz-1]*um[nz-1]+2.0f*um[nz-1];
-//      for (int iz=0; iz<nz; ++iz)
-//        up[iz] -= um[iz];
-//      for (int iz=1; iz<nz-1; ++iz)
-//        ui[iz] += a[iz-1]*um[iz-1]-2.0f*a[iz]*um[iz]+a[iz+1]*um[iz+1]
-//          +2.0f*um[iz];
 
   public WaveOperator(Sampling sz, Sampling st, float[] s) {
     _nz = sz.getCount();
@@ -45,394 +31,335 @@ public class WaveOperator {
   }
 
   /**
-   * Applies the forward operator.
+   * Applies the forward operator (modeling).
    */
   public float[] applyForward(float[] m) {
-    return applyForward(m,null);
-  }
-  public float[] applyForward(float[] m, float[][] u) {
-    int nz = _nz;
-    int nt = _nt;
-    if (u==null)
-      u = new float[nt][nz];
-    // Set the initial values at t=0.
-    copy(m,u[0]);
-    return applyForward(u);
-  }
-  public float[] applyForward(float[][] u) {
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] um,ui,up;
-    for (int it=0; it<nt; ++it) {
-      um = (it>0)?u[it-1]:new float[nz];
-      ui = u[it];
-      up = (it<nt-1)?u[it+1]:new float[nz];
-      for (int iz=1; iz<nz-1; ++iz)
-        up[iz] = a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
-      up[0   ] = a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
-      up[nz-1] = a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
-    }
-    //System.out.println(sum(u));
-    //SimplePlot.asPixels(u);
-    float[] d = new float[nt];
-    for (int it=0; it<nt; ++it)
+
+    // (1) Expand to dimensions of wavefield.
+    float[][] u = new float[_nt][];
+    for (int it=0; it<_nt; ++it)
+      u[it] = copy(m);
+
+    // (2) Multiply by background wavefield.
+    mul(getBackgroundWavefield(),u,u);
+
+    // (3) Forward wavefield extrapolation.
+    extrapolateForwardWavefield(u);
+
+    // (4) Extract data at z=0.
+    float[] d = new float[_nt]; 
+    for (int it=0; it<_nt; ++it)
       d[it] = u[it][0];
+
+    //pixels(b,"incident wavefield");
+    //pixels(u,"scattered wavefield");
+    //points(d,"data");
     return d;
   }
 
   /**
-   * Applies the forward operator (old version).
+   * Applies the adjoint operator (migration).
    */
-  public float[] applyForwardX(float[] m) {
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] um,ui,up;
-    float[] ut = new float[nz];
-    float[][] u = new float[nt][nz];
-    // Set the initial values.
-    copy(m,u[0]);
-    for (int it=0; it<nt; ++it) {
-      um = (it>0)?u[it-1]:new float[nz];
-      ui = u[it];
-      up = (it<nt-1)?u[it+1]:new float[nz];
-      applyForwardT(a,ui,ut);
-      sub(ut,um,up);
-    }
-    //System.out.println(sum(u));
-    //SimplePlot.asPixels(u);
-    float[] d = new float[nt];
-    for (int it=0; it<nt; ++it)
-      d[it] = u[it][0];
-    return d;
-  }
-
-  /**
-   * Applies the forward operator (translated from Ji's (2009) F90 code).
-   */
-  public float[] applyForwardJ(float[] m) {
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] d = new float[nt]; // output data at iz=0
-    float[] um = new float[nz];
-    float[] ui = new float[nz];
-    float[] up = new float[nz];
-    float[] ut = new float[nz];
-    copy(m,ui); // it=0
-    d[0] = m[0];
-    for (int it=1; it<nt; ++it) {
-      for (int iz=1; iz<nz-1; ++iz)
-        up[iz] = a[iz]*(ui[iz+1]-2.0f*ui[iz]+ui[iz-1])-um[iz]+2.0f*ui[iz];
-      up[0   ] = a[0   ]*(ui[1   ]-2.0f*ui[0   ])-um[0   ]+2.0f*ui[0   ];
-      up[nz-1] = a[nz-1]*(ui[nz-2]-2.0f*ui[nz-1])-um[nz-1]+2.0f*ui[nz-1];
-      d[it] = up[0];
-      copy(ui,um);
-      copy(up,ui);
-    }
-    return d;
-  }
-
-  /**
-   * Applies the time-reversed forward operator, i.e.,
-   * backward reverse-time propagation.
-   */ 
-  public float[] applyBackward(float[] d) {
-    return applyBackward(d,null);
-  }
-  public float[] applyBackward(float[] d, float[][] u) {
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] um,ui,up;
-    float[] ut = new float[nz];
-    if (u==null)
-      u = new float[nt][nz];
-    // Set boundary values.
-    for (int it=0; it<nt; ++it)
-      u[it][0] = d[it];
-    for (int it=nt-1; it>0; --it) {
-      um = u[it-1];
-      ui = u[it  ];
-      up = (it<nt-1)?u[it+1]:new float[nz];
-      applyForwardT(a,ui,ut);
-
-      // The code below was originally sub(ut,up,um), but this fails
-      // for the same reason Ji had to ignore iz=0 (see comment below
-      // in applyBackwardJ). The two lines below implement Ji's
-      // equation 10 if you replace element (2,2) in the second 4x4
-      // matrix and element (3,3) in the third 4x4 matrix with
-      // identity matrices.
-      sub(ut,up,ut);
-      add(ut,um,um);
-    }
-    //System.out.println(sum(u));
-    //SimplePlot.asPixels(u);
-    return u[0];
-  }
-
-  /**
-   * Applies the time-reversed forward operator
-   * (translated from Ji's (2009) F90 code).
-   */ 
-  public float[] applyBackwardJ(float[] d) {
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] um = new float[nz];
-    float[] ui = new float[nz];
-    float[] up = new float[nz];
-    up[0] = d[nt-1];
-    ui[0] = d[nt-2];
-    for (int it=nt-3; it>=0; --it) {
-      um[0] = d[it];
-      for (int iz=1; iz<nz-1; ++iz)
-        um[iz] = a[iz]*(ui[iz+1]-2.0f*ui[iz]+ui[iz-1])-up[iz]+2.0f*ui[iz];
-
-      // Ji chooses not to compute up[0] here, because the code breaks
-      // if he does. This does not agree with his equation 10.
-      um[nz-1] = a[nz-1]*(ui[nz-2]-2.0f*ui[nz-1])-up[nz-1]+2.0f*ui[nz-1];
-
-      copy(ui,up);
-      copy(um,ui);
-      zero(um);
-    }
-    return ui;
-  }
-
-  /**
-   * Applies the adjoint of the forward operator.
-   */ 
   public float[] applyAdjoint(float[] d) {
-    return applyAdjoint(d,null);
+
+    // (4') Insert data at z=0.
+    float[][] u = new float[_nt][_nz];
+    for (int it=0; it<_nt; ++it)
+      u[it][0] = d[it];
+
+    // (3') Adjoint wavefield extrapolation.
+    extrapolateAdjointWavefield(u);
+
+    // (2') Multiply by background wavefield.
+    mul(getBackgroundWavefield(),u,u);
+
+    // (1') Collapse to dimensions of model (imaging condition).
+    float[] m = new float[_nz];
+    for (int it=0; it<_nt; ++it)
+      add(u[it],m,m);
+
+    //pixels(u,"adjoint wavefield");
+    //points(m,"gradient");
+    return m;
   }
-  public float[] applyAdjoint(float[] d, float[][] u) {
+
+  /**
+   * Applies the backward operator (migration).
+   */
+  public float[] applyBackward(float[] d) {
+
+    // (4') Insert data at z=0.
+    float[][] u = new float[_nt][_nz];
+    for (int it=0; it<_nt; ++it)
+      u[it][0] = d[it];
+
+    // (3') Backward wavefield extrapolation.
+    extrapolateBackwardWavefield(u);
+
+    // (2') Multiply by background wavefield.
+    mul(getBackgroundWavefield(),u,u);
+
+    // (1') Collapse wavefield to dimensions of model (imaging condition).
+    float[] m = new float[_nz];
+    for (int it=0; it<_nt; ++it)
+      add(u[it],m,m);
+
+    //pixels(u,"backward wavefield");
+    //points(m,"gradient");
+    return m;
+  }
+
+  /**
+   * Extrapolates forward wavefield.
+   */
+  public void extrapolateForwardWavefield(float[][] u) {
+    int nz = _nz;
+    int nt = _nt;
+    float[] a = _a;
+    float[] um,ui,up;
+    for (int it=0; it<nt; ++it) {
+      um = (it>0)?u[it-1]:new float[nz];
+      ui = u[it];
+      up = (it<nt-1)?u[it+1]:new float[nz];
+      for (int iz=1; iz<nz-1; ++iz)
+        up[iz] += a[iz]*(ui[iz+1]+ui[iz-1])+2.0f*(1.0f-a[iz])*ui[iz]-um[iz];
+      up[0   ] += a[0   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-um[0   ];
+      up[nz-1] += a[nz-1]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-um[nz-1];
+    }
+  }
+
+  /**
+   * Extrapolates adjoint wavefield.
+   */
+  public void extrapolateAdjointWavefield(float[][] u) {
     int nz = _nz;
     int nt = _nt;
     float[] a = _a;
     float[] um,ui,up;
     float[] ut = new float[nz];
-    if (u==null)
-      u = new float[nt][nz];
-    // Set boundary values.
-    for (int it=0; it<nt; ++it)
-      u[it][0] = d[it];
     for (int it=nt-1; it>=0; --it) {
       up = (it<nt-1)?u[it+1]:new float[nz];
       ui = u[it];
       um = (it>0)?u[it-1]:new float[nz];
-
       um[0] -= up[0];
       ui[0] += 2.0f*(1.0f-a[0])*up[0];
       ui[1] += a[0]*up[0];
-      up[0] = 0.0f;
       um[nz-1] -= up[nz-1];
       ui[nz-2] += a[nz-1]*up[nz-1];
       ui[nz-1] += 2.0f*(1.0f-a[nz-1])*up[nz-1];
-      up[nz-1] = 0.0f;
       for (int iz=1; iz<nz-1; ++iz) {
         um[iz  ] -= up[iz];
         ui[iz-1] += a[iz]*up[iz];
-        ui[iz  ] += 2.0f*(1.0f-a[iz])*up[iz];
         ui[iz+1] += a[iz]*up[iz];
+        ui[iz  ] += 2.0f*(1.0f-a[iz])*up[iz];
       }
-      /*
-      sub(um,up,um);
-      ui[0   ] += 2.0f*(1.0f-a[0   ])*up[0   ]+a[1   ]*up[1   ];
-      ui[nz-1] += 2.0f*(1.0f-a[nz-1])*up[nz-1]+a[nz-2]*up[nz-2];
-      for (int iz=1; iz<nz-1; ++iz)
-        ui[iz] += 2.0f*(1.0f-a[iz])*up[iz]+a[iz+1]*up[iz+1]+a[iz-1]*up[iz-1];
-      */
-
     }
-    //System.out.println(sum(u));
-    //SimplePlot.asPixels(u);
-    return u[0];
   }
 
   /**
-   * Applies the adjoint operator (old version).
+   * Extrapolates backward wavefield.
    */
-  public float[] applyAdjointX(float[] d) {
+  public void extrapolateBackwardWavefield(float[][] u) {
     int nz = _nz;
     int nt = _nt;
     float[] a = _a;
     float[] um,ui,up;
     float[] ut = new float[nz];
-    float[][] u = new float[nt][nz];
-    // Set boundary values.
-    for (int it=0; it<nt; ++it)
-      u[it][0] = d[it];
     for (int it=nt-1; it>=0; --it) {
       up = (it<nt-1)?u[it+1]:new float[nz];
       ui = u[it];
       um = (it>0)?u[it-1]:new float[nz];
-      sub(um,up,um);
-      applyAndAddAdjointT(a,up,ui);
-    }
-    //System.out.println(sum(u));
-    //SimplePlot.asPixels(u);
-    return u[0];
-  }
-
-  /**
-   * Applies the adjoint operator (translated from Ji's (2009) F90 code).
-   */
-  public float[] applyAdjointJ(float[] d) { // Ji
-    int nz = _nz;
-    int nt = _nt;
-    float[] a = _a;
-    float[] m = new float[nz]; // output model at it=0
-    float[] um = new float[nz];
-    float[] ui = new float[nz];
-    float[] up = new float[nz];
-    up[0] = d[nt-1];
-    ui[0] = d[nt-2];
-    um[0] = d[nt-3];
-    for (int it=nt-2; it>=0; --it) {
-      for (int iz=0; iz<nz; ++iz)
-        um[iz] -= up[iz];
       for (int iz=1; iz<nz-1; ++iz)
-        ui[iz] += a[iz-1]*up[iz-1]-2.0f*a[iz]*up[iz]+a[iz+1]*up[iz+1]
-          +2.0f*up[iz];
-      ui[0   ] += a[1   ]*up[1   ]-2.0f*a[0   ]*up[0   ]+2.0f*up[0   ];
-      ui[nz-1] += a[nz-2]*up[nz-2]-2.0f*a[nz-1]*up[nz-1]+2.0f*up[nz-1];
-      copy(ui,up);
-      copy(um,ui);
-      if (it>1) {
-        um[0] = d[it-2];
-        for (int iz=1; iz<nz; ++iz)
-          um[iz] = 0.0f;
-      }
+        um[iz] += a[iz]*(ui[iz+1]-2.0f*ui[iz]+ui[iz-1])-up[iz]+2.0f*ui[iz];
+      um[0   ] += a[0   ]*(ui[1   ]-2.0f*ui[0   ])-up[0   ]+2.0f*ui[0   ];
+      um[nz-1] += a[nz-1]*(ui[nz-2]-2.0f*ui[nz-1])-up[nz-1]+2.0f*ui[nz-1];
     }
-    return up;
   }
 
   //////////////////////////////////////////////////////////////////////////
   // private
 
-  private int _nz;
-  private int _nt;
+  private static final double FPEAK = 10.0; // Ricker peak frequency
+  private float[][] _b = null; // background wavefield
+  private float[] _a;
   private double _dz;
   private double _dt;
-  private float[] _a;
+  private int _nz;
+  private int _nt;
 
-  // Applies the T operator described by Ji (2009).
-  private static float[] applyForwardT(float[] a, float[] x) {
-    float[] y = new float[x.length];
-    applyForwardT(a,x,y);
-    return y;
-  }
-  private static void applyForwardT(float[] a, float[] x, float[] y) {
-    int n = x.length;
-    y[0] = 2.0f*(1.0f-a[0])*x[0]+a[0]*x[1];
-    for (int i=1; i<n-1; ++i) {
-      y[i] = a[i]*(x[i-1]+x[i+1])+2.0f*(1.0f-a[i])*x[i];
+  // Computes wavefield for background model.
+  private float[][] getBackgroundWavefield() {
+    if (_b==null) {
+      _b = new float[_nt][_nz];
+      for (int it=0; it<_nt; ++it) {
+        double t = _dt*it;
+        _b[it][0] = ricker(t);
+      }
+      extrapolateForwardWavefield(_b);
+
+      // Fake absorbing boundary. XXX
+      //for (int it=2*_nt/3; it<_nt; ++it)
+      //  zero(_b[it]);
     }
-    y[n-1] = 2.0f*(1.0f-a[n-1])*x[n-1]+a[n-1]*x[n-2];
+    return _b;
   }
 
-  // Applies the adjoint T described by Ji (2009).
-  private static float[] applyAdjointT(float[] a, float[] x) {
-    float[] y = new float[x.length];
-    applyAdjointT(a,x,y);
-    return y;
-  }
-  private static void applyAdjointT(float[] a, float[] x, float[] y) {
-    int n = x.length;
-    y[0] = 2.0f*(1.0f-a[0])*x[0]+a[1]*x[1];
-    for (int i=1; i<n-1; ++i)
-      y[i] = a[i-1]*x[i-1]+2.0f*(1.0f-a[i])*x[i]+a[i+1]*x[i+1];
-    y[n-1] = 2.0f*(1.0f-a[n-1])*x[n-1]+a[n-2]*x[n-2];
-  }
-  private static void applyAndAddAdjointT(float[] a, float[] x, float[] y) {
-    float[] z = applyAdjointT(a,x);
-    add(z,y,y);
+  private static float ricker(double t) {
+    double tdelay = 1.0/FPEAK;
+    double x = PI*FPEAK*(t-tdelay);
+    double xx = x*x;
+    return (float)((1.0-2.0*xx)*exp(-xx));
   }
 
   //////////////////////////////////////////////////////////////////////////
   // testing
-  
-  public static void main(String[] args) {
-    //propagationDemo();
-    adjointTest();
-    //adjointTestT();
+
+  public static void main(String[] args) { 
+    goMigration();
+    //adjointTest();
+    //adjointExtrapolateTest();
   }
 
-  private static void propagationDemo() {
-    // Construct wave operator.
+  private static float[] getSlowness(int nz) {
+    return getConstantSlowness(0.25f,nz);
+    //return getRampSlowness(0.25f,0.24f,nz);
+    //return getRandomSlowness(0.25f,nz);
+  }
+  private static float[] getReflectivity(int nz) {
+    return getLayeredReflectivity(nz);
+    //return getRandomReflectivity(nz);
+  }
+  private static void goMigration() {
     Sampling sz = new Sampling(501,0.0120,0.0);
-    Sampling st = new Sampling(1001,0.0015,0.0);
+    Sampling st = new Sampling(2001,0.0015,0.0);
     int nz = sz.getCount();
     int nt = st.getCount();
     double dz = sz.getDelta();
     double dt = st.getDelta();
-    float[] s = fillfloat(0.25f,nz); // slowness
+    float[] s = getSlowness(nz);
+    float[] m = getReflectivity(nz);
     WaveOperator wave = new WaveOperator(sz,st,s);
 
-    // Make model.
-    float[] m = new float[nz]; m[nz/2] = 1.0f;
-    new RecursiveGaussianFilter(0.200/0.012).apply2(m,m);
-    mul(1.0f/max(abs(m)),m,m);
+    // RHS vector.
+    float[] d = wave.applyForward(m);
+    float[] b = wave.applyAdjoint(d);
+    VecArrayFloat1 vb = new VecArrayFloat1(b);
 
-    // Allocate Wavefields.
-    float[][] uf = new float[nt][nz]; // forward
-    float[][] ub = new float[nt][nz]; // backward
-    float[][] ua = new float[nt][nz]; // adjoint
+    // Model vector; solution vector.
+    float[] x = new float[nz];
+    VecArrayFloat1 vx = new VecArrayFloat1(x);
 
-    // Apply forward operator.
-    float[] d = wave.applyForward(m,uf);
-
-    // Apply backward operator.
-    float[] mb = wave.applyBackward(d,ub);
-
-    // Apply adjoint operator.
-    float[] ma = wave.applyAdjoint(d,ua);
-
-    // Plot stuff.
-    SimplePlot.asPoints(m);
-    SimplePlot.asPoints(mb);
-    SimplePlot.asPoints(ma);
-    //SimplePlot.asPoints(d);
-    SimplePlot.asPixels(uf);
-    SimplePlot.asPixels(ub);
-    SimplePlot.asPixels(ua);
+    // Conjugate gradient solver.
+    int niter = 100;
+    LinearOperator lop = new LinearOperator(true,wave); // correct adjoint 
+    //LinearOperator lop = new LinearOperator(false,wave); // incorrect adjoint
+    CgSolver cg = new CgSolver(0.0001f,niter);
+    cg.solve(lop,vb,vx);
+    
+    points(s,"background slowness");
+    points(m,"true reflectivity",-1.0,1.0);
+    points(x,"computed reflectivity",-1.0,1.0);
+    points(d,"observed data");
+    points(wave.applyForward(x),"predicted data");
   }
 
+  private static float[] getConstantSlowness(float ss, int nz) {
+    return fillfloat(ss,nz);
+  }
+  private static float[] getRampSlowness(float sshallow, float sdeep, int nz) {
+    return rampfloat(sshallow,(sdeep-sshallow)/nz,nz);
+  }
+  private static float[] getRandomSlowness(float ss, int nz) {
+    float[] s = mul(sub(randfloat(new Random(0123),nz),0.5f),0.5f);
+    new RecursiveGaussianFilter(nz/16.0).apply0(s,s);
+    add(ss,s,s);
+    return s;
+  }
+
+  private static float[] getLayeredReflectivity(int nz) {
+    float[] m = new float[nz];
+    m[nz/4] = 1.0f;
+    m[nz/2] = 1.0f;
+    //m[3*nz/4] = 1.0f;
+    new RecursiveGaussianFilter(4.0).apply1(m,m);
+    mul(1.0f/max(abs(m)),m,m);
+    return m;
+  }
+  private static float[] getRandomReflectivity(int nz) {
+    float scale = 0.5f; // scale of perturbation
+    float[] m = sub(randfloat(new Random(0123),nz),scale);
+    new RecursiveGaussianFilter(4.0).apply1(m,m);
+    float[] t = new float[nz];
+    t[nz/2] = 1.0f;
+    new RecursiveGaussianFilter(nz/8.0).apply0(t,t);
+    mul(t,m,m);
+    //points(t,"taper");
+    mul(1.0f/max(abs(m)),m,m);
+    return m;
+  }
+
+  private static class LinearOperator implements CgSolver.A {
+    LinearOperator(boolean useAdjoint, WaveOperator wave) {
+      _adjoint = useAdjoint;
+      _wave = wave;
+    }
+    public void apply(Vec vx, Vec vy) {
+      VecArrayFloat1 v1x = (VecArrayFloat1)vx;
+      VecArrayFloat1 v1y = (VecArrayFloat1)vy;
+      float[] x = v1x.getArray();
+      float[] y = v1y.getArray();
+      if (_adjoint) {
+        copy(_wave.applyAdjoint(_wave.applyForward(x)),y);
+      } else {
+        copy(_wave.applyBackward(_wave.applyForward(x)),y);
+      }
+    }
+    private WaveOperator _wave;
+    private boolean _adjoint;
+  }
+
+  // Adjoint test for modeling/migration.
   private static void adjointTest() {
-    Sampling sz = new Sampling(1001,0.0120,0.0);
-    Sampling st = new Sampling(1001,0.0015,0.0);
+    Sampling sz = new Sampling(11,0.0120,0.0);
+    Sampling st = new Sampling(11,0.0015,0.0);
     int nz = sz.getCount();
     int nt = st.getCount();
     double dz = sz.getDelta();
     double dt = st.getDelta();
-    float[] s = fillfloat(0.25f,nz); // slowness
+    float[] s = getRampSlowness(0.25f,0.15f,nz);
     WaveOperator wave = new WaveOperator(sz,st,s);
-    //Random random = new Random(0123);
     Random random = new Random();
     float[] m = sub(randfloat(random,nz),0.5f);
-    float[] d = sub(randfloat(random,nt),0.5f);
-    float sum1 = dot(wave.applyForward(m),d);
-    float sum2 = dot(wave.applyAdjoint(d),m);
-    //float sum1 = dot(wave.applyForwardX(m),d); // old
-    //float sum2 = dot(wave.applyAdjointX(d),m); // version
-    //float sum1 = dot(wave.applyForwardJ(m),d); // Ji's
-    //float sum2 = dot(wave.applyAdjointJ(d),m); // code
+    float[] u = sub(randfloat(random,nt),0.5f);
+    float sum1 = dot(wave.applyForward(m),u);
+    float sum2 = dot(wave.applyAdjoint(u),m);
     System.out.println("adjoint test:");
     System.out.println(sum1);
     System.out.println(sum2);
   }
 
-  private static void adjointTestT() {
-    int n = 10;
-    Random random = new Random(01234);
-    float[] x = randfloat(random,n);
-    float[] y = randfloat(random,n);
-    float[] s = randfloat(random,n);
-    System.out.println("adjoint test:");
-    System.out.println(dot(applyForwardT(s,x),y));
-    System.out.println(dot(applyAdjointT(s,y),x));
+  // Adjoint test for forward/backward wavefield extrapolation.
+  private static void adjointExtrapolateTest() {
+    Sampling sz = new Sampling(11,0.0120,0.0);
+    Sampling st = new Sampling(11,0.0015,0.0);
+    int nz = sz.getCount();
+    int nt = st.getCount();
+    double dz = sz.getDelta();
+    double dt = st.getDelta();
+    float[] s = getRampSlowness(0.25f,0.15f,nz);
+    WaveOperator wave = new WaveOperator(sz,st,s);
+    Random random = new Random();
+    float[][] ua = sub(randfloat(random,nz,nt),0.5f);
+    float[][] ub = sub(randfloat(random,nz,nt),0.5f);
+    float[][] va = copy(ua);
+    float[][] vb = copy(ub);
+    wave.extrapolateForwardWavefield(ua);
+    wave.extrapolateAdjointWavefield(ub);
+    float sum1 = dot(ua,vb);
+    float sum2 = dot(ub,va);
+    System.out.println("adjoint extrapolate test:");
+    System.out.println(sum1);
+    System.out.println(sum2);
   }
 
   private static float dot(float[] x, float[] y) {
@@ -441,6 +368,34 @@ public class WaveOperator {
     for (int i=0; i<n; ++i)
       sum += x[i]*y[i];
     return sum;
+  }
+  private static float dot(float[][] x, float[][] y) {
+    int n1 = x[0].length;
+    int n2 = x.length;
+    float sum = 0.0f;
+    for (int i2=0; i2<n2; ++i2)
+      for (int i1=0; i1<n1; ++i1)
+        sum += x[i2][i1]*y[i2][i1];
+    return sum;
+  }
+
+  private static void pixels(float[][] x, String title) {
+    SimplePlot sp = SimplePlot.asPixels(x);
+    sp.setTitle(title);
+    sp.setSize(1000,700);
+  }
+  private static void points(float[] x, String title) {
+    SimplePlot sp = SimplePlot.asPoints(x);
+    sp.setTitle(title);
+    sp.setSize(1000,700);
+  }
+  private static void points(
+    float[] x, String title, double vmin, double vmax)
+  {
+    SimplePlot sp = SimplePlot.asPoints(x);
+    sp.setTitle(title);
+    sp.setVLimits(vmin,vmax);
+    sp.setSize(1000,700);
   }
 
 }
