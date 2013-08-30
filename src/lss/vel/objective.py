@@ -26,7 +26,7 @@ def main(args):
 
 def goAmplitudeAndAmplitude():
 
-  showGlobalMinimum = False
+  showGlobalMinimum = True
 
   # Amplitude scale sampling
   fa = 0.0
@@ -54,7 +54,7 @@ def goAmplitudeAndAmplitude():
 
   # Observed data
   amplitudeScaleA = 1.5
-  amplitudeScaleB = 0.2
+  amplitudeScaleB = 0.5
   do = mul(amplitudeScaleA+amplitudeScaleB,ds)
 
   # Objective function

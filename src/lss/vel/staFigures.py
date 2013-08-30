@@ -17,7 +17,7 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 
 pngDir = None
-#pngDir = '/Users/sluo/Desktop/pngdat/'
+pngDir = '/Users/sluo/Desktop/pngdat/'
 
 widthPoints = None # slides
 #widthPoints = 175.0 # 1/3 column
@@ -28,14 +28,14 @@ widthPoints = None # slides
 #############################################################################
 
 def main(args):
-  #plotFwi()
+  plotFwi()
   #plotLsm()
   #plotFwiData()
   #plotLsmData() # Born data
   #plotObjectiveFunction()
   #plotFwiObjectiveFunctions()
   #plotLsmObjectiveFunctions()
-  plotModelMisfits()
+  #plotModelMisfits()
   #plotFiles()
 
   #plotDataFromFile()
@@ -428,9 +428,9 @@ def plotSubset(f,zmin,zmax,xmin,xmax,width,height,cmin,cmax,title):
     frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
 
 def plotFwi():
-  iiter = '19'
-  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/cres4/'
-  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
+  iiter = '4'
+  ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/cres4/'
+  #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/2000m_100p/dres2/'
   #ddir = '/Users/sluo/Dropbox/save/fwi/marmousi/200m_100p/dres/'
   t = read(ddir+'s_true.dat')
   s = read(ddir+'s_init.dat')
