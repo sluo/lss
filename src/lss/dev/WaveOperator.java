@@ -1,8 +1,11 @@
 package lss.dev;
 
 import java.util.*;
+import java.util.logging.*;
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.mosaic.*;
+import edu.mines.jtk.opt.*;
+import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 import dnp.*;
@@ -228,21 +231,102 @@ public class WaveOperator {
   // testing
 
   public static void main(String[] args) { 
-    goMigration();
+    goMigration(); // Harlan
+    //xgoMigration(); // CgSolver
     //adjointTest();
     //adjointExtrapolateTest();
   }
 
   private static float[] getSlowness(int nz) {
-    return getConstantSlowness(0.25f,nz);
-    //return getRampSlowness(0.25f,0.24f,nz);
+    //return getConstantSlowness(0.25f,nz);
+    return getRampSlowness(0.25f,0.20f,nz);
     //return getRandomSlowness(0.25f,nz);
   }
   private static float[] getReflectivity(int nz) {
-    return getLayeredReflectivity(nz);
-    //return getRandomReflectivity(nz);
+    //return getLayeredReflectivity(nz);
+    return getRandomReflectivity(nz);
   }
   private static void goMigration() {
+    Sampling sz = new Sampling(501,0.0120,0.0);
+    Sampling st = new Sampling(2001,0.0015,0.0);
+    int nz = sz.getCount();
+    int nt = st.getCount();
+    double dz = sz.getDelta();
+    double dt = st.getDelta();
+    float[] s = getSlowness(nz);
+    float[] m = getReflectivity(nz);
+    WaveOperator wave = new WaveOperator(sz,st,s);
+
+    // Data vector.
+    float[] d = wave.applyForward(m);
+    ArrayVect1f vd = new ArrayVect1f(d,0,1.0);
+
+    // Reference model vector.
+    float[] r = new float[nz];
+    ArrayVect1f vr = new ArrayVect1f(r,0,1.0);
+
+    // Progress monitoring.
+    Logger log = Logger.getLogger("edu.mines.jtk.opt");
+    LogMonitor monitor = new LogMonitor("QuadraticSolver",log);
+
+    // Linear transform.
+    ModelMigrateTransform ma = new ModelMigrateTransform(true,wave);
+    //ModelMigrateTransform ma = new ModelMigrateTransform(false,wave);
+
+    // Test LinearTransform implementation.
+    System.out.println(
+      new TransformQuadratic(vd,vr,null,new LinearTransformWrapper(ma),true).
+        getTransposePrecision()+" digits of precision"
+    );
+
+    // Quadratic solver.
+    int niter = 100;
+    boolean dampOnlyPerturbation = true;
+    ArrayVect1f vx = (ArrayVect1f)QuadraticSolver.
+      solve(vd,vr,ma,dampOnlyPerturbation,niter,monitor);
+    float[] x = vx.getData();
+
+    points(s,sz,"Depth (km)", "background slowness");
+    points(m,sz,"Depth (km)", "true reflectivity",-1.0,1.0);
+    points(x,sz,"Depth (km)", "computed reflectivity",-1.0,1.0);
+    points(d,st,"Time (s)","observed data",min(d),max(d));
+    points(wave.applyForward(x),st,"Time (s)","predicted data",min(d),max(d));
+  }
+  private static class ModelMigrateTransform implements LinearTransform {
+    ModelMigrateTransform(WaveOperator wave) {
+      this(true,wave);
+    }
+    ModelMigrateTransform(boolean useAdjoint, WaveOperator wave) {
+      _adjoint = useAdjoint;
+      _wave = wave;
+    }
+    public void forward(Vect data, VectConst model) {
+      ArrayVect1f d1f = (ArrayVect1f)data;
+      ArrayVect1f m1f = (ArrayVect1f)model;
+      float[] d = d1f.getData();
+      float[] m = m1f.getData();
+      copy(_wave.applyForward(m),d);
+    }
+    public void addTranspose(VectConst data, Vect model) {
+      ArrayVect1f d1f = (ArrayVect1f)data;
+      ArrayVect1f m1f = (ArrayVect1f)model;
+      float[] d = d1f.getData();
+      float[] m = m1f.getData();
+      if (_adjoint) {
+        add(_wave.applyAdjoint(d),m,m);
+      } else {
+        add(_wave.applyBackward(d),m,m);
+      }
+    }
+    public void inverseHessian(Vect model) {
+    }
+    public void adjustRobustErrors(Vect dataError) {
+    }
+    private WaveOperator _wave;
+    private boolean _adjoint;
+  }
+
+  private static void xgoMigration() {
     Sampling sz = new Sampling(501,0.0120,0.0);
     Sampling st = new Sampling(2001,0.0015,0.0);
     int nz = sz.getCount();
