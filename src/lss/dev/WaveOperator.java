@@ -74,6 +74,7 @@ public class WaveOperator {
 
     // (3') Adjoint wavefield extrapolation.
     extrapolateAdjointWavefield(u);
+    //pixels(u,_sz,_st,"adjoint wavefield");
 
     // (2') Multiply by background wavefield.
     mul(getBackgroundWavefield(),u,u);
@@ -82,9 +83,8 @@ public class WaveOperator {
     float[] m = new float[_nz];
     for (int it=0; it<_nt; ++it)
       add(u[it],m,m);
-
-    //pixels(u,_sz,_st,"adjoint wavefield");
     //points(m,_sz,"Depth (km)", "gradient");
+
     return m;
   }
 
@@ -211,14 +211,24 @@ public class WaveOperator {
         _b[it][0] = ricker(t);
       }
       extrapolateForwardWavefield(_b);
+      mul(-1.0f,_b,_b);
       //new RecursiveGaussianFilter(1.0).applyX2(_b,_b);
 
       // Fake absorbing boundary. XXX
-      //for (int it=2*_nt/3; it<_nt; ++it)
-      //  zero(_b[it]);
+      //absorb(_b);
     }
     return _b;
   }
+
+  // Fake absorbing boundary.
+  private void absorb(float[][] b) {
+    int kmute = 0;
+    float thresh = 0.1f*max(abs(b[0]));
+    while (b[kmute][_nz-1]<thresh)
+      ++kmute;
+    for (int it=kmute; it<_nt; ++it)
+      zero(b[it]);
+  } 
 
   private static float ricker(double t) {
     double tdelay = 1.0/FPEAK;
@@ -230,73 +240,83 @@ public class WaveOperator {
   //////////////////////////////////////////////////////////////////////////
   // testing
 
+  // Layered reflectivity tests:
+  //   nt=1667, constant slowness, useAdjoint=true
+  //   nt=1667, constant slowness, useAdjoint=false
+  //   nt=1667, random slowness, useAdjoint=false
+  //   nt=1667, random slowness, useAdjoint=false, damp=1.0e-5f
+  //   nt=2801, constant slowness, useAdjoint=true, niter=1
+  //   nt=2801, constant slowness, useAdjoint=true, niter=100
+
   public static void main(String[] args) { 
-    goMigration(); // Harlan
-    //xgoMigration(); // CgSolver
+    //goMigrationQs(); // QuadraticSolver
+    goMigrationCg(); // CgSolver
     //adjointTest();
     //adjointExtrapolateTest();
   }
 
+  private static Par getPar() {
+    Sampling sz = new Sampling(421,0.0120,0.0);
+    Sampling st = new Sampling(1667,0.0015,0.0);
+    //Sampling st = new Sampling(2801,0.0015,0.0);
+    return new Par(sz,st);
+  }
   private static float[] getSlowness(int nz) {
-    //return getConstantSlowness(0.25f,nz);
-    return getRampSlowness(0.25f,0.20f,nz);
+    return getConstantSlowness(0.25f,nz);
     //return getRandomSlowness(0.25f,nz);
+    //return getRampSlowness(0.25f,0.30f,nz);
   }
   private static float[] getReflectivity(int nz) {
-    //return getLayeredReflectivity(nz);
-    return getRandomReflectivity(nz);
+    return getLayeredReflectivity(nz);
+    //return getRandomReflectivity(nz);
   }
-  private static void goMigration() {
-    Sampling sz = new Sampling(501,0.0120,0.0);
-    Sampling st = new Sampling(2001,0.0015,0.0);
+
+  private static void goMigrationQs() {
+    Par par = getPar();
+    float[] s = par.s;
+    float[] r = par.r;
+    WaveOperator wave = par.wave;
+    Sampling sz = par.sz;
+    Sampling st = par.st;
     int nz = sz.getCount();
     int nt = st.getCount();
     double dz = sz.getDelta();
     double dt = st.getDelta();
-    float[] s = getSlowness(nz);
-    float[] m = getReflectivity(nz);
-    WaveOperator wave = new WaveOperator(sz,st,s);
 
     // Data vector.
-    float[] d = wave.applyForward(m);
+    float[] d = wave.applyForward(r);
     ArrayVect1f vd = new ArrayVect1f(d,0,1.0);
 
-    // Reference model vector.
-    float[] r = new float[nz];
-    ArrayVect1f vr = new ArrayVect1f(r,0,1.0);
+    // Reference model vector (set to 0)
+    float[] m = new float[nz];
+    ArrayVect1f vm = new ArrayVect1f(m,0,1.0);
 
     // Progress monitoring.
     Logger log = Logger.getLogger("edu.mines.jtk.opt");
     LogMonitor monitor = new LogMonitor("QuadraticSolver",log);
 
     // Linear transform.
-    ModelMigrateTransform ma = new ModelMigrateTransform(true,wave);
-    //ModelMigrateTransform ma = new ModelMigrateTransform(false,wave);
+    boolean useAdjoint = true;
+    WaveTransform ma = new WaveTransform(useAdjoint,wave);
 
-    // Test LinearTransform implementation.
-    System.out.println(
-      new TransformQuadratic(vd,vr,null,new LinearTransformWrapper(ma),true).
-        getTransposePrecision()+" digits of precision"
+    // LinearTransform tests.
+    System.out.println("Transpose precision: "+
+      new TransformQuadratic(vd,vm,null,new LinearTransformWrapper(ma),true).
+        getTransposePrecision()
     );
 
     // Quadratic solver.
     int niter = 100;
     boolean dampOnlyPerturbation = true;
     ArrayVect1f vx = (ArrayVect1f)QuadraticSolver.
-      solve(vd,vr,ma,dampOnlyPerturbation,niter,monitor);
+      solve(vd,vm,ma,dampOnlyPerturbation,niter,monitor);
     float[] x = vx.getData();
 
-    points(s,sz,"Depth (km)", "background slowness");
-    points(m,sz,"Depth (km)", "true reflectivity",-1.0,1.0);
-    points(x,sz,"Depth (km)", "computed reflectivity",-1.0,1.0);
-    points(d,st,"Time (s)","observed data",min(d),max(d));
-    points(wave.applyForward(x),st,"Time (s)","predicted data",min(d),max(d));
+    plots(d,wave.applyForward(x),s,r,x);
   }
-  private static class ModelMigrateTransform implements LinearTransform {
-    ModelMigrateTransform(WaveOperator wave) {
-      this(true,wave);
-    }
-    ModelMigrateTransform(boolean useAdjoint, WaveOperator wave) {
+
+  private static class WaveTransform implements LinearTransform {
+    WaveTransform(boolean useAdjoint, WaveOperator wave) {
       _adjoint = useAdjoint;
       _wave = wave;
     }
@@ -326,19 +346,20 @@ public class WaveOperator {
     private boolean _adjoint;
   }
 
-  private static void xgoMigration() {
-    Sampling sz = new Sampling(501,0.0120,0.0);
-    Sampling st = new Sampling(2001,0.0015,0.0);
+  private static void goMigrationCg() {
+    Par par = getPar();
+    float[] s = par.s;
+    float[] r = par.r;
+    WaveOperator wave = par.wave;
+    Sampling sz = par.sz;
+    Sampling st = par.st;
     int nz = sz.getCount();
     int nt = st.getCount();
     double dz = sz.getDelta();
     double dt = st.getDelta();
-    float[] s = getSlowness(nz);
-    float[] m = getReflectivity(nz);
-    WaveOperator wave = new WaveOperator(sz,st,s);
 
     // RHS vector.
-    float[] d = wave.applyForward(m);
+    float[] d = wave.applyForward(r);
     float[] b = wave.applyAdjoint(d);
     VecArrayFloat1 vb = new VecArrayFloat1(b);
 
@@ -348,57 +369,20 @@ public class WaveOperator {
 
     // Conjugate gradient solver.
     int niter = 100;
-    LinearOperator lop = new LinearOperator(true,wave); // correct adjoint 
-    //LinearOperator lop = new LinearOperator(false,wave); // incorrect adjoint
+    float damp = 0.0e-5f; // model damping
+    boolean useAdjoint = true;
+    A ma = new A(useAdjoint,wave,damp*sum(mul(b,b))/b.length);
     CgSolver cg = new CgSolver(0.0001f,niter);
-    cg.solve(lop,vb,vx);
+    cg.solve(ma,vb,vx);
     
-    points(s,sz,"Depth (km)", "background slowness");
-    points(m,sz,"Depth (km)", "true reflectivity",-1.0,1.0);
-    points(x,sz,"Depth (km)", "computed reflectivity",-1.0,1.0);
-    points(d,st,"Time (s)","observed data",min(d),max(d));
-    points(wave.applyForward(x),st,"Time (s)","predicted data",min(d),max(d));
+    plots(d,wave.applyForward(x),s,r,x);
   }
 
-  private static float[] getConstantSlowness(float ss, int nz) {
-    return fillfloat(ss,nz);
-  }
-  private static float[] getRampSlowness(float sshallow, float sdeep, int nz) {
-    return rampfloat(sshallow,(sdeep-sshallow)/nz,nz);
-  }
-  private static float[] getRandomSlowness(float ss, int nz) {
-    float[] s = mul(sub(randfloat(new Random(0123),nz),0.5f),0.5f);
-    new RecursiveGaussianFilter(nz/16.0).apply0(s,s);
-    add(ss,s,s);
-    return s;
-  }
-
-  private static float[] getLayeredReflectivity(int nz) {
-    float[] m = new float[nz];
-    m[nz/4] = 1.0f;
-    m[nz/2] = 1.0f;
-    //m[3*nz/4] = 1.0f;
-    new RecursiveGaussianFilter(4.0).apply1(m,m);
-    mul(1.0f/max(abs(m)),m,m);
-    return m;
-  }
-  private static float[] getRandomReflectivity(int nz) {
-    float scale = 0.5f; // scale of perturbation
-    float[] m = sub(randfloat(new Random(0123),nz),scale);
-    new RecursiveGaussianFilter(4.0).apply1(m,m);
-    float[] t = new float[nz];
-    t[nz/2] = 1.0f;
-    new RecursiveGaussianFilter(nz/8.0).apply0(t,t);
-    mul(t,m,m);
-    //points(t,_sz,"Depth (km)","taper");
-    mul(1.0f/max(abs(m)),m,m);
-    return m;
-  }
-
-  private static class LinearOperator implements CgSolver.A {
-    LinearOperator(boolean useAdjoint, WaveOperator wave) {
+  private static class A implements CgSolver.A {
+    A(boolean useAdjoint, WaveOperator wave, float damp) {
       _adjoint = useAdjoint;
       _wave = wave;
+      _damp = damp;
     }
     public void apply(Vec vx, Vec vy) {
       VecArrayFloat1 v1x = (VecArrayFloat1)vx;
@@ -410,9 +394,62 @@ public class WaveOperator {
       } else {
         copy(_wave.applyBackward(_wave.applyForward(x)),y);
       }
+      if (_damp>0.0f)
+        add(mul(_damp,x),y,y);
     }
     private WaveOperator _wave;
     private boolean _adjoint;
+    private float _damp;
+  }
+
+  private static class Par {
+    public Par(Sampling sz, Sampling st) {
+      this.sz = sz;
+      this.st = st;
+      this.s = getSlowness(sz.getCount());
+      this.r = getReflectivity(sz.getCount());
+      this.wave = new WaveOperator(sz,st,this.s);
+    }
+    public Sampling sz;
+    public Sampling st;
+    public float[] s; // slowness
+    public float[] r; // reflectivity
+    public WaveOperator wave;
+  }
+
+  private static float[] getConstantSlowness(float ss, int nz) {
+    return fillfloat(ss,nz);
+  }
+  private static float[] getRampSlowness(float sshallow, float sdeep, int nz) {
+    return rampfloat(sshallow,(sdeep-sshallow)/nz,nz);
+  }
+  private static float[] getRandomSlowness(float ss, int nz) {
+    float scale = 0.5f; // scale of perturbation
+    float[] s = mul(sub(randfloat(new Random(0123),nz),0.5f),scale);
+    new RecursiveGaussianFilter(nz/16.0).apply0(s,s);
+    add(ss,s,s);
+    return s;
+  }
+
+  private static float[] getLayeredReflectivity(int nz) {
+    float[] m = new float[nz];
+    m[nz/4] = -1.0f;
+    //m[nz/2] = -1.0f;
+    //m[3*nz/4] = -1.0f;
+    new RecursiveGaussianFilter(4.0).apply1(m,m);
+    mul(1.0f/max(abs(m)),m,m);
+    return m;
+  }
+  private static float[] getRandomReflectivity(int nz) {
+    float[] m = sub(randfloat(new Random(0123),nz),0.5f);
+    new RecursiveGaussianFilter(4.0).apply2(m,m);
+    float[] t = new float[nz];
+    t[nz/2] = 1.0f;
+    new RecursiveGaussianFilter(nz/8.0).apply0(t,t);
+    //mul(t,m,m);
+    //points(t,new Sampling(t.length),"Depth (km)","taper");
+    mul(1.0f/max(abs(m)),m,m);
+    return m;
   }
 
   // Adjoint test for modeling/migration.
@@ -430,7 +467,7 @@ public class WaveOperator {
     float[] u = sub(randfloat(random,nt),0.5f);
     float sum1 = dot(wave.applyForward(m),u);
     float sum2 = dot(wave.applyAdjoint(u),m);
-    System.out.println("adjoint test:");
+    System.out.println("adjoint test: "+compareDigits(sum1,sum2)+" digits");
     System.out.println(sum1);
     System.out.println(sum2);
   }
@@ -454,9 +491,19 @@ public class WaveOperator {
     wave.extrapolateAdjointWavefield(ub);
     float sum1 = dot(ua,vb);
     float sum2 = dot(ub,va);
-    System.out.println("adjoint extrapolate test:");
+    System.out.println("adjoint extrapolate test: "
+      +compareDigits(sum1,sum2)+" digits");
     System.out.println(sum1);
     System.out.println(sum2);
+  }
+
+  // count number of same digits
+  private static int compareDigits(float xa, float xb) {
+    int digits; // significant digits
+    boolean equal = false;
+    for (digits=10; digits>0 && !equal; --digits)
+      equal = new Almost(digits).equal(xa,xb);
+    return digits+1;
   }
 
   private static float dot(float[] x, float[] y) {
@@ -476,13 +523,16 @@ public class WaveOperator {
     return sum;
   }
 
-  private static void pixels(
-    float[][] x, Sampling s1, Sampling s2, String title) {
-    SimplePlot sp = SimplePlot.asPixels(s1,s2,x);
-    sp.setTitle(title);
-    sp.setSize(1010,740);
-    sp.setVLabel("Depth (km)");
-    sp.setHLabel("Time (s)");
+  private static void plots(
+    float[] d, float[] p, float[] s, float[] r, float[] x) {
+    Par par = getPar();
+    Sampling sz = par.sz;
+    Sampling st = par.st;
+    points(s,sz,"Depth (km)", "background slowness");
+    points(r,sz,"Depth (km)", "true reflectivity",-1.0,1.0);
+    points(x,sz,"Depth (km)", "computed reflectivity",-1.0,1.0);
+    points(d,st,"Time (s)","observed data",min(d),max(d));
+    points(p,st,"Time (s)","predicted data",min(d),max(d));
   }
   private static void points(
     float[] x, Sampling s, String label, String title) {
@@ -497,6 +547,14 @@ public class WaveOperator {
     if (vmin<vmax)
       sp.setVLimits(vmin,vmax);
     sp.setSize(1010,740);
+  }
+  private static void pixels(
+    float[][] x, Sampling s1, Sampling s2, String title) {
+    SimplePlot sp = SimplePlot.asPixels(s1,s2,x);
+    sp.setTitle(title);
+    sp.setSize(1010,740);
+    sp.setVLabel("Depth (km)");
+    sp.setHLabel("Time (s)");
   }
 
 }
