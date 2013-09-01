@@ -96,7 +96,7 @@ public class Wavefield {
       _source.add(_dt*it,up);
 
       // Absorbing boundaries
-      absorb(um,ui,up);
+      //absorb(um,ui,up);
 
       // Copy data and wavefield
       if (_receiver!=null) {

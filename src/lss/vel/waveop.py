@@ -1,31 +1,30 @@
 #############################################################################
-# Wavefield modeling demo
+# Wavefield modeling using AcousticWaveOperator
 
 from imports import *
 
 #############################################################################
 
 sz = Sampling(201,0.016,0.0)
-sx = Sampling(201,0.016,0.0)
+sx = Sampling(202,0.016,0.0)
 st = Sampling(2001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-kzs,kxs = [0],[nx/2] # source location
-kxr,kzr = rampint(0,1,nx),fillint(0,nx) # receiver locations
-ns,nr = len(kxs),len(kxr)
+xs,zs = dx*(nx/2),0.0 # source location
+xr,zr = rampfloat(0.0,dx,nx),fillfloat(0.0,nx)
 fpeak = 10.0 # Ricker wavelet peak frequency
 
 def main(args):
   s = getLayeredModel() # slowness model
   u = zerofloat(nz,nx,nt) # wavefield
-  d = zerofloat(nt,nr) # data
-  wave = Wavefield(sz,sx,st)
+  awo = AcousticWaveOperator(s,dx,dt)
   sw = Stopwatch(); sw.start()
-  wave.modelAcousticDataAndWavefield(
-    Wavefield.RickerSource(fpeak,kzs[0],kxs[0]),
-    Wavefield.Receiver(kzr,kxr),
-    s,d,u)
+  awo.applyForward(
+    AcousticWaveOperator.RickerSource(fpeak,xs,zs)
+    AcousticWaveOperator.Receiver(xr,zr,nt)
+    u)
   print sw.time()
+  d = receiver.getData()
   display(u,perc=99.0,title="wavefield")
   plot(d,cmap=gray,perc=99.0,title="data")
   plot(s,cmap=jet,title="slowness (s/km)")
