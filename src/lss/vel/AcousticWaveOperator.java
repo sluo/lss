@@ -11,8 +11,7 @@ import edu.mines.jtk.mosaic.*;
 public class AcousticWaveOperator {
 
   public AcousticWaveOperator(
-  float[][] s, double dx, double dt) {
-    int nabsorb = NABSORB;
+  float[][] s, double dx, double dt, int nabsorb) {
     int nz = s[0].length;
     int nx = s.length;
     Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
@@ -71,8 +70,8 @@ public class AcousticWaveOperator {
 
   private void apply(
   boolean forward, Source source, Receiver receiver, float[][][] u) {
-    int nz = _nz-2*NABSORB;
-    int nx = _nx-2*NABSORB;
+    //int nz = _nz-2*NABSORB;
+    //int nx = _nx-2*NABSORB;
     int nt = (receiver==null)?u.length:receiver.getNt();
     float[][] um = new float[_nx][_nz];
     float[][] ui = new float[_nx][_nz];
@@ -94,8 +93,6 @@ public class AcousticWaveOperator {
       // Copy data and wavefield.
       if (receiver!=null)
         receiver.setData(it,up,_sx,_sz);
-      if (u!=null)
-        copy(nz,nx,_b,_b,up,0,0,u[it]);
 
       // Rotate arrays
       float[][] ut = um;
@@ -120,9 +117,6 @@ public class AcousticWaveOperator {
       _zr = zr;
       _data = new float[_nr][nt];
     }
-    public int getNt() {
-      return _nt;
-    }
     public void setData(int it, float[][] ui, Sampling sx, Sampling sz) {
       double dz = sz.getDelta();
       double dx = sx.getDelta();
@@ -136,6 +130,9 @@ public class AcousticWaveOperator {
     }
     public float[][] getData() {
       return _data;
+    }
+    public int getNt() {
+      return _nt;
     }
     public int _nr,_nt;
     public float[] _xr, _zr;
@@ -327,8 +324,8 @@ public class AcousticWaveOperator {
 
   //////////////////////////////////////////////////////////////////////////
 
-  private static final int NABSORB = 12; // size of absorbing boundary
-  private static final int FD_ORDER = 4; // finite-difference order
+  //private static final int NABSORB = 22; // absorbing boundary size
+  private static final int FD_ORDER = 4; // finite-difference stencil order
 
   private int _b; // absorbing boundary size
   //private Source _source;

@@ -13,16 +13,17 @@ dz,dx,dt = sz.delta,sx.delta,st.delta
 xs,zs = dx*(nx/2),0.0 # source location
 xr,zr = rampfloat(0.0,dx,nx),fillfloat(0.0,nx)
 fpeak = 10.0 # Ricker wavelet peak frequency
+nabsorb = 12 # absorbing boundary
+nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
   s = getLayeredModel() # slowness model
-  u = zerofloat(nz,nx,nt) # wavefield
-  awo = AcousticWaveOperator(s,dx,dt)
+  u = zerofloat(nzp,nxp,nt) # wavefield
+  awo = AcousticWaveOperator(s,dx,dt,nabsorb)
+  source = AcousticWaveOperator.RickerSource(fpeak,xs,zs)
+  receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
   sw = Stopwatch(); sw.start()
-  awo.applyForward(
-    AcousticWaveOperator.RickerSource(fpeak,xs,zs)
-    AcousticWaveOperator.Receiver(xr,zr,nt)
-    u)
+  awo.applyForward(source,receiver,u)
   print sw.time()
   d = receiver.getData()
   display(u,perc=99.0,title="wavefield")
