@@ -406,6 +406,34 @@ public class Wavefield {
     }});
   }
 
+  private float[][] extendModel(float[][] c) {
+    int nz = c[0].length;
+    int nx = c.length;
+    float[][] v = new float[nx+2*_b][nz+2*_b];
+    copy(nz,nx,0,0,c,_b,_b,v);
+    for (int ix=_b; ix<nx+_b; ++ix) {
+      for (int iz=0, jz=nz+_b; iz<_b; ++iz, ++jz) {
+        v[ix][iz] = v[ix][_b];
+        v[ix][jz] = v[ix][nz+_b-1];
+      }
+    }
+    for (int ix=0, jx=nx+_b; ix<_b; ++ix, ++jx) {
+      copy(v[_b],v[ix]);
+      copy(v[nx+_b-1],v[jx]);
+    }
+    return v;
+  }
+
+  private void reverse3(float[][][] f) {
+    int n3 = f.length;
+    float[][] t;
+    for (int i3=0, j3=n3-1; i3<n3/2; ++i3, --j3) {
+      t = f[i3];
+      f[i3] = f[j3];
+      f[j3] = t;
+    }
+  }
+
   private void absorb(
     final float[][] um, final float[][] ui, final float[][] up)
   {
@@ -710,34 +738,6 @@ public class Wavefield {
       float r = si*c*d;
       float g = (1.0f-r)/(1.0f+r);
       up[ix][iz] = ui[ix][iz-1]+g*(up[ix][iz-1]-ui[ix][iz]);
-    }
-  }
-
-  private float[][] extendModel(float[][] c) {
-    int nz = c[0].length;
-    int nx = c.length;
-    float[][] v = new float[nx+2*_b][nz+2*_b];
-    copy(nz,nx,0,0,c,_b,_b,v);
-    for (int ix=_b; ix<nx+_b; ++ix) {
-      for (int iz=0, jz=nz+_b; iz<_b; ++iz, ++jz) {
-        v[ix][iz] = v[ix][_b];
-        v[ix][jz] = v[ix][nz+_b-1];
-      }
-    }
-    for (int ix=0, jx=nx+_b; ix<_b; ++ix, ++jx) {
-      copy(v[_b],v[ix]);
-      copy(v[nx+_b-1],v[jx]);
-    }
-    return v;
-  }
-
-  private void reverse3(float[][][] f) {
-    int n3 = f.length;
-    float[][] t;
-    for (int i3=0, j3=n3-1; i3<n3/2; ++i3, --j3) {
-      t = f[i3];
-      f[i3] = f[j3];
-      f[j3] = t;
     }
   }
 
