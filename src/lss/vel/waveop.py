@@ -20,8 +20,8 @@ nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
-  #goForward()
-  goMigration()
+  goForward()
+  #goMigration()
   #adjointTest()
 
 def goForward():

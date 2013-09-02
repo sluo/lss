@@ -330,9 +330,9 @@ public class AcousticWaveOperator {
     float[][] um = new float[_nx][_nz]; // it-1
     float[][] ui = new float[_nx][_nz]; // it
     float[][] up;                       // it+1
-    int itf = (forward)?0:nt-1;
-    int itp = (forward)?1:-1;
-    for (int it=itf, count=0; count<nt; it+=itp, ++count) {
+    int fit = (forward)?0:nt-1;
+    int pit = (forward)?1:-1;
+    for (int it=fit, count=0; count<nt; it+=pit, ++count) {
       up = (u==null)?ut:u[it]; // next time 
       if (forward)
         forwardStep(um,ui,up); // forward step
@@ -384,25 +384,16 @@ public class AcousticWaveOperator {
     forwardStep(um,ui,up);
   }
 
-  private boolean _check = true;
-
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
   // edge reflections in numerical modeling of wave propagation.
   private void absorb(
   final float[][] um, final float[][] ui, final float[][] up) {
-
     final float oxt = (float)(1.0/(_dx*_dt));
     final float oxx = (float)(1.0/(_dx*_dx));
     final float ott = (float)(1.0/(_dt*_dt));
     //final float[][] cp = copy(up);
     final float[][] cp = up;
-
-    //final float[][] aa = copy(up); zero(aa);
-
-    final float fd = (float)(FD_ORDER/2);
-    final float ob = 1.0f/_b;
     for (int ix=_ixa; ix<_ixb-1; ++ix) {
-      //float w = (ix-fd)*ob;
       for (int iz=_izb; iz<_izc; ++iz) {
         float si = _s[ix][iz];
         float a =  0.50f*oxt;
@@ -416,13 +407,9 @@ public class AcousticWaveOperator {
         );
         float w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 1.0f;
-        //aa[ix][iz] = w;
       }
     }
-
     for (int ix=_ixd-1; ix>=_ixc+1; --ix) {
-      //float w = ((_nx-1)-(ix+fd))*ob;
       for (int iz=_izb; iz<_izc; ++iz) {
         float si = _s[ix][iz];
         float a = -0.50f*oxt;
@@ -436,13 +423,9 @@ public class AcousticWaveOperator {
         );
         float w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 2.0f;
-        //aa[ix][iz] = w;
       }
     }
-
     for (int iz=_iza; iz<_izb-1; ++iz) {
-      //float w = (iz-fd)*ob;
       for (int ix=_ixb; ix<_ixc; ++ix) {
         float si = _s[ix][iz];
         float a =  0.50f*oxt;
@@ -456,13 +439,9 @@ public class AcousticWaveOperator {
         );
         float w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 3.0f;
-        //aa[ix][iz] = w;
       }
     }
-
     for (int iz=_izd-1; iz>=_izc+1; --iz) {
-      //float w = ((_nz-1)-(iz+fd))*ob;
       for (int ix=_ixb; ix<_ixc; ++ix) {
         float si = _s[ix][iz];
         float a = -0.50f*oxt;
@@ -476,183 +455,41 @@ public class AcousticWaveOperator {
         );
         float w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 1.0f;
-        //aa[ix][iz] = w;
       }
     }
-
     // Corners
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=_iza; iz<_izb; ++iz) {
-        //float w = 0.5f*((ix-_ixa)+(iz-_iza))*ob; w *= w;
         float w = _w[ix][iz];
         float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
         float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 5.0f;
-        //aa[ix][iz] = w;
       }
     }
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=_izc; iz<_izd; ++iz) {
-        //float w = 0.5f*((ix-_ixa)+(_izd-1-iz))*ob; w *= w;
         float w = _w[ix][iz];
         float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
         float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 5.0f;
-        //aa[ix][iz] = w;
       }
     }
     for (int ix=_ixc; ix<_ixd; ++ix) {
       for (int iz=_iza; iz<_izb; ++iz) {
-        //float w = 0.5f*((_ixd-1-ix)+(iz-_iza))*ob; w *= w;
         float w = _w[ix][iz];
         float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
         float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 5.0f;
-        //aa[ix][iz] = w;
       }
     }
     for (int ix=_ixc; ix<_ixd; ++ix) {
       for (int iz=_izc; iz<_izd; ++iz) {
-        //float w = 0.5f*((_ixd-1-ix)+(_izd-1-iz))*ob; w *= w;
         float w = _w[ix][iz];
         float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
         float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        //aa[ix][iz] += 5.0f;
-        //aa[ix][iz] = w;
       }
     }
-
-    //if (_check) {
-    //  SimplePlot.asPixels(aa);
-    //  _check = false;
-    //}
-
-  }
-  private void xabsorb(
-  final float[][] um, final float[][] ui, final float[][] up) {
-
-    final float oxt = (float)(1.0/(_dx*_dt));
-    final float oxx = (float)(1.0/(_dx*_dx));
-    final float ott = (float)(1.0/(_dt*_dt));
-    //final float[][] cp = copy(up);
-    final float[][] cp = up;
-
-    final float[][] aa = copy(up); zero(aa);
-
-    final float fd = (float)(FD_ORDER/2);
-    final float ob = 1.0f/_b;
-    for (int ix=_ixa; ix<_ixb; ++ix) {
-      float w = (ix-fd)*ob;
-      for (int iz=ix+2; iz<_nz-2-ix; ++iz) {
-        float si = _s[ix][iz];
-        float a =  0.50f*oxt;
-        float b = -0.50f*ott*si;
-        float c =  0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
-          (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
-          (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
-          (um[ix+1][iz])*(b-a)
-        );
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        aa[ix][iz] += 1.0f;
-      }
-    }
-
-    for (int ix=_ixd-1; ix>=_ixc; --ix) {
-      float w = ((_nx-1)-(ix+fd))*ob;
-      for (int iz=_nx-ix+1; iz<_nz-1-(_nx-ix); ++iz) {
-        float si = _s[ix][iz];
-        float a = -0.50f*oxt;
-        float b =  0.50f*ott*si;
-        float c = -0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
-          (um[ix][iz-1]+um[ix][iz+1]+cp[ix-1][iz+1]+cp[ix-1][iz-1])*c+
-          (um[ix][iz]+cp[ix-1][iz])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix-1][iz])*(-2.0f*b)+
-          (um[ix-1][iz])*(b-a)
-        );
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        aa[ix][iz] += 2.0f;
-      }
-    }
-
-    for (int iz=_iza; iz<_izb; ++iz) {
-      float w = (iz-fd)*ob;
-      for (int ix=iz+2; ix<_nx-2-iz; ++ix) {
-        float si = _s[ix][iz];
-        float a =  0.50f*oxt;
-        float b = -0.50f*ott*si;
-        float c =  0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
-          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz+1]+cp[ix-1][iz+1])*c+
-          (um[ix][iz]+cp[ix][iz+1])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix][iz+1])*(-2.0f*b)+
-          (um[ix][iz+1])*(b-a)
-        );
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        aa[ix][iz] += 3.0f;
-      }
-    }
-
-    for (int iz=_izd-1; iz>=_izc; --iz) {
-      float w = ((_nz-1)-(iz+fd))*ob;
-      for (int ix=_nz-iz+1; ix<_nx-1-(_nz-iz); ++ix) {
-        float si = _s[ix][iz];
-        float a = -0.50f*oxt;
-        float b =  0.50f*ott*si;
-        float c = -0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
-          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz-1]+cp[ix-1][iz-1])*c+
-          (um[ix][iz]+cp[ix][iz-1])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix][iz-1])*(-2.0f*b)+
-          (um[ix][iz-1])*(b-a)
-        );
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-        aa[ix][iz] += 1.0f;
-      }
-    }
-
-    // Corners
-    for (int ix=_ixa, iz=_iza; ix<_ixb; ++ix, ++iz) {
-      float w = (ix-fd)*ob;
-      float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-      float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
-      up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-      aa[ix][iz] += 5.0f;
-    }
-    for (int ix=_ixa, iz=_izd-1; ix<_ixb; ++ix, --iz) {
-      float w = (ix-fd)*ob;
-      float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-      float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
-      up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-      aa[ix][iz] += 5.0f;
-    }
-    for (int ix=_ixc, iz=_izb-1; ix<_ixd; ++ix, --iz) {
-      float w = ((_nx-1)-(ix+fd))*ob;
-      float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-      float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
-      up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-      aa[ix][iz] += 5.0f;
-    }
-    for (int ix=_ixc, iz=_izc; ix<_ixd; ++ix, ++iz) {
-      float w = ((_nx-1)-(ix+fd))*ob;
-      float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-      float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
-      up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-      aa[ix][iz] += 5.0f;
-    }
-
-    //if (_check) {
-    //  SimplePlot.asPixels(aa);
-    //  _check = false;
-    //}
-
   }
 
   private static float[][] extendModel(float[][] c, int b) {
@@ -690,7 +527,7 @@ public class AcousticWaveOperator {
 
   private float[][] makeWeights() {
     int fd = FD_ORDER/2;
-    float ob = 1.0f/_b;
+    float ob = 1.0f/(_b-1.0f);
     float[][] w = new float[_nx][_nz];
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=ix; iz<_nz-ix; ++iz) {
@@ -709,6 +546,7 @@ public class AcousticWaveOperator {
         w[ix][iz] = 1.0f;
       }
     }
+    System.out.println(max(w));
     //SimplePlot.asPixels(w).addColorBar();
     return w;
   }
