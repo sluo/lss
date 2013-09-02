@@ -5,9 +5,9 @@ from imports import *
 
 #############################################################################
 
-#sz = Sampling(11,0.016,0.0)
-#sx = Sampling(12,0.016,0.0)
-#st = Sampling(13,0.0012,0.0)
+#sz = Sampling(101,0.016,0.0)
+#sx = Sampling(102,0.016,0.0)
+#st = Sampling(103,0.0012,0.0)
 sz = Sampling(201,0.016,0.0)
 sx = Sampling(203,0.016,0.0)
 st = Sampling(2001,0.0012,0.0)
@@ -20,9 +20,21 @@ nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
-  goForward()
-  #goMigration()
+  #goForward()
+  goMigration()
   #adjointTest()
+  #dotTest()
+
+def dotTest():
+  n1,n2,n3 = 1,2,3
+  random = Random(012345)
+  u = randfloat(random,n1,n2,n3)
+  a = randfloat(random,n1,n2,n3)
+  pd = pdot(u,a)
+  jd = jdot(u,a)
+  print pd
+  print jd
+  print abs(pd-jd)
 
 def goForward():
   s = getLayeredModel() # slowness model
@@ -51,29 +63,34 @@ def goMigration():
     for iz in range(20):
       r[ix][iz] = 0.0
   print sum(r)
-  plot(r)
+  plot(r,cmin=-1000,cmax=1000)
 
 def adjointTest():
   s = fillfloat(0.5,nz,nx)
-  #add(mul(add(randfloat(Random(01),nz,nx),-0.5),0.05),s,s)
-  random = Random(0123)
+  add(mul(add(randfloat(Random(012),nz,nx),-0.5),0.10),s,s)
+  random = Random(01234)
   #random = Random()
   ua = randfloat(random,nzp,nxp,nt)
   ub = randfloat(random,nzp,nxp,nt)
   va = copy(ua)
   vb = copy(ub)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
-#  awo.applyForward(AcousticWaveOperator.WavefieldSource(ua),ua)
-#  awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(ub),ub)
-#  print sum(ua)
-#  print sum(ub)
-#  sum1 = dot(ua,vb)
-#  sum2 = dot(ub,va)
-#  print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
-#  print sum1
-#  print sum2
+  awo.applyForward(AcousticWaveOperator.WavefieldSource(ua),ua)
+  awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(ub),ub)
+  sum1 = dot(ua,vb)
+  sum2 = dot(ub,va)
+  print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
+  print sum1
+  print sum2
 
 def dot(u,a):
+  #return pdot(u,a)
+  return jdot(u,a)
+
+def jdot(u,a):
+  return AcousticWaveOperator.dot(u,a)
+
+def pdot(u,a):
   n1 = len(u[0][0])
   n2 = len(u[0])
   n3 = len(u)
@@ -101,7 +118,7 @@ def getLayeredModel():
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
-def plot(x,cmap=gray,perc=100.0,title=None):
+def plot(x,cmap=gray,perc=100.0,cmin=0.0,cmax=0.0,title=None):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   sp.addColorBar()
   sp.setSize(600,600)
@@ -111,6 +128,8 @@ def plot(x,cmap=gray,perc=100.0,title=None):
   pv.setColorModel(cmap)
   if perc<100.0:
     pv.setPercentiles(100.0-perc,perc)
+  if cmin<cmax:
+    pv.setClips(cmin,cmax)
 
 def display(image,cmap=gray,cmin=0,cmax=0,perc=100,title=None):
   world = World()

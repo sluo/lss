@@ -20,8 +20,23 @@ public class AcousticWaveOperator {
     return digits+1;
   }
 
+  public static float dot(float[][][] u, float[][][] a) {
+    int nz = u[0][0].length;
+    int nx = u[0].length;
+    int nt = u.length;
+    float sum = 0.0f;
+    for (int it=0; it<nt; ++it)
+      for (int ix=0; ix<nx; ++ix)
+        for (int iz=0; iz<nz; ++iz)
+          sum += u[it][ix][iz]*a[it][ix][iz];
+    return sum;
+  }
+
+  //////////////////////////////////////////////////////////////////////////
+
   public AcousticWaveOperator(
   float[][] s, double dx, double dt, int nabsorb) {
+    System.out.println("nabsorb="+nabsorb);
     int nz = s[0].length;
     int nx = s.length;
     Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
@@ -94,7 +109,6 @@ public class AcousticWaveOperator {
   Source source, Receiver receiver, float[][][] u) {
     apply(false,source,receiver,u);
   }
-
 
   //////////////////////////////////////////////////////////////////////////
   // static
@@ -334,12 +348,9 @@ public class AcousticWaveOperator {
     int pit = (forward)?1:-1;
     for (int it=fit, count=0; count<nt; it+=pit, ++count) {
       up = (u==null)?ut:u[it]; // next time 
-      if (forward)
-        forwardStep(um,ui,up); // forward step
-      else
-        adjointStep(um,ui,up); // adjoint step
-      source.add(it,up,_sx,_sz); // inject source
-      absorb(um,ui,up); // absorbing boundaries
+      step(forward,um,ui,up); // time step 
+      source.add(it,up,_sx,_sz); // inject source (off for adjoint test)
+      absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
       if (receiver!=null)
         receiver.setData(it,up,_sx,_sz); // data
       ut = um; um = ui; ui = up; // rotate arrays
@@ -354,34 +365,108 @@ public class AcousticWaveOperator {
   private static final float C4 =  4.0f/15.0f;
   private static final float C5 =  13.0f/15.0f;
   private static final float C6 = -21.0f/5.0f;
-  private void forwardStep(
+
+  private void step(
+  final boolean forward,
   final float[][] um, final float[][] ui, final float[][] up) {
-    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
-    public void compute(int ix) {
-      int ixm1 = ix-1;
-      int ixp1 = ix+1;
-      int ixm2 = ix-2;
-      int ixp2 = ix+2;
-      for (int iz=_iza; iz<_izd; ++iz) {
-        int izm1 = iz-1;
-        int izp1 = iz+1;
-        int izm2 = iz-2;
-        int izp2 = iz+2;
-        float r = _r[ix][iz];
-        // FIXME: Source injection replaces += needed to pass adjoint test.
-        up[ix][iz] = (2.0f+C6*r)*ui[ix][iz]-um[ix][iz]+r*(
-          C5*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
-          C4*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
-          C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
-          C2*(ui[ixm2][izm1]+ui[ixm2][izp1]+ui[ixm1][izm2]+ui[ixm1][izp2]+
-              ui[ixp1][izm2]+ui[ixp1][izp2]+ui[ixp2][izm1]+ui[ixp2][izp1]));
-      }
-    }});
+    if (forward) {
+      Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
+      public void compute(int ix) {
+        forwardStepSliceX(ix,um,ui,up);
+      }});
+    } else {
+      Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
+      public void compute(int ix) {
+        adjointStepSliceX(ix,um,ui,up);
+        //forwardStepSliceX(ix,um,ui,up);
+      }});
+    }
   }
-  private void adjointStep(
-  final float[][] um, final float[][] ui, final float[][] up) {
-    // TODO
-    forwardStep(um,ui,up);
+
+  private void forwardStepSliceX(
+  int ix, float[][] um, float[][] ui, float[][] up) {
+    int ixm1 = ix-1;
+    int ixp1 = ix+1;
+    int ixm2 = ix-2;
+    int ixp2 = ix+2;
+    for (int iz=_iza; iz<_izd; ++iz) {
+      int izm1 = iz-1;
+      int izp1 = iz+1;
+      int izm2 = iz-2;
+      int izp2 = iz+2;
+      float r = _r[ix][iz];
+      // FIXME: Source injection replaces += needed to pass adjoint test.
+      up[ix][iz] += (2.0f+C6*r)*ui[ix][iz]-um[ix][iz]+r*(
+        C5*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
+        C4*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
+        C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
+        C2*(ui[ixm2][izm1]+ui[ixm2][izp1]+ui[ixm1][izm2]+ui[ixm1][izp2]+
+            ui[ixp1][izm2]+ui[ixp1][izp2]+ui[ixp2][izm1]+ui[ixp2][izp1]));
+    }
+  }
+
+  private void adjointStepSliceX(
+  int ix, float[][] um, float[][] ui, float[][] up) {
+    int ixm1 = ix-1;
+    int ixp1 = ix+1;
+    int ixm2 = ix-2;
+    int ixp2 = ix+2;
+    for (int iz=_iza; iz<_izd; ++iz) {
+      int izm1 = iz-1;
+      int izp1 = iz+1;
+      int izm2 = iz-2;
+      int izp2 = iz+2;
+      float r = _r[ix][iz];
+      // FIXME: Source injection replaces += needed to pass adjoint test.
+
+      up[ix][iz] += (2.0f+C6*r)*ui[ix][iz]-um[ix][iz]+(
+
+        C5*(_r[ix  ][izm1]*
+            ui[ix  ][izm1]+
+            _r[ix  ][izp1]*
+            ui[ix  ][izp1]+
+            _r[ixm1][iz  ]*
+            ui[ixm1][iz  ]+
+            _r[ixp1][iz  ]*
+            ui[ixp1][iz  ])+
+
+        C4*(_r[ixm1][izm1]*
+            ui[ixm1][izm1]+
+            _r[ixm1][izp1]*
+            ui[ixm1][izp1]+
+            _r[ixp1][izm1]*
+            ui[ixp1][izm1]+
+            _r[ixp1][izp1]*
+            ui[ixp1][izp1])+
+
+        C3*(_r[ix  ][izm2]*
+            ui[ix  ][izm2]+
+            _r[ix  ][izp2]*
+            ui[ix  ][izp2]+
+            _r[ixm2][iz  ]*
+            ui[ixm2][iz  ]+
+            _r[ixp2][iz  ]*
+            ui[ixp2][iz  ])+
+
+        C2*(_r[ixm2][izm1]*
+            ui[ixm2][izm1]+
+            _r[ixm2][izp1]*
+            ui[ixm2][izp1]+
+            _r[ixm1][izm2]*
+            ui[ixm1][izm2]+
+            _r[ixm1][izp2]*
+            ui[ixm1][izp2]+
+            _r[ixp1][izm2]*
+            ui[ixp1][izm2]+
+            _r[ixp1][izp2]*
+            ui[ixp1][izp2]+
+            _r[ixp2][izm1]*
+            ui[ixp2][izm1]+
+            _r[ixp2][izp1]*
+            ui[ixp2][izp1])
+      );
+
+    }
   }
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
@@ -546,7 +631,6 @@ public class AcousticWaveOperator {
         w[ix][iz] = 1.0f;
       }
     }
-    System.out.println(max(w));
     //SimplePlot.asPixels(w).addColorBar();
     return w;
   }
