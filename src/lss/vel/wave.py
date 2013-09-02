@@ -26,7 +26,7 @@ def main(args):
     Wavefield.Receiver(kzr,kxr),
     s,d,u)
   print sw.time()
-  display(u,perc=99.0,title="wavefield")
+  #display(u,perc=99.0,title="wavefield")
   plot(d,cmap=gray,perc=99.0,title="data")
   plot(s,cmap=jet,title="slowness (s/km)")
 
