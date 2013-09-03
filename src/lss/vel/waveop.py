@@ -87,8 +87,8 @@ def refSmooth(sigma,x):
 def adjointTest():
   s = fillfloat(0.25,nz,nx)
   add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
-  #random = Random(01234)
-  random = Random()
+  random = Random(01234)
+  #random = Random()
   ua = add(randfloat(random,nzp,nxp,nt),0.0)
   ub = add(randfloat(random,nzp,nxp,nt),0.0)
   RecursiveGaussianFilter(1.0).applyXX2(ua,ua)
