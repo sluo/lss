@@ -8,15 +8,18 @@ from imports import *
 #sz = Sampling(101,0.016,0.0)
 #sx = Sampling(102,0.016,0.0)
 #st = Sampling(103,0.0012,0.0)
-#sz = Sampling(201,0.016,0.0)
-#sx = Sampling(202,0.016,0.0)
-#st = Sampling(2003,0.0012,0.0)
+sz = Sampling(201,0.016,0.0)
+sx = Sampling(202,0.016,0.0)
+st = Sampling(2003,0.0012,0.0)
 #sz = Sampling(101,0.032,0.0)
 #sx = Sampling(102,0.032,0.0)
 #st = Sampling(1003,0.0024,0.0)
-sz = Sampling(199,0.016,0.0); stride = 4
-sx = Sampling(576,0.016,0.0)
-st = Sampling(2501,0.0024,0.0)
+#sz = Sampling(265,0.012,0.0); stride = 3
+#sx = Sampling(767,0.012,0.0)
+#st = Sampling(5001,0.0012,0.0)
+#sz = Sampling(199,0.016,0.0); stride = 4
+#sx = Sampling(576,0.016,0.0)
+#st = Sampling(5001,0.0012,0.0)
 #sz = Sampling(159,0.020,0.0); stride = 5
 #sx = Sampling(461,0.020,0.0)
 #st = Sampling(2501,0.0024,0.0)
@@ -63,24 +66,39 @@ def goForward():
 
 def goMigration():
   s = getLayeredModel() # slowness model
+  #s = getMarmousi(stride)
+  b = refSmooth(0.1,s)
+  plot(s)
+  plot(b)
   u = zerofloat(nzp,nxp,nt) # forward wavefield
   a = zerofloat(nzp,nxp,nt) # adjoint wavefield
   receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
-  awo = AcousticWaveOperator(s,dx,dt,nabsorb)
-  awo.applyForward(AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak),receiver,u)
-  awo.applyAdjoint(AcousticWaveOperator.ReceiverSource(receiver),a)
+  a1 = AcousticWaveOperator(s,dx,dt,nabsorb)
+  a1.applyForward(AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak),receiver)
+  a2 = AcousticWaveOperator(b,dx,dt,nabsorb)
+  a2.applyForward(AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak),u)
+  a2.applyAdjoint(AcousticWaveOperator.ReceiverSource(receiver),a)
   r = AcousticWaveOperator.collapse(u,a,nabsorb)
+  print sum(u)
+  print sum(a)
   print sum(r)
   for ix in range(nx):
-    for iz in range(int(0.32/dx)):
+    for iz in range(int(0.2/dx)):
       r[ix][iz] = 0.0
   plot(r,cmin=0,cmax=0)
+
+def refSmooth(sigma,x):
+  y = like(x)
+  ref = RecursiveExponentialFilter(sigma/dx)
+  ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
+  ref.apply(x,y)
+  return y
 
 def adjointTest():
   s = fillfloat(0.25,nz,nx)
   add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
-  random = Random(0123)
-  #random = Random()
+  #random = Random(01234)
+  random = Random()
   ua = add(randfloat(random,nzp,nxp,nt),0.0)
   ub = add(randfloat(random,nzp,nxp,nt),0.0)
   RecursiveGaussianFilter(1.0).applyXX2(ua,ua)
@@ -118,13 +136,16 @@ def pdot(u,a):
 
 def getLayeredModel():
   """Make slowness (s/km) model."""
-  s = fillfloat(0.7,nz,nx)
+  s = fillfloat(0.5,nz,nx)
   for ix in range(nx):
     for iz in range(nz/3,2*nz/3):
       s[ix][iz] = 0.35
     for iz in range(2*nz/3,nz):
-      s[ix][iz] = 0.20
+      s[ix][iz] = 0.2
   return s
+
+def like(x):
+  return zerofloat(len(x[0]),len(x))
 
 import socket
 def getMarmousi(stride=3):
@@ -150,7 +171,7 @@ def getMarmousi(stride=3):
   div(1000.0,p,p) # slowness (s/km)
   wa = iceil(0.2/(0.004*stride))
   nz = iceil(743.0/stride)+wa
-  nx = iceil(2301.1/stride)
+  nx = iceil(2301.0/stride)
   print "wa =",wa
   print "nz =",nz
   print "nx =",nx

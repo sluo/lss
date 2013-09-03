@@ -381,85 +381,164 @@ public class AcousticWaveOperator {
     }
   }
 
-  // 20th order coefficients
-  private static final int FD_ORDER = 20;
-  private static final float C00 = -0.32148051f*10.0f*2.0f;
-  private static final float C01 =  0.19265816f*10.0f;
-  private static final float C02 = -0.43052632f*1.0f;
-  private static final float C03 =  0.15871000f*1.0f;
-  private static final float C04 = -0.68711400f*0.1f;
-  private static final float C05 =  0.31406935f*0.1f;
-  private static final float C06 = -0.14454222f*0.1f;
-  private static final float C07 =  0.65305182f*0.01f;
-  private static final float C08 = -0.28531535f*0.01f;
-  private static final float C09 =  0.11937032f*0.01f;
-  private static final float C10 = -0.47508613f*0.001f;
+//  // 20th order coefficients
+//  private static final int FD_ORDER = 20;
+//  private static final float C00 = -0.32148051f*10.0f*2.0f;
+//  private static final float C01 =  0.19265816f*10.0f;
+//  private static final float C02 = -0.43052632f*1.0f;
+//  private static final float C03 =  0.15871000f*1.0f;
+//  private static final float C04 = -0.68711400f*0.1f;
+//  private static final float C05 =  0.31406935f*0.1f;
+//  private static final float C06 = -0.14454222f*0.1f;
+//  private static final float C07 =  0.65305182f*0.01f;
+//  private static final float C08 = -0.28531535f*0.01f;
+//  private static final float C09 =  0.11937032f*0.01f;
+//  private static final float C10 = -0.47508613f*0.001f;
+//  private void forwardStepSliceX(
+//  int ix, float[][] um, float[][] ui, float[][] up) {
+//    for (int iz=_iza; iz<_izd; ++iz) {
+//      float r = _r[ix][iz];
+//      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+r*(
+//        C01*(ui[ix-1][iz]+ui[ix][iz-1]+ui[ix][iz+1]+ui[ix+1][iz])+
+//        C02*(ui[ix-2][iz]+ui[ix][iz-2]+ui[ix][iz+2]+ui[ix+2][iz])+
+//        C03*(ui[ix-3][iz]+ui[ix][iz-3]+ui[ix][iz+3]+ui[ix+3][iz])+
+//        C04*(ui[ix-4][iz]+ui[ix][iz-4]+ui[ix][iz+4]+ui[ix+4][iz])+
+//        C05*(ui[ix-5][iz]+ui[ix][iz-5]+ui[ix][iz+5]+ui[ix+5][iz])+
+//        C06*(ui[ix-6][iz]+ui[ix][iz-6]+ui[ix][iz+6]+ui[ix+6][iz])+
+//        C07*(ui[ix-7][iz]+ui[ix][iz-7]+ui[ix][iz+7]+ui[ix+7][iz])+
+//        C08*(ui[ix-8][iz]+ui[ix][iz-8]+ui[ix][iz+8]+ui[ix+8][iz])+
+//        C09*(ui[ix-9][iz]+ui[ix][iz-9]+ui[ix][iz+9]+ui[ix+9][iz])+
+//        C10*(ui[ix-10][iz]+ui[ix][iz-10]+ui[ix][iz+10]+ui[ix+10][iz]));
+//    }
+//  }
+//  private void adjointStepSliceX(
+//  int ix, float[][] um, float[][] ui, float[][] up) {
+//    for (int iz=_iza; iz<_izd; ++iz) {
+//      float r = _r[ix][iz];
+//      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+
+//        C01*(_r[ix-1][iz  ]*ui[ix-1][iz  ]+
+//             _r[ix  ][iz-1]*ui[ix  ][iz-1]+
+//             _r[ix  ][iz+1]*ui[ix  ][iz+1]+
+//             _r[ix+1][iz  ]*ui[ix+1][iz  ])+
+//        C02*(_r[ix-2][iz  ]*ui[ix-2][iz  ]+
+//             _r[ix  ][iz-2]*ui[ix  ][iz-2]+
+//             _r[ix  ][iz+2]*ui[ix  ][iz+2]+
+//             _r[ix+2][iz  ]*ui[ix+2][iz  ])+
+//        C03*(_r[ix-3][iz  ]*ui[ix-3][iz  ]+
+//             _r[ix  ][iz-3]*ui[ix  ][iz-3]+
+//             _r[ix  ][iz+3]*ui[ix  ][iz+3]+
+//             _r[ix+3][iz  ]*ui[ix+3][iz  ])+
+//        C04*(_r[ix-4][iz  ]*ui[ix-4][iz  ]+
+//             _r[ix  ][iz-4]*ui[ix  ][iz-4]+
+//             _r[ix  ][iz+4]*ui[ix  ][iz+4]+
+//             _r[ix+4][iz  ]*ui[ix+4][iz  ])+
+//        C05*(_r[ix-5][iz  ]*ui[ix-5][iz  ]+
+//             _r[ix  ][iz-5]*ui[ix  ][iz-5]+
+//             _r[ix  ][iz+5]*ui[ix  ][iz+5]+
+//             _r[ix+5][iz  ]*ui[ix+5][iz  ])+
+//        C06*(_r[ix-6][iz  ]*ui[ix-6][iz  ]+
+//             _r[ix  ][iz-6]*ui[ix  ][iz-6]+
+//             _r[ix  ][iz+6]*ui[ix  ][iz+6]+
+//             _r[ix+6][iz  ]*ui[ix+6][iz  ])+
+//        C07*(_r[ix-7][iz  ]*ui[ix-7][iz  ]+
+//             _r[ix  ][iz-7]*ui[ix  ][iz-7]+
+//             _r[ix  ][iz+7]*ui[ix  ][iz+7]+
+//             _r[ix+7][iz  ]*ui[ix+7][iz  ])+
+//        C08*(_r[ix-8][iz  ]*ui[ix-8][iz  ]+
+//             _r[ix  ][iz-8]*ui[ix  ][iz-8]+
+//             _r[ix  ][iz+8]*ui[ix  ][iz+8]+
+//             _r[ix+8][iz  ]*ui[ix+8][iz  ])+
+//        C09*(_r[ix-9][iz  ]*ui[ix-9][iz  ]+
+//             _r[ix  ][iz-9]*ui[ix  ][iz-9]+
+//             _r[ix  ][iz+9]*ui[ix  ][iz+9]+
+//             _r[ix+9][iz  ]*ui[ix+9][iz  ])+
+//        C10*(_r[ix-10][iz  ]*ui[ix-10][iz  ]+
+//             _r[ix  ][iz-10]*ui[ix  ][iz-10]+
+//             _r[ix  ][iz+10]*ui[ix  ][iz+10]+
+//             _r[ix+10][iz  ]*ui[ix+10][iz  ]);
+//    }
+//  }
+
+  // First 21-point Laplacian stencil from
+  // Patra, M. and M. Karttunen, 2005, Stencils
+  // with Isotropic Error for Differential Operators.
+  private static final int FD_ORDER = 4;
+  private static final float C0 = -9.0f/2.0f;
+  private static final float C1 =  16.0f/15.0f;
+  private static final float C2 =  2.0f/15.0f;
+  private static final float C3 = -1.0f/15.0f;
+  private static final float C4 = -1.0f/120.0f;
   private void forwardStepSliceX(
   int ix, float[][] um, float[][] ui, float[][] up) {
+    int ixm1 = ix-1;
+    int ixp1 = ix+1;
+    int ixm2 = ix-2;
+    int ixp2 = ix+2;
     for (int iz=_iza; iz<_izd; ++iz) {
+      int izm1 = iz-1;
+      int izp1 = iz+1;
+      int izm2 = iz-2;
+      int izp2 = iz+2;
       float r = _r[ix][iz];
-      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+r*(
-        C01*(ui[ix-1][iz]+ui[ix][iz-1]+ui[ix][iz+1]+ui[ix+1][iz])+
-        C02*(ui[ix-2][iz]+ui[ix][iz-2]+ui[ix][iz+2]+ui[ix+2][iz])+
-        C03*(ui[ix-3][iz]+ui[ix][iz-3]+ui[ix][iz+3]+ui[ix+3][iz])+
-        C04*(ui[ix-4][iz]+ui[ix][iz-4]+ui[ix][iz+4]+ui[ix+4][iz])+
-        C05*(ui[ix-5][iz]+ui[ix][iz-5]+ui[ix][iz+5]+ui[ix+5][iz])+
-        C06*(ui[ix-6][iz]+ui[ix][iz-6]+ui[ix][iz+6]+ui[ix+6][iz])+
-        C07*(ui[ix-7][iz]+ui[ix][iz-7]+ui[ix][iz+7]+ui[ix+7][iz])+
-        C08*(ui[ix-8][iz]+ui[ix][iz-8]+ui[ix][iz+8]+ui[ix+8][iz])+
-        C09*(ui[ix-9][iz]+ui[ix][iz-9]+ui[ix][iz+9]+ui[ix+9][iz])+
-        C10*(ui[ix-10][iz]+ui[ix][iz-10]+ui[ix][iz+10]+ui[ix+10][iz]));
+      // FIXME: Source injection replaces += needed to pass adjoint test.
+      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
+        C1*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
+        C2*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
+        C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
+        C4*(ui[ixm2][izm2]+ui[ixm2][izp2]+ui[ixp2][izm2]+ui[ixp2][izp2]));
     }
   }
   private void adjointStepSliceX(
   int ix, float[][] um, float[][] ui, float[][] up) {
+    int ixm1 = ix-1;
+    int ixp1 = ix+1;
+    int ixm2 = ix-2;
+    int ixp2 = ix+2;
     for (int iz=_iza; iz<_izd; ++iz) {
+      int izm1 = iz-1;
+      int izp1 = iz+1;
+      int izm2 = iz-2;
+      int izp2 = iz+2;
       float r = _r[ix][iz];
-      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+
-        C01*(_r[ix-1][iz  ]*ui[ix-1][iz  ]+
-             _r[ix  ][iz-1]*ui[ix  ][iz-1]+
-             _r[ix  ][iz+1]*ui[ix  ][iz+1]+
-             _r[ix+1][iz  ]*ui[ix+1][iz  ])+
-        C02*(_r[ix-2][iz  ]*ui[ix-2][iz  ]+
-             _r[ix  ][iz-2]*ui[ix  ][iz-2]+
-             _r[ix  ][iz+2]*ui[ix  ][iz+2]+
-             _r[ix+2][iz  ]*ui[ix+2][iz  ])+
-        C03*(_r[ix-3][iz  ]*ui[ix-3][iz  ]+
-             _r[ix  ][iz-3]*ui[ix  ][iz-3]+
-             _r[ix  ][iz+3]*ui[ix  ][iz+3]+
-             _r[ix+3][iz  ]*ui[ix+3][iz  ])+
-        C04*(_r[ix-4][iz  ]*ui[ix-4][iz  ]+
-             _r[ix  ][iz-4]*ui[ix  ][iz-4]+
-             _r[ix  ][iz+4]*ui[ix  ][iz+4]+
-             _r[ix+4][iz  ]*ui[ix+4][iz  ])+
-        C05*(_r[ix-5][iz  ]*ui[ix-5][iz  ]+
-             _r[ix  ][iz-5]*ui[ix  ][iz-5]+
-             _r[ix  ][iz+5]*ui[ix  ][iz+5]+
-             _r[ix+5][iz  ]*ui[ix+5][iz  ])+
-        C06*(_r[ix-6][iz  ]*ui[ix-6][iz  ]+
-             _r[ix  ][iz-6]*ui[ix  ][iz-6]+
-             _r[ix  ][iz+6]*ui[ix  ][iz+6]+
-             _r[ix+6][iz  ]*ui[ix+6][iz  ])+
-        C07*(_r[ix-7][iz  ]*ui[ix-7][iz  ]+
-             _r[ix  ][iz-7]*ui[ix  ][iz-7]+
-             _r[ix  ][iz+7]*ui[ix  ][iz+7]+
-             _r[ix+7][iz  ]*ui[ix+7][iz  ])+
-        C08*(_r[ix-8][iz  ]*ui[ix-8][iz  ]+
-             _r[ix  ][iz-8]*ui[ix  ][iz-8]+
-             _r[ix  ][iz+8]*ui[ix  ][iz+8]+
-             _r[ix+8][iz  ]*ui[ix+8][iz  ])+
-        C09*(_r[ix-9][iz  ]*ui[ix-9][iz  ]+
-             _r[ix  ][iz-9]*ui[ix  ][iz-9]+
-             _r[ix  ][iz+9]*ui[ix  ][iz+9]+
-             _r[ix+9][iz  ]*ui[ix+9][iz  ])+
-        C10*(_r[ix-10][iz  ]*ui[ix-10][iz  ]+
-             _r[ix  ][iz-10]*ui[ix  ][iz-10]+
-             _r[ix  ][iz+10]*ui[ix  ][iz+10]+
-             _r[ix+10][iz  ]*ui[ix+10][iz  ]);
+      // FIXME: Source injection replaces += needed to pass adjoint test.
+      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+
+        C1*(_r[ix  ][izm1]*
+            ui[ix  ][izm1]+
+            _r[ix  ][izp1]*
+            ui[ix  ][izp1]+
+            _r[ixm1][iz  ]*
+            ui[ixm1][iz  ]+
+            _r[ixp1][iz  ]*
+            ui[ixp1][iz  ])+
+        C2*(_r[ixm1][izm1]*
+            ui[ixm1][izm1]+
+            _r[ixm1][izp1]*
+            ui[ixm1][izp1]+
+            _r[ixp1][izm1]*
+            ui[ixp1][izm1]+
+            _r[ixp1][izp1]*
+            ui[ixp1][izp1])+
+        C3*(_r[ix  ][izm2]*
+            ui[ix  ][izm2]+
+            _r[ix  ][izp2]*
+            ui[ix  ][izp2]+
+            _r[ixm2][iz  ]*
+            ui[ixm2][iz  ]+
+            _r[ixp2][iz  ]*
+            ui[ixp2][iz  ])+
+        C4*(_r[ixm2][izm2]*
+            ui[ixm2][izm2]+
+            _r[ixm2][izp2]*
+            ui[ixm2][izp2]+
+            _r[ixp2][izm2]*
+            ui[ixp2][izm2]+
+            _r[ixp2][izp2]*
+            ui[ixp2][izp2]);
+
     }
   }
 
-//  // Coefficients for 21-point Laplacian from
+//  // Second 21-point Laplacian stencil from
 //  // Patra, M. and M. Karttunen, 2005, Stencils
 //  // with Isotropic Error for Differential Operators.
 //  private static final int FD_ORDER = 4;
