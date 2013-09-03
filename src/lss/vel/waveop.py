@@ -25,8 +25,8 @@ st = Sampling(5001,0.0012,0.0)
 #st = Sampling(2501,0.0024,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-xs,zs = dx*(nx/2),0.0 # source location
-xr,zr = rampfloat(0.0,dx,nx),fillfloat(0.0,nx)
+xs,zs = nx/2,0
+xr,zr = rampint(0,1,nx),fillint(0,nx)
 fpeak = 12.0 # Ricker wavelet peak frequency
 nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
@@ -71,7 +71,7 @@ def goMigration():
   print sum(r)
   for ix in range(nx):
     for iz in range(int(0.2/dx)):
-      #r[ix][iz] = 0.0
+      r[ix][iz] = 0.0
       pass
   plot(s)
   plot(b)

@@ -44,19 +44,19 @@ public class AcousticWaveOperator {
 
   public AcousticWaveOperator(
   float[][] s, double dx, double dt, int nabsorb) {
-    System.out.println("nabsorb="+nabsorb);
     int nz = s[0].length;
     int nx = s.length;
     Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
+    _nabsorb = nabsorb;
     _b = nabsorb-FD_ORDER/2;
     _nz = nz+2*nabsorb;
     _nx = nx+2*nabsorb;
     _dx = dx;
     _dt = dt;
-    _fz = -nabsorb*_dx;
-    _fx = -nabsorb*_dx;
-    _sz = new Sampling(_nz,_dx,_fz);
-    _sx = new Sampling(_nx,_dx,_fx);
+    //_fz = -nabsorb*_dx;
+    //_fx = -nabsorb*_dx;
+    //_sz = new Sampling(_nz,_dx,_fz);
+    //_sx = new Sampling(_nx,_dx,_fx);
     _ixa = FD_ORDER/2;
     _ixb = _ixa+_b;
     _ixc = _ixb+nx;
@@ -74,7 +74,7 @@ public class AcousticWaveOperator {
     div(scale,_r,_r);
   }
 
-  /* Indexing example for FD_ABSORB/2=2, nabsorb=3, sx.count=3:
+  /* Indexing example for FD_ABSORB/2=2, nabsorb=3, nx=3:
 
           |ixa|ixb        |ixc|ixd
   |---|---|---|---|---|---|---|---|---|
@@ -127,7 +127,8 @@ public class AcousticWaveOperator {
     return copy(nz-2*nabsorb,nx-2*nabsorb,nabsorb,nabsorb,x);
   }
 
-  public static float[][] collapse(float[][][] u, float[][][] a, int nabsorb) {
+  public static float[][] collapse(
+  float[][][] u, float[][][] a, int nabsorb) {
     int nz = u[0][0].length;
     int nx = u[0].length;
     int nt = u.length;
@@ -140,51 +141,49 @@ public class AcousticWaveOperator {
   }
 
   public static interface Source {
-    public void add(int it, float[][] f, Sampling sx, Sampling sz);
+    public void add(float[][] ui, int it, int nabsorb);
   }
 
   public static class RickerSource implements Source {
-    public RickerSource(float xs, float zs, double dt, double fpeak) {
+    public RickerSource(int xs, int zs, double dt, double fpeak) {
       _tdelay = 1.0/fpeak;
       _fpeak = fpeak;
+      _dt = dt;
       _xs = xs;
       _zs = zs;
-      _dt = dt;
     }
-    public void add(int it, float[][] ui, Sampling sx, Sampling sz) {
-      int kxs = sx.indexOfNearest(_xs);
-      int kzs = sz.indexOfNearest(_zs);
-      ui[kxs][kzs] += ricker(it*_dt-_tdelay);
+    public void add(float[][] ui, int it, int nabsorb) {
+      ui[_xs+nabsorb][_zs+nabsorb] += ricker(it*_dt-_tdelay);
     }
     private float ricker(double t) {
       double x = PI*_fpeak*t;
       double xx = x*x;
       return (float)((1.0-2.0*xx)*exp(-xx));
     }
-    private float _xs,_zs;
+    private int _xs,_zs;
     private double _dt,_fpeak,_tdelay;
   }
 
   public static class ReceiverSource implements Source {
     public ReceiverSource(Receiver receiver) {
-      float[][] c = receiver.getCoordinates();
+      int[][] c = receiver.getIndices();
       _xr = c[0];
       _zr = c[1];
       _nr = receiver.getNr();
       _nt = receiver.getNt();
       _data = receiver.getData();
     }
-    public void add(int it, float[][] ui, Sampling sx, Sampling sz) {
+    public void add(float[][] ui, int it, int nabsorb) {
       if (it>=_nt) 
         return;
       for (int ir=0; ir<_nr; ++ir) {
-        int kxr = sx.indexOfNearest(_xr[ir]);
-        int kzr = sz.indexOfNearest(_zr[ir]);
-        ui[kxr][kzr] += _data[ir][it];
+        int xs = _xr[ir]+nabsorb;
+        int zs = _zr[ir]+nabsorb;
+        ui[xs][zs] += _data[ir][it];
       }
     }
     private int _nr,_nt;
-    private float[] _xr, _zr;
+    private int[] _xr, _zr;
     private float[][] _data;
   }
 
@@ -194,7 +193,7 @@ public class AcousticWaveOperator {
       _nx = u[0].length;
       _u = u;
     }
-    public void add(int it, float[][] ui, Sampling sx, Sampling sz) {
+    public void add(float[][] ui, int it, int nabsorb) {
       for (int ix=0; ix<_nx; ++ix)
         for (int iz=0; iz<_nz; ++iz)
           ui[ix][iz] += _u[it][ix][iz];
@@ -204,10 +203,10 @@ public class AcousticWaveOperator {
   }
 
   public static class Receiver {
-    public Receiver(float xr, float zr, int nt) {
-      this(new float[]{xr},new float[]{zr},nt);
+    public Receiver(int xr, int zr, int nt) {
+      this(new int[]{xr},new int[]{zr},nt);
     }
-    public Receiver(float[] xr, float[] zr, int nt) {
+    public Receiver(int[] xr, int[] zr, int nt) {
       int nxr = xr.length;
       int nzr = zr.length;
       Check.argument(nxr==nzr,"nxr==nzr");
@@ -217,15 +216,15 @@ public class AcousticWaveOperator {
       _zr = zr;
       _data = new float[_nr][nt];
     }
-    public void setData(int it, float[][] ui, Sampling sx, Sampling sz) {
+    public void setData(float[][] ui, int it, int nabsorb) {
       for (int ir=0; ir<_nr; ++ir) {
-        int kxr = sx.indexOfNearest(_xr[ir]);
-        int kzr = sz.indexOfNearest(_zr[ir]);
-        _data[ir][it] = ui[kxr][kzr];
+        int xr = _xr[ir]+nabsorb;
+        int zr = _zr[ir]+nabsorb;
+        _data[ir][it] = ui[xr][zr];
       }
     }
-    public float[][] getCoordinates() {
-      return new float[][]{_xr,_zr};
+    public int[][] getIndices() {
+      return new int[][]{_xr,_zr};
     }
     public float[][] getData() {
       return _data;
@@ -237,18 +236,16 @@ public class AcousticWaveOperator {
       return _nr;
     }
     private int _nr,_nt;
-    private float[] _xr, _zr;
+    private int[] _xr, _zr;
     private float[][] _data;
   }
 
   //////////////////////////////////////////////////////////////////////////
   // private
 
-  private int _b; // absorbing boundary size
+  private int _b,_nabsorb; // absorbing boundary
   private int _nx,_nz;
-  private double _dx,_dz,_dt;
-  private double _fx,_fz,_ft;
-  private Sampling _sz,_sx;
+  private double _dx,_dt;
   private float[][] _s; // slowness
   private float[][] _r; // dt^2/(dx^2*s^2)
   private float[][] _w; // weights for boundary
@@ -356,16 +353,16 @@ public class AcousticWaveOperator {
     for (int it=fit, count=0; count<nt; it+=pit, ++count) {
       if (u==null) { // next time
         up = ut;
-        zero(ut); // unnecessary if not using += for injection
+        zero(ut); // necessary only if using += for injection
       } else {
         up = u[it];
       }
       //up = (u==null)?ut:u[it]; // next time 
       step(forward,um,ui,up); // time step 
-      source.add(it,up,_sx,_sz); // inject source (off for adjoint test)
+      source.add(up,it,_nabsorb); // inject source (off for adjoint test)
       absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
       if (receiver!=null)
-        receiver.setData(it,up,_sx,_sz); // data
+        receiver.setData(up,it,_nabsorb); // data
       ut = um; um = ui; ui = up; // rotate arrays
     }
   }
