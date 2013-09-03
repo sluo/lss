@@ -8,15 +8,15 @@ from imports import *
 #sz = Sampling(101,0.016,0.0)
 #sx = Sampling(102,0.016,0.0)
 #st = Sampling(103,0.0012,0.0)
-sz = Sampling(201,0.016,0.0)
-sx = Sampling(202,0.016,0.0)
-st = Sampling(2003,0.0012,0.0)
+#sz = Sampling(201,0.016,0.0)
+#sx = Sampling(202,0.016,0.0)
+#st = Sampling(2003,0.0012,0.0)
 #sz = Sampling(101,0.032,0.0)
 #sx = Sampling(102,0.032,0.0)
 #st = Sampling(1003,0.0024,0.0)
-#sz = Sampling(265,0.012,0.0); stride = 3
-#sx = Sampling(767,0.012,0.0)
-#st = Sampling(5001,0.0012,0.0)
+sz = Sampling(265,0.012,0.0); stride = 3
+sx = Sampling(767,0.012,0.0)
+st = Sampling(5001,0.0012,0.0)
 #sz = Sampling(199,0.016,0.0); stride = 4
 #sx = Sampling(576,0.016,0.0)
 #st = Sampling(5001,0.0012,0.0)
@@ -27,8 +27,8 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 xs,zs = dx*(nx/2),0.0 # source location
 xr,zr = rampfloat(0.0,dx,nx),fillfloat(0.0,nx)
-fpeak = 10.0 # Ricker wavelet peak frequency
-nabsorb = 20 # absorbing boundary size
+fpeak = 12.0 # Ricker wavelet peak frequency
+nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
@@ -65,17 +65,15 @@ def goForward():
   #display(u,perc=99.0,title="wavefield")
 
 def goMigration():
-  s = getLayeredModel() # slowness model
-  #s = getMarmousi(stride)
+  #s = getLayeredModel() # slowness model
+  s = getMarmousi(stride)
   b = refSmooth(0.1,s)
-  plot(s)
-  plot(b)
   u = zerofloat(nzp,nxp,nt) # forward wavefield
   a = zerofloat(nzp,nxp,nt) # adjoint wavefield
   receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
   a1 = AcousticWaveOperator(s,dx,dt,nabsorb)
   a1.applyForward(AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak),receiver)
-  a2 = AcousticWaveOperator(b,dx,dt,nabsorb)
+  a2 = AcousticWaveOperator(s,dx,dt,nabsorb)
   a2.applyForward(AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak),u)
   a2.applyAdjoint(AcousticWaveOperator.ReceiverSource(receiver),a)
   r = AcousticWaveOperator.collapse(u,a,nabsorb)
@@ -84,8 +82,11 @@ def goMigration():
   print sum(r)
   for ix in range(nx):
     for iz in range(int(0.2/dx)):
-      r[ix][iz] = 0.0
-  plot(r,cmin=0,cmax=0)
+      #r[ix][iz] = 0.0
+      pass
+  plot(s)
+  plot(b)
+  plot(r,perc=99.5,cmin=0,cmax=0)
 
 def refSmooth(sigma,x):
   y = like(x)

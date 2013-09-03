@@ -55,8 +55,8 @@ public class AcousticWaveOperator {
     _dt = dt;
     _fz = -nabsorb*_dx;
     _fx = -nabsorb*_dx;
-    _sz = new Sampling(_nz,_dx,_fz,1.01*_dz);
-    _sx = new Sampling(_nx,_dx,_fx,1.01*_dx);
+    _sz = new Sampling(_nz,_dx,_fz);
+    _sx = new Sampling(_nx,_dx,_fx);
     _ixa = FD_ORDER/2;
     _ixb = _ixa+_b;
     _ixc = _ixb+nx;
@@ -346,7 +346,7 @@ public class AcousticWaveOperator {
 
   private void apply(
   boolean forward, Source source, Receiver receiver, float[][][] u) {
-    int nt = (receiver==null)?u.length:receiver.getNt();
+    int nt = (u==null)?receiver.getNt():u.length;
     float[][] ut = new float[_nx][_nz]; // temp
     float[][] um = new float[_nx][_nz]; // it-1
     float[][] ui = new float[_nx][_nz]; // it
@@ -354,7 +354,13 @@ public class AcousticWaveOperator {
     int fit = (forward)?0:nt-1;
     int pit = (forward)?1:-1;
     for (int it=fit, count=0; count<nt; it+=pit, ++count) {
-      up = (u==null)?ut:u[it]; // next time 
+      if (u==null) { // next time
+        up = ut;
+        zero(ut); // unnecessary if not using += for injection
+      } else {
+        up = u[it];
+      }
+      //up = (u==null)?ut:u[it]; // next time 
       step(forward,um,ui,up); // time step 
       source.add(it,up,_sx,_sz); // inject source (off for adjoint test)
       absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
