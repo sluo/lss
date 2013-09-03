@@ -38,17 +38,6 @@ def main(args):
   #adjointTest()
   #dotTest()
 
-def dotTest():
-  n1,n2,n3 = 1,2,3
-  random = Random(012345)
-  u = randfloat(random,n1,n2,n3)
-  a = randfloat(random,n1,n2,n3)
-  pd = pdot(u,a)
-  jd = jdot(u,a)
-  print pd
-  print jd
-  print abs(pd-jd)
-
 def goForward():
   #s = getLayeredModel() # slowness model
   s = getMarmousi(stride)
@@ -134,6 +123,17 @@ def pdot(u,a):
       for i1 in range(n1):
         sum += u[i3][i2][i1]*a[i3][i2][i1]
   return sum
+
+def dotTest():
+  n1,n2,n3 = 1,2,3
+  random = Random(012345)
+  u = randfloat(random,n1,n2,n3)
+  a = randfloat(random,n1,n2,n3)
+  pd = pdot(u,a)
+  jd = jdot(u,a)
+  print pd
+  print jd
+  print abs(pd-jd)
 
 def getLayeredModel():
   """Make slowness (s/km) model."""
