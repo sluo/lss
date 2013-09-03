@@ -13,21 +13,29 @@ public class AcousticWaveOperator {
 
   // count number of same digits
   public static int compareDigits(float xa, float xb) {
-    int digits; // significant digits
-    boolean equal = false;
-    for (digits=10; digits>0 && !equal; --digits)
-      equal = new Almost(digits).equal(xa,xb);
-    return digits+1;
+    int significantDigits = 10;
+    boolean matches = false;
+    while (!matches && significantDigits>0) {
+      Almost almost = new Almost(significantDigits);
+      matches = almost.equal(xa, xb);
+      if (!matches) {
+        --significantDigits;
+      }
+    }
+    return significantDigits;
   }
 
   public static float dot(float[][][] u, float[][][] a) {
+    return dot(u,a,0);
+  }
+  public static float dot(float[][][] u, float[][][] a, int nabsorb) {
     int nz = u[0][0].length;
     int nx = u[0].length;
     int nt = u.length;
     float sum = 0.0f;
     for (int it=0; it<nt; ++it)
-      for (int ix=0; ix<nx; ++ix)
-        for (int iz=0; iz<nz; ++iz)
+      for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
+        for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
           sum += u[it][ix][iz]*a[it][ix][iz];
     return sum;
   }
@@ -248,9 +256,9 @@ public class AcousticWaveOperator {
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
 
-//  private static final float C1 = 0.0f;
-//  private static final float C2 = 1.0f;
-//  private static final float C3 = 4.0f;
+//  private static final float C1 =  0.0f;
+//  private static final float C2 =  1.0f;
+//  private static final float C3 = -4.0f;
 //  private void apply(
 //  boolean forward, Source source, Receiver receiver, float[][][] u) {
 //    int nt = (receiver==null)?u.length:receiver.getNt();
@@ -349,22 +357,13 @@ public class AcousticWaveOperator {
     for (int it=fit, count=0; count<nt; it+=pit, ++count) {
       up = (u==null)?ut:u[it]; // next time 
       step(forward,um,ui,up); // time step 
-      source.add(it,up,_sx,_sz); // inject source (off for adjoint test)
-      absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
+      //source.add(it,up,_sx,_sz); // inject source (off for adjoint test)
+      //absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
       if (receiver!=null)
         receiver.setData(it,up,_sx,_sz); // data
       ut = um; um = ui; ui = up; // rotate arrays
     }
   }
-
-  // Coefficients for 21-point Laplacian from
-  // Patra, M. and M. Karttunen, 2005, Stencils
-  // with Isotropic Error for Differential Operators.
-  private static final float C2 = -1.0f/30.0f;
-  private static final float C3 = -1.0f/60.0f;
-  private static final float C4 =  4.0f/15.0f;
-  private static final float C5 =  13.0f/15.0f;
-  private static final float C6 = -21.0f/5.0f;
 
   private void step(
   final boolean forward,
@@ -382,6 +381,15 @@ public class AcousticWaveOperator {
       }});
     }
   }
+
+  // Coefficients for 21-point Laplacian from
+  // Patra, M. and M. Karttunen, 2005, Stencils
+  // with Isotropic Error for Differential Operators.
+  private static final float C2 = -1.0f/30.0f;
+  private static final float C3 = -1.0f/60.0f;
+  private static final float C4 =  4.0f/15.0f;
+  private static final float C5 =  13.0f/15.0f;
+  private static final float C6 = -21.0f/5.0f;
 
   private void forwardStepSliceX(
   int ix, float[][] um, float[][] ui, float[][] up) {

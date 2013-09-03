@@ -5,12 +5,12 @@ from imports import *
 
 #############################################################################
 
-#sz = Sampling(101,0.016,0.0)
-#sx = Sampling(102,0.016,0.0)
-#st = Sampling(103,0.0012,0.0)
-sz = Sampling(201,0.016,0.0)
-sx = Sampling(203,0.016,0.0)
-st = Sampling(2001,0.0012,0.0)
+sz = Sampling(101,0.016,0.0)
+sx = Sampling(102,0.016,0.0)
+st = Sampling(103,0.0012,0.0)
+#sz = Sampling(201,0.016,0.0)
+#sx = Sampling(203,0.016,0.0)
+#st = Sampling(2001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 xs,zs = dx*(nx/2),0.0 # source location
@@ -21,8 +21,8 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
   #goForward()
-  goMigration()
-  #adjointTest()
+  #goMigration()
+  adjointTest()
   #dotTest()
 
 def dotTest():
@@ -66,17 +66,21 @@ def goMigration():
   plot(r,cmin=-1000,cmax=1000)
 
 def adjointTest():
-  s = fillfloat(0.5,nz,nx)
-  add(mul(add(randfloat(Random(012),nz,nx),-0.5),0.10),s,s)
-  random = Random(01234)
+  s = fillfloat(0.25,nz,nx)
+  add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
+  random = Random(0123)
   #random = Random()
-  ua = randfloat(random,nzp,nxp,nt)
-  ub = randfloat(random,nzp,nxp,nt)
+  ua = sub(randfloat(random,nzp,nxp,nt),-1.0); print sum(ua)
+  ub = sub(randfloat(random,nzp,nxp,nt),-1.0); print sum(ub)
+  RecursiveGaussianFilter(1.0).applyXX2(ua,ua)
+  RecursiveGaussianFilter(1.0).applyXX2(ub,ub)
   va = copy(ua)
   vb = copy(ub)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
-  awo.applyForward(AcousticWaveOperator.WavefieldSource(ua),ua)
-  awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(ub),ub)
+  sw = Stopwatch(); sw.start()
+  #awo.applyForward(AcousticWaveOperator.WavefieldSource(ua),ua)
+  #awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(ub),ub)
+  sw.stop(); print 'time:',sw.time()
   sum1 = dot(ua,vb)
   sum2 = dot(ub,va)
   print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
