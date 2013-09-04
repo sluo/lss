@@ -5,9 +5,9 @@ from imports import *
 
 #############################################################################
 
-#sz = Sampling(11,0.016,0.0)
-#sx = Sampling(12,0.016,0.0)
-#st = Sampling(13,0.0012,0.0)
+sz = Sampling(11,0.016,0.0)
+sx = Sampling(12,0.016,0.0)
+st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
 #st = Sampling(2003,0.0012,0.0)
@@ -17,9 +17,9 @@ from imports import *
 #sz = Sampling(265,0.012,0.0); stride = 3
 #sx = Sampling(767,0.012,0.0)
 #st = Sampling(5001,0.0012,0.0)
-sz = Sampling(199,0.016,0.0); stride = 4
-sx = Sampling(576,0.016,0.0)
-st = Sampling(5001,0.0012,0.0)
+#sz = Sampling(199,0.016,0.0); stride = 4
+#sx = Sampling(576,0.016,0.0)
+#st = Sampling(5001,0.0012,0.0)
 #sz = Sampling(159,0.020,0.0); stride = 5
 #sx = Sampling(461,0.020,0.0)
 #st = Sampling(2501,0.0024,0.0)
@@ -39,8 +39,8 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 def main(args):
   #plot(getMarmousi(5))
   #goForward()
-  goMigration()
-  #ajointTest()
+  #goMigration()
+  adjointTest()
   #absorbAdjointTest()
 
 def goForward():
@@ -114,7 +114,7 @@ def adjointTest():
   sw = Stopwatch(); sw.start()
   awo.applyForward(AcousticWaveOperator.WavefieldSource(sa),ua)
   print 'time:',sw.time(); sw.restart()
-  for i in range(1):
+  for i in range(2):
     awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(sb),ub)
   sw.stop(); print 'time:',sw.time()
   print 'sum(ua)=%f'%sum(ua)

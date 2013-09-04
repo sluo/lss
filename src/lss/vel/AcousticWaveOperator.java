@@ -73,33 +73,27 @@ public class AcousticWaveOperator {
     div(scale,_r,_r);
   }
 
-  public void applyForward(
-  Source source, float[][][] u) {
+  public void applyForward(Source source, float[][][] u) {
     apply(true,source,null,u);
   }
 
-  public void applyForward(
-  Source source, Receiver receiver) {
+  public void applyForward(Source source, Receiver receiver) {
     apply(true,source,receiver,null);
   }
 
-  public void applyForward(
-  Source source, Receiver receiver, float[][][] u) {
+  public void applyForward(Source source, Receiver receiver, float[][][] u) {
     apply(true,source,receiver,u);
   }
 
-  public void applyAdjoint(
-  Source source, float[][][] u) {
+  public void applyAdjoint(Source source, float[][][] u) {
     apply(false,source,null,u);
   }
 
-  public void applyAdjoint(
-  Source source, Receiver receiver) {
+  public void applyAdjoint(Source source, Receiver receiver) {
     apply(false,source,receiver,null);
   }
 
-  public void applyAdjoint(
-  Source source, Receiver receiver, float[][][] u) {
+  public void applyAdjoint(Source source, Receiver receiver, float[][][] u) {
     apply(false,source,receiver,u);
   }
 
@@ -116,13 +110,20 @@ public class AcousticWaveOperator {
   float[][][] u, float[][][] a, int nabsorb) {
     int nx = u[0][0].length;
     int nz = u[0].length;
+    float[][] r = new float[nz-2*nabsorb][nx-2*nabsorb];
+    collapse(u,a,nabsorb,r);
+    return r;
+  }
+  public static void collapse(
+  float[][][] u, float[][][] a, int nabsorb, float[][] r) {
+    zero(r);
+    int nx = u[0][0].length;
+    int nz = u[0].length;
     int nt = u.length;
-    float[][] y = new float[nz-2*nabsorb][nx-2*nabsorb];
     for (int it=0; it<nt; ++it)
       for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
         for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
-          y[iz-nabsorb][ix-nabsorb] += u[it][iz][ix]*a[it][iz][ix];
-    return y;
+          r[iz-nabsorb][ix-nabsorb] += u[it][iz][ix]*a[it][iz][ix];
   }
 
   public static interface Source {
@@ -178,11 +179,24 @@ public class AcousticWaveOperator {
       _nz = u[0].length;
       _u = u;
     }
-    public void add(float[][] ui, int it, int nabsorb) {
-      for (int ix=0; ix<_nx; ++ix)
-        for (int iz=0; iz<_nz; ++iz)
-          ui[iz][ix] += _u[it][iz][ix];
+    public WavefieldSource(float[][][] u, float[][] r) {
+      _nx = u[0][0].length;
+      _nz = u[0].length;
+      _u = u;
+      _r = r;
     }
+    public void add(float[][] ui, int it, int nabsorb) {
+      if (_r==null) {
+        for (int ix=0; ix<_nx; ++ix)
+          for (int iz=0; iz<_nz; ++iz)
+            ui[iz][ix] += _u[it][iz][ix];
+      } else {
+        for (int ix=nabsorb; ix<_nx; ++ix)
+          for (int iz=0; iz<_nz; ++iz)
+            ui[iz][ix] += _u[it][iz][ix]*_r[iz-nabsorb][ix-nabsorb];
+      }
+    }
+    private float[][] _r = null; //reflectivity
     private float[][][] _u;
     private int _nz,_nx;
   }
@@ -246,6 +260,7 @@ public class AcousticWaveOperator {
       um = new float[_nz][_nx];
       ui = new float[_nz][_nx];
     } else {
+      zero(u); // off for adjoint test?
       um = (forward)?u[0]:u[nt-1];
       ui = (forward)?u[1]:u[nt-2];
     }
@@ -266,14 +281,17 @@ public class AcousticWaveOperator {
       // Step.
       if (forward) {
         forwardStep(um,ui,up);
-        source.add(up,it,_nabsorb);
+        if (source!=null)
+          source.add(up,it,_nabsorb);
         forwardAbsorb(um,ui,up);
       } else {
         adjointAbsorb(up,ui,um);
-        source.add(up,it,_nabsorb);
+        if (source!=null)
+          source.add(up,it,_nabsorb);
         adjointStep(up,ui,um);
         //forwardStep(um,ui,up);
-        //source.add(up,it,_nabsorb);
+        //if (source!=null)
+        //  source.add(up,it,_nabsorb);
         //forwardAbsorb(um,ui,up);
       }
 
