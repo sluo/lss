@@ -9,11 +9,14 @@ import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
+// TODO
+// Avoid copy in adjointAbsorb?
+
 public class AcousticWaveOperator {
 
   // count number of same digits
-  public static int compareDigits(double xa, double xb) {
-    int significantDigits = 10;
+  public static int compareDigits(float xa, float xb) {
+    int significantDigits = 20;
     boolean matches = false;
     while (!matches && significantDigits>0) {
       Almost almost = new Almost(significantDigits);
@@ -25,38 +28,34 @@ public class AcousticWaveOperator {
     return significantDigits;
   }
 
-  public static double dot(double[][][] u, double[][][] a) {
+  public static float dot(float[][][] u, float[][][] a) {
     return dot(u,a,0);
   }
-  public static double dot(double[][][] u, double[][][] a, int nabsorb) {
-    int nz = u[0][0].length;
-    int nx = u[0].length;
+  public static float dot(float[][][] u, float[][][] a, int nabsorb) {
+    int nx = u[0][0].length;
+    int nz = u[0].length;
     int nt = u.length;
-    double sum = 0.0f;
+    float sum = 0.0f;
     for (int it=0; it<nt; ++it)
-      for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
-        for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
-          sum += u[it][ix][iz]*a[it][ix][iz];
+      for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
+        for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
+          sum += u[it][iz][ix]*a[it][iz][ix];
     return sum;
   }
 
   //////////////////////////////////////////////////////////////////////////
 
   public AcousticWaveOperator(
-  double[][] s, double dx, double dt, int nabsorb) {
-    int nz = s[0].length;
-    int nx = s.length;
+  float[][] s, double dx, double dt, int nabsorb) {
+    int nx = s[0].length;
+    int nz = s.length;
     Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
     _nabsorb = nabsorb;
     _b = nabsorb-FD_ORDER/2;
     _nz = nz+2*nabsorb;
     _nx = nx+2*nabsorb;
-    _dx = dx;
-    _dt = dt;
-    //_fz = -nabsorb*_dx;
-    //_fx = -nabsorb*_dx;
-    //_sz = new Sampling(_nz,_dx,_fz);
-    //_sx = new Sampling(_nx,_dx,_fx);
+    _dx = (float)dx;
+    _dt = (float)dt;
     _ixa = FD_ORDER/2;
     _ixb = _ixa+_b;
     _ixc = _ixb+nx;
@@ -66,7 +65,7 @@ public class AcousticWaveOperator {
     _izc = _izb+nz;
     _izd = _izc+_b;
     _w = makeWeights();
-    double scale = (double)(_dt*_dt/(_dx*_dx));
+    float scale = (_dt*_dt/(_dx*_dx));
     _s = extendModel(s,nabsorb);
     //addRandomBoundary(0.15f,_s);
     _r = copy(_s);
@@ -89,7 +88,7 @@ public class AcousticWaveOperator {
   */
 
   public void applyForward(
-  Source source, double[][][] u) {
+  Source source, float[][][] u) {
     apply(true,source,null,u);
   }
 
@@ -99,12 +98,12 @@ public class AcousticWaveOperator {
   }
 
   public void applyForward(
-  Source source, Receiver receiver, double[][][] u) {
+  Source source, Receiver receiver, float[][][] u) {
     apply(true,source,receiver,u);
   }
 
   public void applyAdjoint(
-  Source source, double[][][] u) {
+  Source source, float[][][] u) {
     apply(false,source,null,u);
   }
 
@@ -114,54 +113,54 @@ public class AcousticWaveOperator {
   }
 
   public void applyAdjoint(
-  Source source, Receiver receiver, double[][][] u) {
+  Source source, Receiver receiver, float[][][] u) {
     apply(false,source,receiver,u);
   }
 
   //////////////////////////////////////////////////////////////////////////
   // static
 
-  public static double[][] crop(double[][] x, int nabsorb) {
-    int nz = x[0].length;
-    int nx = x.length;
-    return copy(nz-2*nabsorb,nx-2*nabsorb,nabsorb,nabsorb,x);
+  public static float[][] crop(float[][] x, int nabsorb) {
+    int nx = x[0].length;
+    int nz = x.length;
+    return copy(nx-2*nabsorb,nz-2*nabsorb,nabsorb,nabsorb,x);
   }
 
-  public static double[][] collapse(
-  double[][][] u, double[][][] a, int nabsorb) {
-    int nz = u[0][0].length;
-    int nx = u[0].length;
+  public static float[][] collapse(
+  float[][][] u, float[][][] a, int nabsorb) {
+    int nx = u[0][0].length;
+    int nz = u[0].length;
     int nt = u.length;
-    double[][] y = new double[nx-2*nabsorb][nz-2*nabsorb];
+    float[][] y = new float[nz-2*nabsorb][nx-2*nabsorb];
     for (int it=0; it<nt; ++it)
-      for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
-        for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
-          y[ix-nabsorb][iz-nabsorb] += u[it][ix][iz]*a[it][ix][iz];
+      for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
+        for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
+          y[iz-nabsorb][ix-nabsorb] += u[it][iz][ix]*a[it][iz][ix];
     return y;
   }
 
   public static interface Source {
-    public void add(double[][] ui, int it, int nabsorb);
+    public void add(float[][] ui, int it, int nabsorb);
   }
 
   public static class RickerSource implements Source {
-    public RickerSource(int xs, int zs, double dt, double fpeak) {
-      _tdelay = 1.0/fpeak;
+    public RickerSource(int xs, int zs, float dt, float fpeak) {
+      _tdelay = 1.0f/fpeak;
       _fpeak = fpeak;
       _dt = dt;
       _xs = xs;
       _zs = zs;
     }
-    public void add(double[][] ui, int it, int nabsorb) {
-      ui[_xs+nabsorb][_zs+nabsorb] += ricker(it*_dt-_tdelay);
+    public void add(float[][] ui, int it, int nabsorb) {
+      ui[_zs+nabsorb][_xs+nabsorb] += ricker(it*_dt-_tdelay);
     }
-    private double ricker(double t) {
-      double x = PI*_fpeak*t;
-      double xx = x*x;
-      return (double)((1.0-2.0*xx)*exp(-xx));
+    private float ricker(float t) {
+      float x = FLT_PI*_fpeak*t;
+      float xx = x*x;
+      return (float)((1.0-2.0*xx)*exp(-xx));
     }
     private int _xs,_zs;
-    private double _dt,_fpeak,_tdelay;
+    private float _dt,_fpeak,_tdelay;
   }
 
   public static class ReceiverSource implements Source {
@@ -173,32 +172,32 @@ public class AcousticWaveOperator {
       _nt = receiver.getNt();
       _data = receiver.getData();
     }
-    public void add(double[][] ui, int it, int nabsorb) {
+    public void add(float[][] ui, int it, int nabsorb) {
       if (it>=_nt) 
         return;
       for (int ir=0; ir<_nr; ++ir) {
         int xs = _xr[ir]+nabsorb;
         int zs = _zr[ir]+nabsorb;
-        ui[xs][zs] += _data[ir][it];
+        ui[zs][xs] += _data[ir][it];
       }
     }
     private int _nr,_nt;
     private int[] _xr, _zr;
-    private double[][] _data;
+    private float[][] _data;
   }
 
   public static class WavefieldSource implements Source {
-    public WavefieldSource(double[][][] u) {
-      _nz = u[0][0].length;
-      _nx = u[0].length;
+    public WavefieldSource(float[][][] u) {
+      _nx = u[0][0].length;
+      _nz = u[0].length;
       _u = u;
     }
-    public void add(double[][] ui, int it, int nabsorb) {
+    public void add(float[][] ui, int it, int nabsorb) {
       for (int ix=0; ix<_nx; ++ix)
         for (int iz=0; iz<_nz; ++iz)
-          ui[ix][iz] += _u[it][ix][iz];
+          ui[iz][ix] += _u[it][iz][ix];
     }
-    private double[][][] _u;
+    private float[][][] _u;
     private int _nz,_nx;
   }
 
@@ -214,19 +213,19 @@ public class AcousticWaveOperator {
       _nt = nt;
       _xr = xr;
       _zr = zr;
-      _data = new double[_nr][nt];
+      _data = new float[_nr][nt];
     }
-    public void setData(double[][] ui, int it, int nabsorb) {
+    public void setData(float[][] ui, int it, int nabsorb) {
       for (int ir=0; ir<_nr; ++ir) {
         int xr = _xr[ir]+nabsorb;
         int zr = _zr[ir]+nabsorb;
-        _data[ir][it] = ui[xr][zr];
+        _data[ir][it] = ui[zr][xr];
       }
     }
     public int[][] getIndices() {
       return new int[][]{_xr,_zr};
     }
-    public double[][] getData() {
+    public float[][] getData() {
       return _data;
     }
     public int getNt() {
@@ -237,7 +236,7 @@ public class AcousticWaveOperator {
     }
     private int _nr,_nt;
     private int[] _xr, _zr;
-    private double[][] _data;
+    private float[][] _data;
   }
 
   //////////////////////////////////////////////////////////////////////////
@@ -245,644 +244,681 @@ public class AcousticWaveOperator {
 
   private int _b,_nabsorb; // absorbing boundary
   private int _nx,_nz;
-  private double _dx,_dt;
-  private double[][] _s; // slowness
-  private double[][] _r; // dt^2/(dx^2*s^2)
-  private double[][] _w; // weights for boundary
+  private float _dx,_dt;
+  private float[][] _s; // slowness
+  private float[][] _r; // dt^2/(dx^2*s^2)
+  private float[][] _w; // weights for boundary
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
 
-//  private static final int FD_ORDER = 2;
-//  private static final double C0 = -4.0f;
-//  private static final double C1 =  1.0f;
-//  private void apply(
-//  boolean forward, Source source, Receiver receiver, double[][][] u) {
-//    int nt = (receiver==null)?u.length:receiver.getNt();
-//    double[][] um,ui,up;
-//    if (forward) {
-//      for (int it=0; it<nt; ++it) {
-//        um = (it>0)?u[it-1]:new double[_nx][_nz];
-//        ui = u[it];
-//        up = (it<nt-1)?u[it+1]:new double[_nx][_nz];
-//        forwardStep(um,ui,up);
-//      }
-//    /*
-//    } else {
-//      for (int it=nt-1; it>=0; --it) {
-//        up = (it>0)?u[it-1]:new double[_nx][_nz];
-//        ui = u[it];
-//        um = (it<nt-1)?u[it+1]:new double[_nx][_nz];
-//        forwardStep(um,ui,up);
-//      }
-//    */
-//    } else {
-//      for (int it=nt-1; it>=0; --it) {
-//        um = (it>0)?u[it-1]:new double[_nx][_nz];
-//        ui = u[it];
-//        up = (it<nt-1)?u[it+1]:new double[_nx][_nz];
-//        adjointStep(um,ui,up);
-//      }
-//    }
-//  }
-//  private void forwardStep(
-//  final double[][] um, final double[][] ui, final double[][] up) {
-//    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
-//    public void compute(int ix) {
-//      int ixm1 = ix-1;
-//      int ixp1 = ix+1;
-//      int ixm2 = ix-2;
-//      int ixp2 = ix+2;
-//      for (int iz=_iza; iz<_izd; ++iz) {
-//        int izm1 = iz-1;
-//        int izp1 = iz+1;
-//        int izm2 = iz-2;
-//        int izp2 = iz+2;
-//        double r = _r[ix][iz];
-//
-//        /*
-//        up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
-//          C1*(ui[ix][izm1]+ui[ix][izp1]+ui[ixm1][iz]+ui[ixp1][iz]));
-//        */
-//        up[ix][iz] -= um[ix  ][iz  ];
-//        up[ix][iz] += ui[ix  ][iz  ]*(2.0f+C0*r);
-//        up[ix][iz] += ui[ix  ][izm1]*C1*r;
-//        up[ix][iz] += ui[ix  ][izp1]*C1*r;
-//        up[ix][iz] += ui[ixp1][iz  ]*C1*r;
-//        up[ix][iz] += ui[ixm1][iz  ]*C1*r;
-//      }
-//    }});
-//  }
-//  private void adjointStep(
-//  final double[][] um, final double[][] ui, final double[][] up) {
-//    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
-//    public void compute(int ix) {
-//      int ixm1 = ix-1;
-//      int ixp1 = ix+1;
-//      int ixm2 = ix-2;
-//      int ixp2 = ix+2;
-//      for (int iz=_iza; iz<_izd; ++iz) {
-//        int izm1 = iz-1;
-//        int izp1 = iz+1;
-//        int izm2 = iz-2;
-//        int izp2 = iz+2;
-//        double r = _r[ix][iz];
-//
-//        /*
-//        um[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-up[ix][iz]+r*(
-//          C1*(ui[ix][izm1]+ui[ix][izp1]+ui[ixm1][iz]+ui[ixp1][iz]));
-//        */
-//        um[ix  ][iz  ] -= up[ix  ][iz  ];
-//        ui[ix  ][iz  ] += up[ix  ][iz  ]*(2.0f+C0*r);
-//        ui[ix  ][iz  ] += up[ix  ][izp1]*C1*_r[ix  ][izp1];
-//        ui[ix  ][iz  ] += up[ix  ][izm1]*C1*_r[ix  ][izm1];
-//        ui[ix  ][iz  ] += up[ixm1][iz  ]*C1*_r[ixm1][iz  ];
-//        ui[ix  ][iz  ] += up[ixp1][iz  ]*C1*_r[ixp1][iz  ];
-//      }
-//    }});
-//  }
-
+  private void xapply(
+  boolean forward, Source source, Receiver receiver, float[][][] u) {
+    int nt = (receiver==null)?u.length:receiver.getNt();
+    float[][] um,ui,up;
+    if (forward) {
+      for (int it=1; it<nt-1; ++it) {
+        um = (it>0)?u[it-1]:new float[_nz][_nx];
+        ui = u[it];
+        up = (it<nt-1)?u[it+1]:new float[_nz][_nx];
+        //um = (it>1)?u[it-2]:new float[_nz][_nx];
+        //ui = (it>0)?u[it-1]:new float[_nz][_nx];
+        //up = u[it];
+        step(true,um,ui,up);
+        //forwardStep(um,ui,up);
+      }
+    } else {
+      for (int it=nt-2; it>=1; --it) {
+        um = (it>0)?u[it-1]:new float[_nz][_nx];
+        ui = u[it];
+        up = (it<nt-1)?u[it+1]:new float[_nz][_nx];
+        //um = (it>1)?u[it-2]:new float[_nz][_nx];
+        //ui = (it>0)?u[it-1]:new float[_nz][_nx];
+        //up = u[it];
+        step(false,up,ui,um);
+        //adjointStep(um,ui,up);
+      }
+    }
+  }
   private void apply(
-  boolean forward, Source source, Receiver receiver, double[][][] u) {
+  boolean forward, Source source, Receiver receiver, float[][][] u) {
     int nt = (u==null)?receiver.getNt():u.length;
-    double[][] ut = new double[_nx][_nz]; // temp
-    double[][] um = new double[_nx][_nz]; // it-1
-    double[][] ui = new double[_nx][_nz]; // it
-    double[][] up;                       // it+1
-    int fit = (forward)?0:nt-1;
+    float[][] um,ui,up;
+    float[][] ut = new float[_nz][_nx];
+    if (u==null) {
+      um = new float[_nz][_nx];
+      ui = new float[_nz][_nx];
+    } else {
+      um = (forward)?u[0]:u[nt-1];
+      ui = (forward)?u[1]:u[nt-2];
+    }
+    int fit = (forward)?2:nt-3;
     int pit = (forward)?1:-1;
-    for (int it=fit, count=0; count<nt; it+=pit, ++count) {
+    source.add(um,fit-2*pit,_nabsorb);
+    source.add(ui,fit-pit  ,_nabsorb);
+    for (int it=fit, count=0; count<nt-2; it+=pit, ++count) {
+
+      // ...finish rotate.
       if (u==null) { // next time
         up = ut;
         zero(ut); // necessary only if using += for injection
       } else {
         up = u[it];
       }
-      //up = (u==null)?ut:u[it]; // next time 
-      step(forward,um,ui,up); // time step 
-      //source.add(up,it,_nabsorb); // inject source (off for adjoint test)
-      absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
+
+      // Step.
+      if (forward) {
+        forwardStep(um,ui,up);
+        source.add(up,it,_nabsorb);
+        forwardAbsorb(um,ui,up);
+      } else {
+        adjointAbsorb(up,ui,um);
+        source.add(up,it,_nabsorb);
+        adjointStep(up,ui,um);
+      }
+
+      // Set data.
       if (receiver!=null)
         receiver.setData(up,it,_nabsorb); // data
+
+      // Begin rotate...
       ut = um; um = ui; ui = up; // rotate arrays
     }
   }
 
   private void step(
-  final boolean forward,
-  final double[][] um, final double[][] ui, final double[][] up) {
+  boolean forward, float[][] um, float[][] ui, float[][] up) {
     if (forward) {
-      Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
-      public void compute(int ix) {
-        forwardStepSliceX(ix,um,ui,up);
-      }});
+      forwardStep(um,ui,up);
+      forwardAbsorb(um,ui,up);
     } else {
-      Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
-      public void compute(int ix) {
-        adjointStepSliceX(ix,um,ui,up);
-        //forwardStepSliceX(ix,um,ui,up);
-      }});
+      adjointAbsorb(up,ui,um);
+      adjointStep(up,ui,um);
+      //forwardStep(um,ui,up);
+      //forwardAbsorb(um,ui,up);
     }
   }
-
-//  // 20th order coefficients
-//  private static final int FD_ORDER = 20;
-//  private static final double C00 = -0.32148051f*10.0f*2.0f;
-//  private static final double C01 =  0.19265816f*10.0f;
-//  private static final double C02 = -0.43052632f*1.0f;
-//  private static final double C03 =  0.15871000f*1.0f;
-//  private static final double C04 = -0.68711400f*0.1f;
-//  private static final double C05 =  0.31406935f*0.1f;
-//  private static final double C06 = -0.14454222f*0.1f;
-//  private static final double C07 =  0.65305182f*0.01f;
-//  private static final double C08 = -0.28531535f*0.01f;
-//  private static final double C09 =  0.11937032f*0.01f;
-//  private static final double C10 = -0.47508613f*0.001f;
-//  private void forwardStepSliceX(
-//  int ix, double[][] um, double[][] ui, double[][] up) {
-//    for (int iz=_iza; iz<_izd; ++iz) {
-//      double r = _r[ix][iz];
-//      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+r*(
-//        C01*(ui[ix-1][iz]+ui[ix][iz-1]+ui[ix][iz+1]+ui[ix+1][iz])+
-//        C02*(ui[ix-2][iz]+ui[ix][iz-2]+ui[ix][iz+2]+ui[ix+2][iz])+
-//        C03*(ui[ix-3][iz]+ui[ix][iz-3]+ui[ix][iz+3]+ui[ix+3][iz])+
-//        C04*(ui[ix-4][iz]+ui[ix][iz-4]+ui[ix][iz+4]+ui[ix+4][iz])+
-//        C05*(ui[ix-5][iz]+ui[ix][iz-5]+ui[ix][iz+5]+ui[ix+5][iz])+
-//        C06*(ui[ix-6][iz]+ui[ix][iz-6]+ui[ix][iz+6]+ui[ix+6][iz])+
-//        C07*(ui[ix-7][iz]+ui[ix][iz-7]+ui[ix][iz+7]+ui[ix+7][iz])+
-//        C08*(ui[ix-8][iz]+ui[ix][iz-8]+ui[ix][iz+8]+ui[ix+8][iz])+
-//        C09*(ui[ix-9][iz]+ui[ix][iz-9]+ui[ix][iz+9]+ui[ix+9][iz])+
-//        C10*(ui[ix-10][iz]+ui[ix][iz-10]+ui[ix][iz+10]+ui[ix+10][iz]));
-//    }
-//  }
-//  private void adjointStepSliceX(
-//  int ix, double[][] um, double[][] ui, double[][] up) {
-//    for (int iz=_iza; iz<_izd; ++iz) {
-//      double r = _r[ix][iz];
-//      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+
-//        C01*(_r[ix-1][iz  ]*ui[ix-1][iz  ]+
-//             _r[ix  ][iz-1]*ui[ix  ][iz-1]+
-//             _r[ix  ][iz+1]*ui[ix  ][iz+1]+
-//             _r[ix+1][iz  ]*ui[ix+1][iz  ])+
-//        C02*(_r[ix-2][iz  ]*ui[ix-2][iz  ]+
-//             _r[ix  ][iz-2]*ui[ix  ][iz-2]+
-//             _r[ix  ][iz+2]*ui[ix  ][iz+2]+
-//             _r[ix+2][iz  ]*ui[ix+2][iz  ])+
-//        C03*(_r[ix-3][iz  ]*ui[ix-3][iz  ]+
-//             _r[ix  ][iz-3]*ui[ix  ][iz-3]+
-//             _r[ix  ][iz+3]*ui[ix  ][iz+3]+
-//             _r[ix+3][iz  ]*ui[ix+3][iz  ])+
-//        C04*(_r[ix-4][iz  ]*ui[ix-4][iz  ]+
-//             _r[ix  ][iz-4]*ui[ix  ][iz-4]+
-//             _r[ix  ][iz+4]*ui[ix  ][iz+4]+
-//             _r[ix+4][iz  ]*ui[ix+4][iz  ])+
-//        C05*(_r[ix-5][iz  ]*ui[ix-5][iz  ]+
-//             _r[ix  ][iz-5]*ui[ix  ][iz-5]+
-//             _r[ix  ][iz+5]*ui[ix  ][iz+5]+
-//             _r[ix+5][iz  ]*ui[ix+5][iz  ])+
-//        C06*(_r[ix-6][iz  ]*ui[ix-6][iz  ]+
-//             _r[ix  ][iz-6]*ui[ix  ][iz-6]+
-//             _r[ix  ][iz+6]*ui[ix  ][iz+6]+
-//             _r[ix+6][iz  ]*ui[ix+6][iz  ])+
-//        C07*(_r[ix-7][iz  ]*ui[ix-7][iz  ]+
-//             _r[ix  ][iz-7]*ui[ix  ][iz-7]+
-//             _r[ix  ][iz+7]*ui[ix  ][iz+7]+
-//             _r[ix+7][iz  ]*ui[ix+7][iz  ])+
-//        C08*(_r[ix-8][iz  ]*ui[ix-8][iz  ]+
-//             _r[ix  ][iz-8]*ui[ix  ][iz-8]+
-//             _r[ix  ][iz+8]*ui[ix  ][iz+8]+
-//             _r[ix+8][iz  ]*ui[ix+8][iz  ])+
-//        C09*(_r[ix-9][iz  ]*ui[ix-9][iz  ]+
-//             _r[ix  ][iz-9]*ui[ix  ][iz-9]+
-//             _r[ix  ][iz+9]*ui[ix  ][iz+9]+
-//             _r[ix+9][iz  ]*ui[ix+9][iz  ])+
-//        C10*(_r[ix-10][iz  ]*ui[ix-10][iz  ]+
-//             _r[ix  ][iz-10]*ui[ix  ][iz-10]+
-//             _r[ix  ][iz+10]*ui[ix  ][iz+10]+
-//             _r[ix+10][iz  ]*ui[ix+10][iz  ]);
-//    }
-//  }
 
   // First 21-point Laplacian stencil from
   // Patra, M. and M. Karttunen, 2005, Stencils
   // with Isotropic Error for Differential Operators.
   private static final int FD_ORDER = 4;
-  private static final double C0 = -9.0f/2.0f;
-  private static final double C1 =  16.0f/15.0f;
-  private static final double C2 =  2.0f/15.0f;
-  private static final double C3 = -1.0f/15.0f;
-  private static final double C4 = -1.0f/120.0f;
-  private void forwardStepSliceX(
-  int ix, double[][] um, double[][] ui, double[][] up) {
-    int ixm1 = ix-1;
-    int ixp1 = ix+1;
-    int ixm2 = ix-2;
-    int ixp2 = ix+2;
-    for (int iz=_iza; iz<_izd; ++iz) {
+  private static final float C0 = -9.0f/2.0f;
+  private static final float C1 =  16.0f/15.0f;
+  private static final float C2 =  2.0f/15.0f;
+  private static final float C3 = -1.0f/15.0f;
+  private static final float C4 = -1.0f/120.0f;
+
+  private void forwardStep(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
       int izm1 = iz-1;
       int izp1 = iz+1;
       int izm2 = iz-2;
       int izp2 = iz+2;
-      double r = _r[ix][iz];
-      // FIXME: Source injection replaces += needed to pass adjoint test.
-      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
-        C1*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
-        C2*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
-        C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
-        C4*(ui[ixm2][izm2]+ui[ixm2][izp2]+ui[ixp2][izm2]+ui[ixp2][izp2]));
-    }
-  }
-  private void adjointStepSliceX(
-  int ix, double[][] um, double[][] ui, double[][] up) {
-    int ixm1 = ix-1;
-    int ixp1 = ix+1;
-    int ixm2 = ix-2;
-    int ixp2 = ix+2;
-    for (int iz=_iza; iz<_izd; ++iz) {
-      int izm1 = iz-1;
-      int izp1 = iz+1;
-      int izm2 = iz-2;
-      int izp2 = iz+2;
-      double r = _r[ix][iz];
-      // FIXME: Source injection replaces += needed to pass adjoint test.
-      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+
-        C1*(_r[ix  ][izm1]*
-            ui[ix  ][izm1]+
-            _r[ix  ][izp1]*
-            ui[ix  ][izp1]+
-            _r[ixm1][iz  ]*
-            ui[ixm1][iz  ]+
-            _r[ixp1][iz  ]*
-            ui[ixp1][iz  ])+
-        C2*(_r[ixm1][izm1]*
-            ui[ixm1][izm1]+
-            _r[ixm1][izp1]*
-            ui[ixm1][izp1]+
-            _r[ixp1][izm1]*
-            ui[ixp1][izm1]+
-            _r[ixp1][izp1]*
-            ui[ixp1][izp1])+
-        C3*(_r[ix  ][izm2]*
-            ui[ix  ][izm2]+
-            _r[ix  ][izp2]*
-            ui[ix  ][izp2]+
-            _r[ixm2][iz  ]*
-            ui[ixm2][iz  ]+
-            _r[ixp2][iz  ]*
-            ui[ixp2][iz  ])+
-        C4*(_r[ixm2][izm2]*
-            ui[ixm2][izm2]+
-            _r[ixm2][izp2]*
-            ui[ixm2][izp2]+
-            _r[ixp2][izm2]*
-            ui[ixp2][izm2]+
-            _r[ixp2][izp2]*
-            ui[ixp2][izp2]);
-    }
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        int ixm1 = ix-1;
+        int ixp1 = ix+1;
+        int ixm2 = ix-2;
+        int ixp2 = ix+2;
+        float r = _r[iz][ix];
+        up[iz][ix] += (2.0f+C0*r)*ui[iz][ix]-um[iz][ix]+r*(
+          C1*(ui[izm1][ix  ]+ui[izp1][ix  ]+ui[iz  ][ixm1]+ui[iz  ][ixp1])+
+          C2*(ui[izm1][ixm1]+ui[izp1][ixm1]+ui[izm1][ixp1]+ui[izp1][ixp1])+
+          C3*(ui[izm2][ix  ]+ui[izp2][ix  ]+ui[iz  ][ixm2]+ui[iz  ][ixp2])+
+          C4*(ui[izm2][ixm2]+ui[izp2][ixm2]+ui[izm2][ixp2]+ui[izp2][ixp2]));
+        //up[iz][ix] -= um[iz  ][ix  ];
+        //up[iz][ix] += ui[iz  ][ix  ]*(2.0f+C0*r);
+        //up[iz][ix] += ui[izm1][ix  ]*C1*r;
+        //up[iz][ix] += ui[izp1][ix  ]*C1*r;
+        //up[iz][ix] += ui[iz  ][ixm1]*C1*r;
+        //up[iz][ix] += ui[iz  ][ixp1]*C1*r;
+        //up[iz][ix] += ui[izm1][ixm1]*C2*r;
+        //up[iz][ix] += ui[izp1][ixm1]*C2*r;
+        //up[iz][ix] += ui[izm1][ixp1]*C2*r;
+        //up[iz][ix] += ui[izp1][ixp1]*C2*r;
+        //up[iz][ix] += ui[izm2][ix  ]*C3*r;
+        //up[iz][ix] += ui[izp2][ix  ]*C3*r;
+        //up[iz][ix] += ui[iz  ][ixm2]*C3*r;
+        //up[iz][ix] += ui[iz  ][ixp2]*C3*r;
+        //up[iz][ix] += ui[izm2][ixm2]*C4*r;
+        //up[iz][ix] += ui[izp2][ixm2]*C4*r;
+        //up[iz][ix] += ui[izm2][ixp2]*C4*r;
+        //up[iz][ix] += ui[izp2][ixp2]*C4*r;
+      }
+    }});
   }
 
-//  // Second 21-point Laplacian stencil from
-//  // Patra, M. and M. Karttunen, 2005, Stencils
-//  // with Isotropic Error for Differential Operators.
-//  private static final int FD_ORDER = 4;
-//  private static final double C0 = -21.0f/5.0f;
-//  private static final double C1 =  13.0f/15.0f;
-//  private static final double C2 =  4.0f/15.0f;
-//  private static final double C3 = -1.0f/60.0f;
-//  private static final double C4 = -1.0f/30.0f;
-//  private void forwardStepSliceX(
-//  int ix, double[][] um, double[][] ui, double[][] up) {
-//    int ixm1 = ix-1;
-//    int ixp1 = ix+1;
-//    int ixm2 = ix-2;
-//    int ixp2 = ix+2;
-//    for (int iz=_iza; iz<_izd; ++iz) {
+  private void adjointStep(
+  final float[][] um, final float[][] ui, final float[][] up) {
+
+    //for (int iz=_iza; iz<_izd; ++iz) {
+    //  int izm1 = iz-1;
+    //  int izp1 = iz+1;
+    //  int izm2 = iz-2;
+    //  int izp2 = iz+2;
+    //  for (int ix=_ixa; ix<_ixd; ++ix) {
+    //    int ixm1 = ix-1;
+    //    int ixp1 = ix+1;
+    //    int ixm2 = ix-2;
+    //    int ixp2 = ix+2;
+    //    float r = _r[iz][ix];
+    //    um[iz  ][ix  ] -= up[iz][ix];
+    //    ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
+    //    ui[izm1][ix  ] += up[iz][ix]*C1*r;
+    //    ui[izp1][ix  ] += up[iz][ix]*C1*r;
+    //    ui[iz  ][ixm1] += up[iz][ix]*C1*r;
+    //    ui[iz  ][ixp1] += up[iz][ix]*C1*r;
+    //    ui[izm1][ixm1] += up[iz][ix]*C2*r;
+    //    ui[izp1][ixm1] += up[iz][ix]*C2*r;
+    //    ui[izm1][ixp1] += up[iz][ix]*C2*r;
+    //    ui[izp1][ixp1] += up[iz][ix]*C2*r;
+    //    ui[izm2][ix  ] += up[iz][ix]*C3*r;
+    //    ui[izp2][ix  ] += up[iz][ix]*C3*r;
+    //    ui[iz  ][ixm2] += up[iz][ix]*C3*r;
+    //    ui[iz  ][ixp2] += up[iz][ix]*C3*r;
+    //    ui[izm2][ixm2] += up[iz][ix]*C4*r;
+    //    ui[izp2][ixm2] += up[iz][ix]*C4*r;
+    //    ui[izm2][ixp2] += up[iz][ix]*C4*r;
+    //    ui[izp2][ixp2] += up[iz][ix]*C4*r;
+    //  }
+    //}
+
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        ui[iz-2][ix  ] += up[iz][ix]*C3*r;
+        ui[iz-2][ix-2] += up[iz][ix]*C4*r;
+        ui[iz-2][ix+2] += up[iz][ix]*C4*r;
+      }
+    }});
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        ui[iz-1][ix  ] += up[iz][ix]*C1*r;
+        ui[iz-1][ix-1] += up[iz][ix]*C2*r;
+        ui[iz-1][ix+1] += up[iz][ix]*C2*r;
+      }
+    }});
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        um[iz  ][ix  ] -= up[iz][ix];
+        ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
+        ui[iz  ][ix-1] += up[iz][ix]*C1*r;
+        ui[iz  ][ix+1] += up[iz][ix]*C1*r;
+        ui[iz  ][ix-2] += up[iz][ix]*C3*r;
+        ui[iz  ][ix+2] += up[iz][ix]*C3*r;
+      }
+    }});
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        ui[iz+1][ix  ] += up[iz][ix]*C1*r;
+        ui[iz+1][ix-1] += up[iz][ix]*C2*r;
+        ui[iz+1][ix+1] += up[iz][ix]*C2*r;
+      }
+    }});
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        ui[iz+2][ix  ] += up[iz][ix]*C3*r;
+        ui[iz+2][ix-2] += up[iz][ix]*C4*r;
+        ui[iz+2][ix+2] += up[iz][ix]*C4*r;
+      }
+    }});
+
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
 //      int izm1 = iz-1;
 //      int izp1 = iz+1;
 //      int izm2 = iz-2;
 //      int izp2 = iz+2;
-//      double r = _r[ix][iz];
-//      // FIXME: Source injection replaces += needed to pass adjoint test.
-//      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
-//        C1*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
-//        C2*(ui[ixm1][izm1]+ui[ixm1][izp1]+ui[ixp1][izm1]+ui[ixp1][izp1])+
-//        C3*(ui[ix  ][izm2]+ui[ix  ][izp2]+ui[ixm2][iz  ]+ui[ixp2][iz  ])+
-//        C4*(ui[ixm2][izm1]+ui[ixm2][izp1]+ui[ixm1][izm2]+ui[ixm1][izp2]+
-//            ui[ixp1][izm2]+ui[ixp1][izp2]+ui[ixp2][izm1]+ui[ixp2][izp1]));
-//    }
-//  }
-//  private void adjointStepSliceX(
-//  int ix, double[][] um, double[][] ui, double[][] up) {
-//    int ixm1 = ix-1;
-//    int ixp1 = ix+1;
-//    int ixm2 = ix-2;
-//    int ixp2 = ix+2;
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        int ixm1 = ix-1;
+//        int ixp1 = ix+1;
+//        int ixm2 = ix-2;
+//        int ixp2 = ix+2;
+//        float r = _r[iz][ix];
+//        um[iz][ix] -= up[iz  ][ix  ];
+//        ui[iz][ix] += up[iz  ][ix  ]*(2.0f+C0*r);
+//        ui[iz][ix] += up[izp1][ix  ]*C1*r;
+//        ui[iz][ix] += up[izm1][ix  ]*C1*r;
+//        ui[iz][ix] += up[iz  ][ixp1]*C1*r;
+//        ui[iz][ix] += up[iz  ][ixm1]*C1*r;
+//        ui[iz][ix] += up[izp1][ixp1]*C2*r;
+//        ui[iz][ix] += up[izm1][ixp1]*C2*r;
+//        ui[iz][ix] += up[izp1][ixm1]*C2*r;
+//        ui[iz][ix] += up[izm1][ixm1]*C2*r;
+//        ui[iz][ix] += up[izp2][ix  ]*C3*r;
+//        ui[iz][ix] += up[izm2][ix  ]*C3*r;
+//        ui[iz][ix] += up[iz  ][ixp2]*C3*r;
+//        ui[iz][ix] += up[iz  ][ixm2]*C3*r;
+//        ui[iz][ix] += up[izp2][ixp2]*C4*r;
+//        ui[iz][ix] += up[izm2][ixp2]*C4*r;
+//        ui[iz][ix] += up[izp2][ixm2]*C4*r;
+//        ui[iz][ix] += up[izm2][ixm2]*C4*r;
+//    }});
 //    for (int iz=_iza; iz<_izd; ++iz) {
-//      int izm1 = iz-1;
-//      int izp1 = iz+1;
-//      int izm2 = iz-2;
-//      int izp2 = iz+2;
-//      double r = _r[ix][iz];
-//      // FIXME: Source injection replaces += needed to pass adjoint test.
-//      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+
-//        C1*(_r[ix  ][izm1]*
-//            ui[ix  ][izm1]+
-//            _r[ix  ][izp1]*
-//            ui[ix  ][izp1]+
-//            _r[ixm1][iz  ]*
-//            ui[ixm1][iz  ]+
-//            _r[ixp1][iz  ]*
-//            ui[ixp1][iz  ])+
-//        C2*(_r[ixm1][izm1]*
-//            ui[ixm1][izm1]+
-//            _r[ixm1][izp1]*
-//            ui[ixm1][izp1]+
-//            _r[ixp1][izm1]*
-//            ui[ixp1][izm1]+
-//            _r[ixp1][izp1]*
-//            ui[ixp1][izp1])+
-//        C3*(_r[ix  ][izm2]*
-//            ui[ix  ][izm2]+
-//            _r[ix  ][izp2]*
-//            ui[ix  ][izp2]+
-//            _r[ixm2][iz  ]*
-//            ui[ixm2][iz  ]+
-//            _r[ixp2][iz  ]*
-//            ui[ixp2][iz  ])+
-//        C4*(_r[ixm2][izm1]*
-//            ui[ixm2][izm1]+
-//            _r[ixm2][izp1]*
-//            ui[ixm2][izp1]+
-//            _r[ixm1][izm2]*
-//            ui[ixm1][izm2]+
-//            _r[ixm1][izp2]*
-//            ui[ixm1][izp2]+
-//            _r[ixp1][izm2]*
-//            ui[ixp1][izm2]+
-//            _r[ixp1][izp2]*
-//            ui[ixp1][izp2]+
-//            _r[ixp2][izm1]*
-//            ui[ixp2][izm1]+
-//            _r[ixp2][izp1]*
-//            ui[ixp2][izp1]);
+////      ui[iz  ][ix+1  ] += up[iz][ix    ]*C1*r;
+////      ui[iz  ][_ixd  ] += up[iz][_ixd-1]*C1*_r[iz][_ixd-1];
+////      ui[iz  ][_ixa  ] -= up[iz][_ixa-1]*C1*_r[iz][_ixa-1];
+//
+////      ui[iz  ][ix-1  ] += up[iz][ix  ]*C1*r;
+////      ui[iz  ][_ixa-1] += up[iz][_ixa]*C1*_r[iz][_ixa];
+////      ui[iz  ][_ixd-1] -= up[iz][_ixd]*C1*_r[iz][_ixd];
 //    }
-//  }
+
+
+  }
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
   // edge reflections in numerical modeling of wave propagation.
-  public void absorb(
-  final double[][] um, final double[][] ui, final double[][] up) {
-    absorbForward(um,ui,up);
-  }
-  public void absorbForward(
-  final double[][] um, final double[][] ui, final double[][] up) {
-    final double oxt = (double)(1.0/(_dx*_dt));
-    final double oxx = (double)(1.0/(_dx*_dx));
-    final double ott = (double)(1.0/(_dt*_dt));
-    final double[][] cp = up;
-    //final double[][] cp = copy(up);
+  public void forwardAbsorb(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    final float oxt = (float)(1.0/(_dx*_dt));
+    final float oxx = (float)(1.0/(_dx*_dx));
+    final float ott = (float)(1.0/(_dt*_dt));
+    final float[][] cp = up;
+    //final float[][] cp = copy(up);
 
     for (int ix=_ixa; ix<_ixb-1; ++ix) {
       for (int iz=_izb; iz<_izc; ++iz) {
-
-        //double si = _s[ix][iz];
-        //double a =  0.50f*oxt;
-        //double b = -0.50f*ott*si;
-        //double c =  0.25f*oxx/si;
-        //double vp = 1.0f/(a-b)*(
-        //  (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
-        //  (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
-        //  (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
-        //  (um[ix+1][iz])*(b-a)
-        //);
-        //double w = _w[ix][iz];
-        //up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
-
-        double si = _s[ix][iz];
-        double w = _w[ix][iz];
-        double m = 1.0f-w;
-        double a =  0.50f*oxt;
-        double b = -0.50f*ott*si;
-        double c =  0.25f*oxx/si;
-        double d =  1.0f/(a-b);
-        up[ix][iz] -= (1.0f-w)*up[ix][iz];
-        up[ix][iz] += um[ix  ][iz-1]*c*d*m;
-        up[ix][iz] += um[ix  ][iz+1]*c*d*m;
-        up[ix][iz] += cp[ix+1][iz+1]*c*d*m;
-        up[ix][iz] += cp[ix+1][iz-1]*c*d*m;
-        up[ix][iz] += um[ix  ][iz  ]*(a+b-2.0f*c)*d*m;
-        up[ix][iz] += cp[ix+1][iz  ]*(a+b-2.0f*c)*d*m;
-        up[ix][iz] += ui[ix  ][iz  ]*(-2.0f*b)*d*m;
-        up[ix][iz] += ui[ix+1][iz  ]*(-2.0f*b)*d*m;
-        up[ix][iz] += um[ix+1][iz  ]*(b-a)*d*m;
-
-      }
-    }
-
-  }
-
-  public void absorbAdjoint(
-  final double[][] um, final double[][] ui, final double[][] up) {
-    final double oxt = (double)(1.0/(_dx*_dt));
-    final double oxx = (double)(1.0/(_dx*_dx));
-    final double ott = (double)(1.0/(_dt*_dt));
-    final double[][] cp = copy(up);
-    //final double[][] cp = up;
-    final double[][] cm = copy(um);
-
-    for (int ix=_ixa; ix<_ixb-1; ++ix) {
-      for (int iz=_izb; iz<_izc; ++iz) {
-
-        double si = _s[ix][iz];
-        double w = _w[ix][iz];
-        double m = 1.0f-w;
-        double a =  0.50f*oxt;
-        double b = -0.50f*ott*si;
-        double c =  0.25f*oxx/si;
-        double d =  1.0f/(a-b);
-        up[ix][iz] -= (1.0f-w)*cp[ix][iz];
-        um[ix  ][iz-1] += cp[ix][iz]*c*d*m;
-        um[ix  ][iz+1] += cp[ix][iz]*c*d*m;
-        up[ix+1][iz+1] += cp[ix][iz]*c*d*m;
-        up[ix+1][iz-1] += cp[ix][iz]*c*d*m;
-        um[ix  ][iz  ] += cp[ix][iz]*(a+b-2.0f*c)*d*m;
-        up[ix+1][iz  ] += cp[ix][iz]*(a+b-2.0f*c)*d*m;
-        ui[ix  ][iz  ] += cp[ix][iz]*(-2.0f*b)*d*m;
-        ui[ix+1][iz  ] += cp[ix][iz]*(-2.0f*b)*d*m;
-        um[ix+1][iz  ] += cp[ix][iz]*(b-a)*d*m;
-
-        //um[ix][iz] *= w;
-        //up[ix  ][iz-1] += cm[ix][iz]*c*d*m;
-        //up[ix  ][iz+1] += cm[ix][iz]*c*d*m;
-        //um[ix+1][iz+1] += cm[ix][iz]*c*d*m;
-        //um[ix+1][iz-1] += cm[ix][iz]*c*d*m;
-        //up[ix  ][iz  ] += cm[ix][iz]*(a+b-2.0f*c)*d*m;
-        //um[ix+1][iz  ] += cm[ix][iz]*(a+b-2.0f*c)*d*m;
-        //ui[ix  ][iz  ] += cm[ix][iz]*(-2.0f*b)*d*m;
-        //ui[ix+1][iz  ] += cm[ix][iz]*(-2.0f*b)*d*m;
-        //up[ix+1][iz  ] += cm[ix][iz]*(b-a)*d*m;
-      }
-    }
-
-  }
-
-  private void xabsorb(
-  final double[][] um, final double[][] ui, final double[][] up) {
-    final double oxt = (double)(1.0/(_dx*_dt));
-    final double oxx = (double)(1.0/(_dx*_dx));
-    final double ott = (double)(1.0/(_dt*_dt));
-    //final double[][] cp = copy(up);
-    final double[][] cp = up;
-    for (int ix=_ixa; ix<_ixb-1; ++ix) {
-      for (int iz=_izb; iz<_izc; ++iz) {
-        double si = _s[ix][iz];
-        double a =  0.50f*oxt;
-        double b = -0.50f*ott*si;
-        double c =  0.25f*oxx/si;
-        double vp = 1.0f/(a-b)*(
-          (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
-          (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
-          (um[ix+1][iz])*(b-a)
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        //up[iz][ix] -= m*up[iz][ix];
+        //up[iz][ix] += um[iz-1][ix  ]*c*d;
+        //up[iz][ix] += um[iz+1][ix  ]*c*d;
+        //up[iz][ix] += cp[iz+1][ix+1]*c*d;
+        //up[iz][ix] += cp[iz-1][ix+1]*c*d;
+        //up[iz][ix] += um[iz  ][ix  ]*(a+b-2.0f*c)*d;
+        //up[iz][ix] += cp[iz  ][ix+1]*(a+b-2.0f*c)*d;
+        //up[iz][ix] += ui[iz  ][ix  ]*(-2.0f*b)*d;
+        //up[iz][ix] += ui[iz  ][ix+1]*(-2.0f*b)*d;
+        //up[iz][ix] += um[iz  ][ix+1]*(b-a)*d;
+        up[iz][ix] += -m*up[iz][ix]+d*(
+          (um[iz-1][ix  ]+um[iz+1][ix  ]+cp[iz+1][ix+1]+cp[iz-1][ix+1])*c+
+          (um[iz  ][ix  ]+cp[iz  ][ix+1])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz  ][ix+1])*(-2.0f*b)+
+          (um[iz  ][ix+1])*(b-a)
         );
-        double w = _w[ix][iz];
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int ix=_ixd-1; ix>=_ixc+1; --ix) {
       for (int iz=_izb; iz<_izc; ++iz) {
-        double si = _s[ix][iz];
-        double a = -0.50f*oxt;
-        double b =  0.50f*ott*si;
-        double c = -0.25f*oxx/si;
-        double vp = 1.0f/(a-b)*(
-          (um[ix][iz-1]+um[ix][iz+1]+cp[ix-1][iz+1]+cp[ix-1][iz-1])*c+
-          (um[ix][iz]+cp[ix-1][iz])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix-1][iz])*(-2.0f*b)+
-          (um[ix-1][iz])*(b-a)
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz][ix] += -m*up[iz][ix]+d*(
+          (um[iz-1][ix  ]+um[iz+1][ix  ]+cp[iz+1][ix-1]+cp[iz-1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz  ][ix-1])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz  ][ix-1])*(-2.0f*b)+
+          (um[iz  ][ix-1])*(b-a)
         );
-        double w = _w[ix][iz];
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int iz=_iza; iz<_izb-1; ++iz) {
       for (int ix=_ixb; ix<_ixc; ++ix) {
-        double si = _s[ix][iz];
-        double a =  0.50f*oxt;
-        double b = -0.50f*ott*si;
-        double c =  0.25f*oxx/si;
-        double vp = 1.0f/(a-b)*(
-          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz+1]+cp[ix-1][iz+1])*c+
-          (um[ix][iz]+cp[ix][iz+1])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix][iz+1])*(-2.0f*b)+
-          (um[ix][iz+1])*(b-a)
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz][ix] += -m*up[iz][ix]+d*(
+          (um[iz  ][ix-1]+um[iz  ][ix+1]+cp[iz+1][ix+1]+cp[iz+1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz+1][ix  ])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz+1][ix  ])*(-2.0f*b)+
+          (um[iz+1][ix  ])*(b-a)
         );
-        double w = _w[ix][iz];
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int iz=_izd-1; iz>=_izc+1; --iz) {
       for (int ix=_ixb; ix<_ixc; ++ix) {
-        double si = _s[ix][iz];
-        double a = -0.50f*oxt;
-        double b =  0.50f*ott*si;
-        double c = -0.25f*oxx/si;
-        double vp = 1.0f/(a-b)*(
-          (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz-1]+cp[ix-1][iz-1])*c+
-          (um[ix][iz]+cp[ix][iz-1])*(a+b-2.0f*c)+
-          (ui[ix][iz]+ui[ix][iz-1])*(-2.0f*b)+
-          (um[ix][iz-1])*(b-a)
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz][ix] += -m*up[iz][ix]+d*(
+          (um[iz  ][ix-1]+um[iz  ][ix+1]+cp[iz-1][ix+1]+cp[iz-1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz-1][ix  ])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz-1][ix  ])*(-2.0f*b)+
+          (um[iz-1][ix  ])*(b-a)
         );
-        double w = _w[ix][iz];
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     // Corners
-    for (int ix=_ixa; ix<_ixb; ++ix) {
-      for (int iz=_iza; iz<_izb; ++iz) {
-        double w = _w[ix][iz];
-        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        double vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz][ix] += -m*up[iz][ix]+m*(
+          ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix])
+        );
       }
     }
-    for (int ix=_ixa; ix<_ixb; ++ix) {
-      for (int iz=_izc; iz<_izd; ++iz) {
-        double w = _w[ix][iz];
-        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        double vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz][ix] += -m*up[iz][ix]+m*(
+          ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix])
+        );
       }
     }
-    for (int ix=_ixc; ix<_ixd; ++ix) {
-      for (int iz=_iza; iz<_izb; ++iz) {
-        double w = _w[ix][iz];
-        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        double vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz][ix] += -m*up[iz][ix]+m*(
+          ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix])
+        );
       }
     }
-    for (int ix=_ixc; ix<_ixd; ++ix) {
-      for (int iz=_izc; iz<_izd; ++iz) {
-        double w = _w[ix][iz];
-        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        double vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
-        up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz][ix] += -m*up[iz][ix]+m*(
+          ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix])
+        );
       }
     }
   }
 
-  private static double[][] extendModel(double[][] c, int b) {
-    int nz = c[0].length;
-    int nx = c.length;
-    double[][] v = new double[nx+2*b][nz+2*b];
-    copy(nz,nx,0,0,c,b,b,v);
-    for (int ix=b; ix<nx+b; ++ix) {
-      for (int iz=0, jz=nz+b; iz<b; ++iz, ++jz) {
-        v[ix][iz] = v[ix][b];
-        v[ix][jz] = v[ix][nz+b-1];
+  public void adjointAbsorb(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    final float oxt = (float)(1.0/(_dx*_dt));
+    final float oxx = (float)(1.0/(_dx*_dx));
+    final float ott = (float)(1.0/(_dt*_dt));
+    final float[][] cp = copy(up);
+    //final float[][] cp = up;
+
+    for (int ix=_ixa; ix<_ixb-1; ++ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+        float si = _s[iz][ix];
+        float m = 1.0f-_w[iz][ix];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        um[iz-1][ix  ] += cp[iz][ix]*c*d;
+        um[iz+1][ix  ] += cp[iz][ix]*c*d;
+        up[iz+1][ix+1] += cp[iz][ix]*c*d;
+        up[iz-1][ix+1] += cp[iz][ix]*c*d;
+        um[iz  ][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        up[iz  ][ix+1] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        ui[iz  ][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        ui[iz  ][ix+1] += cp[iz][ix]*(-2.0f*b)*d;
+        um[iz  ][ix+1] += cp[iz][ix]*(b-a)*d;
       }
     }
-    for (int ix=0, jx=nx+b; ix<b; ++ix, ++jx) {
-      copy(v[b],v[ix]);
-      copy(v[nx+b-1],v[jx]);
+    for (int ix=_ixd-1; ix>=_ixc+1; --ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        um[iz-1][ix  ] += cp[iz][ix]*c*d;
+        um[iz+1][ix  ] += cp[iz][ix]*c*d;
+        up[iz+1][ix-1] += cp[iz][ix]*c*d;
+        up[iz-1][ix-1] += cp[iz][ix]*c*d;
+        um[iz  ][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        up[iz  ][ix-1] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        ui[iz  ][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        ui[iz  ][ix-1] += cp[iz][ix]*(-2.0f*b)*d;
+        um[iz  ][ix-1] += cp[iz][ix]*(b-a)*d;
+      }
     }
+    for (int iz=_iza; iz<_izb-1; ++iz) {
+      for (int ix=_ixb; ix<_ixc; ++ix) {
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        um[iz  ][ix-1] += cp[iz][ix]*c*d;
+        um[iz  ][ix+1] += cp[iz][ix]*c*d;
+        up[iz+1][ix+1] += cp[iz][ix]*c*d;
+        up[iz+1][ix-1] += cp[iz][ix]*c*d;
+        um[iz  ][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        up[iz+1][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        ui[iz  ][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        ui[iz+1][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        um[iz+1][ix  ] += cp[iz][ix]*(b-a)*d;
+      }
+    }
+    for (int iz=_izd-1; iz>=_izc+1; --iz) {
+      for (int ix=_ixb; ix<_ixc; ++ix) {
+        float si = _s[iz][ix];
+        float m =  1.0f-_w[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float d =  1.0f/(a-b)*m;
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        um[iz  ][ix-1] += cp[iz][ix]*c*d;
+        um[iz  ][ix+1] += cp[iz][ix]*c*d;
+        up[iz-1][ix+1] += cp[iz][ix]*c*d;
+        up[iz-1][ix-1] += cp[iz][ix]*c*d;
+        um[iz  ][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        up[iz-1][ix  ] += cp[iz][ix]*(a+b-2.0f*c)*d;
+        ui[iz  ][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        ui[iz-1][ix  ] += cp[iz][ix]*(-2.0f*b)*d;
+        um[iz-1][ix  ] += cp[iz][ix]*(b-a)*d;
+      }
+    }
+    // Corners
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        ui[iz  ][ix  ] += cp[iz][ix]*m;
+        ui[iz+1][ix  ] += cp[iz][ix]*m*r;
+        ui[iz  ][ix+1] += cp[iz][ix]*m*r;
+        ui[iz  ][ix  ] -= cp[iz][ix]*m*r*2.0f;
+      }
+    }
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        ui[iz  ][ix  ] += cp[iz][ix]*m;
+        ui[iz-1][ix  ] += cp[iz][ix]*m*r;
+        ui[iz  ][ix+1] += cp[iz][ix]*m*r;
+        ui[iz  ][ix  ] -= cp[iz][ix]*m*r*2.0f;
+      }
+    }
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        ui[iz  ][ix  ] += cp[iz][ix]*m;
+        ui[iz+1][ix  ] += cp[iz][ix]*m*r;
+        ui[iz  ][ix-1] += cp[iz][ix]*m*r;
+        ui[iz  ][ix  ] -= cp[iz][ix]*m*r*2.0f;
+      }
+    }
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float m = 1.0f-_w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        up[iz  ][ix  ] -= cp[iz][ix]*m;
+        ui[iz  ][ix  ] += cp[iz][ix]*m;
+        ui[iz-1][ix  ] += cp[iz][ix]*m*r;
+        ui[iz  ][ix-1] += cp[iz][ix]*m*r;
+        ui[iz  ][ix  ] -= cp[iz][ix]*m*r*2.0f;
+      }
+    }
+  }
+
+  private void absorb(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    final float oxt = (float)(1.0/(_dx*_dt));
+    final float oxx = (float)(1.0/(_dx*_dx));
+    final float ott = (float)(1.0/(_dt*_dt));
+    //final float[][] cp = copy(up);
+    final float[][] cp = up;
+    for (int ix=_ixa; ix<_ixb-1; ++ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+        float si = _s[iz][ix];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[iz-1][ix  ]+um[iz+1][ix  ]+cp[iz+1][ix+1]+cp[iz-1][ix+1])*c+
+          (um[iz  ][ix  ]+cp[iz  ][ix+1])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz  ][ix+1])*(-2.0f*b)+
+          (um[iz  ][ix+1])*(b-a)
+        );
+        float w = _w[iz][ix];
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int ix=_ixd-1; ix>=_ixc+1; --ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+        float si = _s[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[iz-1][ix  ]+um[iz+1][ix  ]+cp[iz+1][ix-1]+cp[iz-1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz  ][ix-1])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz  ][ix-1])*(-2.0f*b)+
+          (um[iz  ][ix-1])*(b-a)
+        );
+        float w = _w[iz][ix];
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int iz=_iza; iz<_izb-1; ++iz) {
+      for (int ix=_ixb; ix<_ixc; ++ix) {
+        float si = _s[iz][ix];
+        float a =  0.50f*oxt;
+        float b = -0.50f*ott*si;
+        float c =  0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[iz  ][ix-1]+um[iz  ][ix+1]+cp[iz+1][ix+1]+cp[iz+1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz+1][ix  ])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz+1][ix  ])*(-2.0f*b)+
+          (um[iz+1][ix  ])*(b-a)
+        );
+        float w = _w[iz][ix];
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int iz=_izd-1; iz>=_izc+1; --iz) {
+      for (int ix=_ixb; ix<_ixc; ++ix) {
+        float si = _s[iz][ix];
+        float a = -0.50f*oxt;
+        float b =  0.50f*ott*si;
+        float c = -0.25f*oxx/si;
+        float vp = 1.0f/(a-b)*(
+          (um[iz  ][ix-1]+um[iz  ][ix+1]+cp[iz-1][ix+1]+cp[iz-1][ix-1])*c+
+          (um[iz  ][ix  ]+cp[iz-1][ix  ])*(a+b-2.0f*c)+
+          (ui[iz  ][ix  ]+ui[iz-1][ix  ])*(-2.0f*b)+
+          (um[iz-1][ix  ])*(b-a)
+        );
+        float w = _w[iz][ix];
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    // Corners
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float w = _w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float vp = ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix]);
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixa; ix<_ixb; ++ix) {
+        float w = _w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float vp = ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix]);
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int iz=_iza; iz<_izb; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float w = _w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float vp = ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix]);
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+    for (int iz=_izc; iz<_izd; ++iz) {
+      for (int ix=_ixc; ix<_ixd; ++ix) {
+        float w = _w[iz][ix];
+        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float vp = ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix]);
+        up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
+      }
+    }
+  }
+
+  private static float[][] extendModel(float[][] c, int b) {
+    int nx = c[0].length;
+    int nz = c.length;
+    float[][] v = new float[nz+2*b][nx+2*b];
+    copy(nx,nz,0,0,c,b,b,v);
+    for (int iz=b; iz<nz+b; ++iz) {
+      for (int ix=0, jx=nx+b; ix<b; ++ix, ++jx) {
+        v[iz][ix] = v[iz][b];
+        v[iz][jx] = v[iz][nx+b-1];
+      }
+    }
+    for (int iz=0, jz=nz+b; iz<b; ++iz, ++jz) {
+      copy(v[b],v[iz]);
+      copy(v[nz+b-1],v[jz]);
+    }
+    //SimplePlot.asPixels(v).addColorBar();
     return v;
   }
 
-  private void addRandomBoundary(double maxPerturb, double[][] s) {
-    double[][] r = new double[_nx][_nz];
-    Random random = new Random(012345);
-    for (int ix=0; ix<_nx; ++ix) {
-      for (int iz=0; iz<_nz; ++iz) {
-        double wi = 1.0f-_w[ix][iz];
-        wi *= wi;
-        if (wi>0.0f) {
-          s[ix][iz] += wi*maxPerturb*(1.1f*random.nextFloat()-1.0f);
-        }
-      }
-    }
-    SimplePlot.asPixels(s);
-  }
-
-  private double[][] makeWeights() {
+  private float[][] makeWeights() {
     int fd = FD_ORDER/2;
-    double ob = 1.0f/(_b-1.0f);
-    double[][] w = new double[_nx][_nz];
+    float ob = 1.0f/(_b-1.0f);
+    float[][] w = new float[_nz][_nx];
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=ix; iz<_nz-ix; ++iz) {
-        w[ix      ][iz] = (ix-fd)*ob;
-        w[_nx-1-ix][iz] = (ix-fd)*ob;
+        w[iz][ix      ] = (ix-fd)*ob;
+        w[iz][_nx-1-ix] = (ix-fd)*ob;
       }
     }
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=iz; ix<_nx-iz; ++ix) {
-        w[ix][iz      ] = (iz-fd)*ob;
-        w[ix][_nz-1-iz] = (iz-fd)*ob;
+        w[iz      ][ix] = (iz-fd)*ob;
+        w[_nz-1-iz][ix] = (iz-fd)*ob;
       }
     }
-    for (int ix=_ixb; ix<_ixc; ++ix) {
-      for (int iz=_izb; iz<_izc; ++iz) {
-        w[ix][iz] = 1.0f;
+    for (int iz=_izb; iz<_izc; ++iz) {
+      for (int ix=_ixb; ix<_ixc; ++ix) {
+        w[iz][ix] = 1.0f;
       }
     }
     //SimplePlot.asPixels(w).addColorBar();

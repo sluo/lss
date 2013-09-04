@@ -10,7 +10,7 @@ sx = Sampling(12,0.016,0.0)
 st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
-#st = Sampling(2003,0.0012,0.0)
+#st = Sampling(203,0.0012,0.0)
 #sz = Sampling(101,0.032,0.0)
 #sx = Sampling(102,0.032,0.0)
 #st = Sampling(1003,0.0024,0.0)
@@ -25,46 +25,47 @@ st = Sampling(13,0.0012,0.0)
 #st = Sampling(2501,0.0024,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-#xs,zs = [nx/2],[0]
+xs,zs = [nx/2],[0]
+#xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-xs,zs = rampint(25,25,22),fillint(0,22)
+#xs,zs = rampint(25,25,22),fillint(0,22)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 12.0 # Ricker wavelet peak frequency
-nabsorb = 102 # absorbing boundary size
+nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
   #plot(getMarmousi(5))
   #goForward()
   #goMigration()
-  #adjointTest()
-  #dotTest()
-
-  absorbAdjointTest()
+  adjointTest()
+  #absorbAdjointTest()
 
 def goForward():
+  s = fillfloat(0.25,nx,nz)
   #s = getLayeredModel() # slowness model
-  s = getMarmousi(stride)
-  u = zerofloat(nzp,nxp,nt) # wavefield
+  #s = getMarmousi(stride)
+  u = zerofloat(nxp,nzp,nt) # wavefield
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
-  source = AcousticWaveOperator.RickerSource(xs,zs,dt,fpeak)
+  source = AcousticWaveOperator.RickerSource(xs[0],zs[0],dt,fpeak)
   receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
   sw = Stopwatch(); sw.start()
   awo.applyForward(source,receiver,u)
   print sw.time()
   d = receiver.getData()
-  plot(s,cmap=jet,title="slowness (s/km)")
-  plot(d,cmap=gray,perc=99.0,title="data")
-  #display(u,perc=99.0,title="wavefield")
+  plot(u[500])
+#  plot(s,cmap=jet,title="slowness (s/km)")
+#  plot(d,cmap=gray,perc=99.0,title="data")
+#  #display(u,perc=99.0,title="wavefield")
 
 def goMigration():
   #s = getLayeredModel() # true slowness
   s = getMarmousi(stride) # true slowness
   b = refSmooth(0.1,s) # smooth slowness
   #b = copy(s) # smooth slowness
-  u = zerofloat(nzp,nxp,nt) # forward wavefield
-  a = zerofloat(nzp,nxp,nt) # adjoint wavefield
+  u = zerofloat(nxp,nzp,nt) # forward wavefield
+  a = zerofloat(nxp,nzp,nt) # adjoint wavefield
   r = zerofloat(nz,nx) # image
   awoS = AcousticWaveOperator(s,dx,dt,nabsorb) # awo with true slowness
   awoB = AcousticWaveOperator(b,dx,dt,nabsorb) # awo with smooth slowness
@@ -102,16 +103,18 @@ def adjointTest():
   add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
   random = Random(01234)
   #random = Random()
-  ua = add(randfloat(random,nzp,nxp,nt),0.0)
-  ub = add(randfloat(random,nzp,nxp,nt),0.0)
-  RecursiveGaussianFilter(1.0).applyXX2(ua,ua)
-  RecursiveGaussianFilter(1.0).applyXX2(ub,ub)
-  va = copy(ua)
-  vb = copy(ub)
+  sa = add(randfloat(random,nzp,nxp,nt),0.0)
+  sb = add(randfloat(random,nzp,nxp,nt),0.0)
+  va = copy(sa)
+  vb = copy(sb)
+  ua = zerofloat(nzp,nxp,nt)
+  ub = zerofloat(nzp,nxp,nt)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
   sw = Stopwatch(); sw.start()
-  awo.applyForward(AcousticWaveOperator.WavefieldSource(ua),ua)
-  awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(ub),ub)
+  awo.applyForward(AcousticWaveOperator.WavefieldSource(sa),ua)
+  print 'time:',sw.time(); sw.restart()
+  for i in range(1):
+    awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(sb),ub)
   sw.stop(); print 'time:',sw.time()
   print 'sum(ua)=%f'%sum(ua)
   print 'sum(ub)=%f'%sum(ub)
@@ -122,21 +125,18 @@ def adjointTest():
   print sum2
 
 def absorbAdjointTest():
-  s = filldouble(0.25,nz,nx)
-  add(mul(add(randdouble(Random(0),nz,nx),-0.5),0.05),s,s)
+  s = fillfloat(0.25,nz,nx)
+  add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
   random = Random(01234)
   #random = Random()
-  ua = add(randdouble(random,nzp,nxp,3),0.0)
-  ub = add(randdouble(random,nzp,nxp,3),0.0)
-  #RecursiveGaussianFilter(1.0).applyXX2(ua,ua)
-  #RecursiveGaussianFilter(1.0).applyXX2(ub,ub)
+  ua = add(randfloat(random,nzp,nxp,3),0.0)
+  ub = add(randfloat(random,nzp,nxp,3),0.0)
   va = copy(ua)
   vb = copy(ub)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
   sw = Stopwatch(); sw.start()
-  awo.absorbForward(ua[0],ua[1],ua[2])
-  #awo.absorbForward(ub[0],ub[1],ub[2])
-  awo.absorbAdjoint(ub[0],ub[1],ub[2])
+  awo.forwardAbsorb(ua[0],ua[1],ua[2])
+  awo.adjointAbsorb(ub[0],ub[1],ub[2])
   sw.stop(); print 'time:',sw.time()
   print 'sum(ua)=%f'%sum(ua)
   print 'sum(ub)=%f'%sum(ub)
@@ -177,12 +177,13 @@ def dotTest():
 
 def getLayeredModel():
   """Make slowness (s/km) model."""
-  s = fillfloat(0.5,nz,nx)
-  for ix in range(nx):
-    for iz in range(nz/3,2*nz/3):
-      s[ix][iz] = 0.35
-    for iz in range(2*nz/3,nz):
-      s[ix][iz] = 0.2
+  s = fillfloat(0.5,nx,nz)
+  for iz in range(nz/3,2*nz/3):
+    for ix in range(nx):
+      s[iz][ix] = 0.35
+  for iz in range(2*nz/3,nz):
+    for ix in range(nx):
+      s[iz][ix] = 0.2
   return s
 
 def like(x):
@@ -218,7 +219,7 @@ def getMarmousi(stride=3):
   print "nx =",nx
   t = fillfloat(2.0/3.0,nz,nx)
   copy(nz-wa,nx,0,0,stride,stride,p,wa,0,1,1,t)
-  return t
+  return transpose(t)
 
 def iceil(x):
   return int(ceil(x))
