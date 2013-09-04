@@ -33,7 +33,7 @@ xs,zs = rampint(2,11,53),fillint(0,53)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 12.0 # Ricker wavelet peak frequency
-nabsorb = 12 # absorbing boundary size
+nabsorb = 10 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
