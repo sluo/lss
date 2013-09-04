@@ -5,30 +5,31 @@ from imports import *
 
 #############################################################################
 
-sz = Sampling(11,0.016,0.0)
-sx = Sampling(12,0.016,0.0)
-st = Sampling(13,0.0012,0.0)
+#sz = Sampling(11,0.016,0.0)
+#sx = Sampling(12,0.016,0.0)
+#st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
-#st = Sampling(203,0.0012,0.0)
+#st = Sampling(2003,0.0012,0.0)
 #sz = Sampling(101,0.032,0.0)
 #sx = Sampling(102,0.032,0.0)
 #st = Sampling(1003,0.0024,0.0)
 #sz = Sampling(265,0.012,0.0); stride = 3
 #sx = Sampling(767,0.012,0.0)
 #st = Sampling(5001,0.0012,0.0)
-#sz = Sampling(199,0.016,0.0); stride = 4
-#sx = Sampling(576,0.016,0.0)
-#st = Sampling(5001,0.0012,0.0)
+sz = Sampling(199,0.016,0.0); stride = 4
+sx = Sampling(576,0.016,0.0)
+st = Sampling(5001,0.0012,0.0)
 #sz = Sampling(159,0.020,0.0); stride = 5
 #sx = Sampling(461,0.020,0.0)
 #st = Sampling(2501,0.0024,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
-xs,zs = [nx/2],[0]
+#xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
 #xs,zs = rampint(25,25,22),fillint(0,22)
+xs,zs = rampint(2,11,53),fillint(0,53)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 12.0 # Ricker wavelet peak frequency
@@ -38,8 +39,8 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 def main(args):
   #plot(getMarmousi(5))
   #goForward()
-  #goMigration()
-  adjointTest()
+  goMigration()
+  #ajointTest()
   #absorbAdjointTest()
 
 def goForward():
@@ -66,7 +67,7 @@ def goMigration():
   #b = copy(s) # smooth slowness
   u = zerofloat(nxp,nzp,nt) # forward wavefield
   a = zerofloat(nxp,nzp,nt) # adjoint wavefield
-  r = zerofloat(nz,nx) # image
+  r = zerofloat(nx,nz) # image
   awoS = AcousticWaveOperator(s,dx,dt,nabsorb) # awo with true slowness
   awoB = AcousticWaveOperator(b,dx,dt,nabsorb) # awo with smooth slowness
   receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
@@ -82,9 +83,9 @@ def goMigration():
     add(AcousticWaveOperator.collapse(u,a,nabsorb),r,r)
   sw.stop(); print 'time:',sw.time()
   #print sum(u); print sum(a); print sum(r)
-  for ix in range(nx):
-    for iz in range(int(0.2/dx)):
-      r[ix][iz] = 0.0
+  for iz in range(int(0.2/dx)):
+    for ix in range(nx):
+      r[iz][ix] = 0.0
       pass
   plot(s)
   plot(b)
@@ -99,16 +100,16 @@ def refSmooth(sigma,x):
   return y
 
 def adjointTest():
-  s = fillfloat(0.25,nz,nx)
-  add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
+  s = fillfloat(0.25,nx,nz)
+  add(mul(add(randfloat(Random(0),nx,nz),-0.5),0.05),s,s)
   random = Random(01234)
   #random = Random()
-  sa = add(randfloat(random,nzp,nxp,nt),0.0)
-  sb = add(randfloat(random,nzp,nxp,nt),0.0)
+  sa = add(randfloat(random,nxp,nzp,nt),0.0)
+  sb = add(randfloat(random,nxp,nzp,nt),0.0)
   va = copy(sa)
   vb = copy(sb)
-  ua = zerofloat(nzp,nxp,nt)
-  ub = zerofloat(nzp,nxp,nt)
+  ua = zerofloat(nxp,nzp,nt)
+  ub = zerofloat(nxp,nzp,nt)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
   sw = Stopwatch(); sw.start()
   awo.applyForward(AcousticWaveOperator.WavefieldSource(sa),ua)
@@ -125,12 +126,12 @@ def adjointTest():
   print sum2
 
 def absorbAdjointTest():
-  s = fillfloat(0.25,nz,nx)
-  add(mul(add(randfloat(Random(0),nz,nx),-0.5),0.05),s,s)
+  s = fillfloat(0.25,nx,nz)
+  add(mul(add(randfloat(Random(0),nx,nz),-0.5),0.05),s,s)
   random = Random(01234)
   #random = Random()
-  ua = add(randfloat(random,nzp,nxp,3),0.0)
-  ub = add(randfloat(random,nzp,nxp,3),0.0)
+  ua = add(randfloat(random,nxp,nzp,3),0.0)
+  ub = add(randfloat(random,nxp,nzp,3),0.0)
   va = copy(ua)
   vb = copy(ub)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
@@ -214,9 +215,9 @@ def getMarmousi(stride=3):
   wa = iceil(0.2/(0.004*stride))
   nz = iceil(743.0/stride)+wa
   nx = iceil(2301.0/stride)
-  print "wa =",wa
-  print "nz =",nz
-  print "nx =",nx
+  #print "wa =",wa
+  #print "nz =",nz
+  #print "nx =",nx
   t = fillfloat(2.0/3.0,nz,nx)
   copy(nz-wa,nx,0,0,stride,stride,p,wa,0,1,1,t)
   return transpose(t)
@@ -240,6 +241,7 @@ gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
 def plot(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
+  x = transpose(x)
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   cb = sp.addColorBar()
   cb.setWidthMinimum(100)

@@ -11,6 +11,7 @@ import edu.mines.jtk.mosaic.*;
 
 // TODO
 // Avoid copy in adjointAbsorb?
+// Speed up adjointStep.
 
 public class AcousticWaveOperator {
 
@@ -251,34 +252,6 @@ public class AcousticWaveOperator {
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
 
-  private void xapply(
-  boolean forward, Source source, Receiver receiver, float[][][] u) {
-    int nt = (receiver==null)?u.length:receiver.getNt();
-    float[][] um,ui,up;
-    if (forward) {
-      for (int it=1; it<nt-1; ++it) {
-        um = (it>0)?u[it-1]:new float[_nz][_nx];
-        ui = u[it];
-        up = (it<nt-1)?u[it+1]:new float[_nz][_nx];
-        //um = (it>1)?u[it-2]:new float[_nz][_nx];
-        //ui = (it>0)?u[it-1]:new float[_nz][_nx];
-        //up = u[it];
-        step(true,um,ui,up);
-        //forwardStep(um,ui,up);
-      }
-    } else {
-      for (int it=nt-2; it>=1; --it) {
-        um = (it>0)?u[it-1]:new float[_nz][_nx];
-        ui = u[it];
-        up = (it<nt-1)?u[it+1]:new float[_nz][_nx];
-        //um = (it>1)?u[it-2]:new float[_nz][_nx];
-        //ui = (it>0)?u[it-1]:new float[_nz][_nx];
-        //up = u[it];
-        step(false,up,ui,um);
-        //adjointStep(um,ui,up);
-      }
-    }
-  }
   private void apply(
   boolean forward, Source source, Receiver receiver, float[][][] u) {
     int nt = (u==null)?receiver.getNt():u.length;
@@ -297,10 +270,10 @@ public class AcousticWaveOperator {
     source.add(ui,fit-pit  ,_nabsorb);
     for (int it=fit, count=0; count<nt-2; it+=pit, ++count) {
 
-      // ...finish rotate.
-      if (u==null) { // next time
+      // Set next time step.
+      if (u==null) {
         up = ut;
-        zero(ut); // necessary only if using += for injection
+        zero(ut); // necessary if using += for injection
       } else {
         up = u[it];
       }
@@ -314,27 +287,17 @@ public class AcousticWaveOperator {
         adjointAbsorb(up,ui,um);
         source.add(up,it,_nabsorb);
         adjointStep(up,ui,um);
+        //forwardStep(um,ui,up);
+        //source.add(up,it,_nabsorb);
+        //forwardAbsorb(um,ui,up);
       }
 
       // Set data.
       if (receiver!=null)
-        receiver.setData(up,it,_nabsorb); // data
+        receiver.setData(up,it,_nabsorb);
 
-      // Begin rotate...
-      ut = um; um = ui; ui = up; // rotate arrays
-    }
-  }
-
-  private void step(
-  boolean forward, float[][] um, float[][] ui, float[][] up) {
-    if (forward) {
-      forwardStep(um,ui,up);
-      forwardAbsorb(um,ui,up);
-    } else {
-      adjointAbsorb(up,ui,um);
-      adjointStep(up,ui,um);
-      //forwardStep(um,ui,up);
-      //forwardAbsorb(um,ui,up);
+      // Rotate arrays.
+      ut = um; um = ui; ui = up;
     }
   }
 
