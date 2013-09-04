@@ -12,7 +12,7 @@ import edu.mines.jtk.mosaic.*;
 public class AcousticWaveOperator {
 
   // count number of same digits
-  public static int compareDigits(float xa, float xb) {
+  public static int compareDigits(double xa, double xb) {
     int significantDigits = 10;
     boolean matches = false;
     while (!matches && significantDigits>0) {
@@ -25,14 +25,14 @@ public class AcousticWaveOperator {
     return significantDigits;
   }
 
-  public static float dot(float[][][] u, float[][][] a) {
+  public static double dot(double[][][] u, double[][][] a) {
     return dot(u,a,0);
   }
-  public static float dot(float[][][] u, float[][][] a, int nabsorb) {
+  public static double dot(double[][][] u, double[][][] a, int nabsorb) {
     int nz = u[0][0].length;
     int nx = u[0].length;
     int nt = u.length;
-    float sum = 0.0f;
+    double sum = 0.0f;
     for (int it=0; it<nt; ++it)
       for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
         for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
@@ -43,7 +43,7 @@ public class AcousticWaveOperator {
   //////////////////////////////////////////////////////////////////////////
 
   public AcousticWaveOperator(
-  float[][] s, double dx, double dt, int nabsorb) {
+  double[][] s, double dx, double dt, int nabsorb) {
     int nz = s[0].length;
     int nx = s.length;
     Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
@@ -66,7 +66,7 @@ public class AcousticWaveOperator {
     _izc = _izb+nz;
     _izd = _izc+_b;
     _w = makeWeights();
-    float scale = (float)(_dt*_dt/(_dx*_dx));
+    double scale = (double)(_dt*_dt/(_dx*_dx));
     _s = extendModel(s,nabsorb);
     //addRandomBoundary(0.15f,_s);
     _r = copy(_s);
@@ -89,7 +89,7 @@ public class AcousticWaveOperator {
   */
 
   public void applyForward(
-  Source source, float[][][] u) {
+  Source source, double[][][] u) {
     apply(true,source,null,u);
   }
 
@@ -99,12 +99,12 @@ public class AcousticWaveOperator {
   }
 
   public void applyForward(
-  Source source, Receiver receiver, float[][][] u) {
+  Source source, Receiver receiver, double[][][] u) {
     apply(true,source,receiver,u);
   }
 
   public void applyAdjoint(
-  Source source, float[][][] u) {
+  Source source, double[][][] u) {
     apply(false,source,null,u);
   }
 
@@ -114,25 +114,25 @@ public class AcousticWaveOperator {
   }
 
   public void applyAdjoint(
-  Source source, Receiver receiver, float[][][] u) {
+  Source source, Receiver receiver, double[][][] u) {
     apply(false,source,receiver,u);
   }
 
   //////////////////////////////////////////////////////////////////////////
   // static
 
-  public static float[][] crop(float[][] x, int nabsorb) {
+  public static double[][] crop(double[][] x, int nabsorb) {
     int nz = x[0].length;
     int nx = x.length;
     return copy(nz-2*nabsorb,nx-2*nabsorb,nabsorb,nabsorb,x);
   }
 
-  public static float[][] collapse(
-  float[][][] u, float[][][] a, int nabsorb) {
+  public static double[][] collapse(
+  double[][][] u, double[][][] a, int nabsorb) {
     int nz = u[0][0].length;
     int nx = u[0].length;
     int nt = u.length;
-    float[][] y = new float[nx-2*nabsorb][nz-2*nabsorb];
+    double[][] y = new double[nx-2*nabsorb][nz-2*nabsorb];
     for (int it=0; it<nt; ++it)
       for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
         for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
@@ -141,7 +141,7 @@ public class AcousticWaveOperator {
   }
 
   public static interface Source {
-    public void add(float[][] ui, int it, int nabsorb);
+    public void add(double[][] ui, int it, int nabsorb);
   }
 
   public static class RickerSource implements Source {
@@ -152,13 +152,13 @@ public class AcousticWaveOperator {
       _xs = xs;
       _zs = zs;
     }
-    public void add(float[][] ui, int it, int nabsorb) {
+    public void add(double[][] ui, int it, int nabsorb) {
       ui[_xs+nabsorb][_zs+nabsorb] += ricker(it*_dt-_tdelay);
     }
-    private float ricker(double t) {
+    private double ricker(double t) {
       double x = PI*_fpeak*t;
       double xx = x*x;
-      return (float)((1.0-2.0*xx)*exp(-xx));
+      return (double)((1.0-2.0*xx)*exp(-xx));
     }
     private int _xs,_zs;
     private double _dt,_fpeak,_tdelay;
@@ -173,7 +173,7 @@ public class AcousticWaveOperator {
       _nt = receiver.getNt();
       _data = receiver.getData();
     }
-    public void add(float[][] ui, int it, int nabsorb) {
+    public void add(double[][] ui, int it, int nabsorb) {
       if (it>=_nt) 
         return;
       for (int ir=0; ir<_nr; ++ir) {
@@ -184,21 +184,21 @@ public class AcousticWaveOperator {
     }
     private int _nr,_nt;
     private int[] _xr, _zr;
-    private float[][] _data;
+    private double[][] _data;
   }
 
   public static class WavefieldSource implements Source {
-    public WavefieldSource(float[][][] u) {
+    public WavefieldSource(double[][][] u) {
       _nz = u[0][0].length;
       _nx = u[0].length;
       _u = u;
     }
-    public void add(float[][] ui, int it, int nabsorb) {
+    public void add(double[][] ui, int it, int nabsorb) {
       for (int ix=0; ix<_nx; ++ix)
         for (int iz=0; iz<_nz; ++iz)
           ui[ix][iz] += _u[it][ix][iz];
     }
-    private float[][][] _u;
+    private double[][][] _u;
     private int _nz,_nx;
   }
 
@@ -214,9 +214,9 @@ public class AcousticWaveOperator {
       _nt = nt;
       _xr = xr;
       _zr = zr;
-      _data = new float[_nr][nt];
+      _data = new double[_nr][nt];
     }
-    public void setData(float[][] ui, int it, int nabsorb) {
+    public void setData(double[][] ui, int it, int nabsorb) {
       for (int ir=0; ir<_nr; ++ir) {
         int xr = _xr[ir]+nabsorb;
         int zr = _zr[ir]+nabsorb;
@@ -226,7 +226,7 @@ public class AcousticWaveOperator {
     public int[][] getIndices() {
       return new int[][]{_xr,_zr};
     }
-    public float[][] getData() {
+    public double[][] getData() {
       return _data;
     }
     public int getNt() {
@@ -237,7 +237,7 @@ public class AcousticWaveOperator {
     }
     private int _nr,_nt;
     private int[] _xr, _zr;
-    private float[][] _data;
+    private double[][] _data;
   }
 
   //////////////////////////////////////////////////////////////////////////
@@ -246,46 +246,46 @@ public class AcousticWaveOperator {
   private int _b,_nabsorb; // absorbing boundary
   private int _nx,_nz;
   private double _dx,_dt;
-  private float[][] _s; // slowness
-  private float[][] _r; // dt^2/(dx^2*s^2)
-  private float[][] _w; // weights for boundary
+  private double[][] _s; // slowness
+  private double[][] _r; // dt^2/(dx^2*s^2)
+  private double[][] _w; // weights for boundary
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
 
 //  private static final int FD_ORDER = 2;
-//  private static final float C0 = -4.0f;
-//  private static final float C1 =  1.0f;
+//  private static final double C0 = -4.0f;
+//  private static final double C1 =  1.0f;
 //  private void apply(
-//  boolean forward, Source source, Receiver receiver, float[][][] u) {
+//  boolean forward, Source source, Receiver receiver, double[][][] u) {
 //    int nt = (receiver==null)?u.length:receiver.getNt();
-//    float[][] um,ui,up;
+//    double[][] um,ui,up;
 //    if (forward) {
 //      for (int it=0; it<nt; ++it) {
-//        um = (it>0)?u[it-1]:new float[_nx][_nz];
+//        um = (it>0)?u[it-1]:new double[_nx][_nz];
 //        ui = u[it];
-//        up = (it<nt-1)?u[it+1]:new float[_nx][_nz];
+//        up = (it<nt-1)?u[it+1]:new double[_nx][_nz];
 //        forwardStep(um,ui,up);
 //      }
 //    /*
 //    } else {
 //      for (int it=nt-1; it>=0; --it) {
-//        up = (it>0)?u[it-1]:new float[_nx][_nz];
+//        up = (it>0)?u[it-1]:new double[_nx][_nz];
 //        ui = u[it];
-//        um = (it<nt-1)?u[it+1]:new float[_nx][_nz];
+//        um = (it<nt-1)?u[it+1]:new double[_nx][_nz];
 //        forwardStep(um,ui,up);
 //      }
 //    */
 //    } else {
 //      for (int it=nt-1; it>=0; --it) {
-//        um = (it>0)?u[it-1]:new float[_nx][_nz];
+//        um = (it>0)?u[it-1]:new double[_nx][_nz];
 //        ui = u[it];
-//        up = (it<nt-1)?u[it+1]:new float[_nx][_nz];
+//        up = (it<nt-1)?u[it+1]:new double[_nx][_nz];
 //        adjointStep(um,ui,up);
 //      }
 //    }
 //  }
 //  private void forwardStep(
-//  final float[][] um, final float[][] ui, final float[][] up) {
+//  final double[][] um, final double[][] ui, final double[][] up) {
 //    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
 //    public void compute(int ix) {
 //      int ixm1 = ix-1;
@@ -297,7 +297,7 @@ public class AcousticWaveOperator {
 //        int izp1 = iz+1;
 //        int izm2 = iz-2;
 //        int izp2 = iz+2;
-//        float r = _r[ix][iz];
+//        double r = _r[ix][iz];
 //
 //        /*
 //        up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
@@ -313,7 +313,7 @@ public class AcousticWaveOperator {
 //    }});
 //  }
 //  private void adjointStep(
-//  final float[][] um, final float[][] ui, final float[][] up) {
+//  final double[][] um, final double[][] ui, final double[][] up) {
 //    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
 //    public void compute(int ix) {
 //      int ixm1 = ix-1;
@@ -325,7 +325,7 @@ public class AcousticWaveOperator {
 //        int izp1 = iz+1;
 //        int izm2 = iz-2;
 //        int izp2 = iz+2;
-//        float r = _r[ix][iz];
+//        double r = _r[ix][iz];
 //
 //        /*
 //        um[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-up[ix][iz]+r*(
@@ -342,12 +342,12 @@ public class AcousticWaveOperator {
 //  }
 
   private void apply(
-  boolean forward, Source source, Receiver receiver, float[][][] u) {
+  boolean forward, Source source, Receiver receiver, double[][][] u) {
     int nt = (u==null)?receiver.getNt():u.length;
-    float[][] ut = new float[_nx][_nz]; // temp
-    float[][] um = new float[_nx][_nz]; // it-1
-    float[][] ui = new float[_nx][_nz]; // it
-    float[][] up;                       // it+1
+    double[][] ut = new double[_nx][_nz]; // temp
+    double[][] um = new double[_nx][_nz]; // it-1
+    double[][] ui = new double[_nx][_nz]; // it
+    double[][] up;                       // it+1
     int fit = (forward)?0:nt-1;
     int pit = (forward)?1:-1;
     for (int it=fit, count=0; count<nt; it+=pit, ++count) {
@@ -359,7 +359,7 @@ public class AcousticWaveOperator {
       }
       //up = (u==null)?ut:u[it]; // next time 
       step(forward,um,ui,up); // time step 
-      source.add(up,it,_nabsorb); // inject source (off for adjoint test)
+      //source.add(up,it,_nabsorb); // inject source (off for adjoint test)
       absorb(um,ui,up); // absorbing boundaries (off for adjoint test)
       if (receiver!=null)
         receiver.setData(up,it,_nabsorb); // data
@@ -369,7 +369,7 @@ public class AcousticWaveOperator {
 
   private void step(
   final boolean forward,
-  final float[][] um, final float[][] ui, final float[][] up) {
+  final double[][] um, final double[][] ui, final double[][] up) {
     if (forward) {
       Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
       public void compute(int ix) {
@@ -386,21 +386,21 @@ public class AcousticWaveOperator {
 
 //  // 20th order coefficients
 //  private static final int FD_ORDER = 20;
-//  private static final float C00 = -0.32148051f*10.0f*2.0f;
-//  private static final float C01 =  0.19265816f*10.0f;
-//  private static final float C02 = -0.43052632f*1.0f;
-//  private static final float C03 =  0.15871000f*1.0f;
-//  private static final float C04 = -0.68711400f*0.1f;
-//  private static final float C05 =  0.31406935f*0.1f;
-//  private static final float C06 = -0.14454222f*0.1f;
-//  private static final float C07 =  0.65305182f*0.01f;
-//  private static final float C08 = -0.28531535f*0.01f;
-//  private static final float C09 =  0.11937032f*0.01f;
-//  private static final float C10 = -0.47508613f*0.001f;
+//  private static final double C00 = -0.32148051f*10.0f*2.0f;
+//  private static final double C01 =  0.19265816f*10.0f;
+//  private static final double C02 = -0.43052632f*1.0f;
+//  private static final double C03 =  0.15871000f*1.0f;
+//  private static final double C04 = -0.68711400f*0.1f;
+//  private static final double C05 =  0.31406935f*0.1f;
+//  private static final double C06 = -0.14454222f*0.1f;
+//  private static final double C07 =  0.65305182f*0.01f;
+//  private static final double C08 = -0.28531535f*0.01f;
+//  private static final double C09 =  0.11937032f*0.01f;
+//  private static final double C10 = -0.47508613f*0.001f;
 //  private void forwardStepSliceX(
-//  int ix, float[][] um, float[][] ui, float[][] up) {
+//  int ix, double[][] um, double[][] ui, double[][] up) {
 //    for (int iz=_iza; iz<_izd; ++iz) {
-//      float r = _r[ix][iz];
+//      double r = _r[ix][iz];
 //      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+r*(
 //        C01*(ui[ix-1][iz]+ui[ix][iz-1]+ui[ix][iz+1]+ui[ix+1][iz])+
 //        C02*(ui[ix-2][iz]+ui[ix][iz-2]+ui[ix][iz+2]+ui[ix+2][iz])+
@@ -415,9 +415,9 @@ public class AcousticWaveOperator {
 //    }
 //  }
 //  private void adjointStepSliceX(
-//  int ix, float[][] um, float[][] ui, float[][] up) {
+//  int ix, double[][] um, double[][] ui, double[][] up) {
 //    for (int iz=_iza; iz<_izd; ++iz) {
-//      float r = _r[ix][iz];
+//      double r = _r[ix][iz];
 //      up[ix][iz] += (2.0f+C00*r)*ui[ix][iz]-um[ix][iz]+
 //        C01*(_r[ix-1][iz  ]*ui[ix-1][iz  ]+
 //             _r[ix  ][iz-1]*ui[ix  ][iz-1]+
@@ -466,13 +466,13 @@ public class AcousticWaveOperator {
   // Patra, M. and M. Karttunen, 2005, Stencils
   // with Isotropic Error for Differential Operators.
   private static final int FD_ORDER = 4;
-  private static final float C0 = -9.0f/2.0f;
-  private static final float C1 =  16.0f/15.0f;
-  private static final float C2 =  2.0f/15.0f;
-  private static final float C3 = -1.0f/15.0f;
-  private static final float C4 = -1.0f/120.0f;
+  private static final double C0 = -9.0f/2.0f;
+  private static final double C1 =  16.0f/15.0f;
+  private static final double C2 =  2.0f/15.0f;
+  private static final double C3 = -1.0f/15.0f;
+  private static final double C4 = -1.0f/120.0f;
   private void forwardStepSliceX(
-  int ix, float[][] um, float[][] ui, float[][] up) {
+  int ix, double[][] um, double[][] ui, double[][] up) {
     int ixm1 = ix-1;
     int ixp1 = ix+1;
     int ixm2 = ix-2;
@@ -482,7 +482,7 @@ public class AcousticWaveOperator {
       int izp1 = iz+1;
       int izm2 = iz-2;
       int izp2 = iz+2;
-      float r = _r[ix][iz];
+      double r = _r[ix][iz];
       // FIXME: Source injection replaces += needed to pass adjoint test.
       up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
         C1*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
@@ -492,7 +492,7 @@ public class AcousticWaveOperator {
     }
   }
   private void adjointStepSliceX(
-  int ix, float[][] um, float[][] ui, float[][] up) {
+  int ix, double[][] um, double[][] ui, double[][] up) {
     int ixm1 = ix-1;
     int ixp1 = ix+1;
     int ixm2 = ix-2;
@@ -502,7 +502,7 @@ public class AcousticWaveOperator {
       int izp1 = iz+1;
       int izm2 = iz-2;
       int izp2 = iz+2;
-      float r = _r[ix][iz];
+      double r = _r[ix][iz];
       // FIXME: Source injection replaces += needed to pass adjoint test.
       up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+
         C1*(_r[ix  ][izm1]*
@@ -537,7 +537,6 @@ public class AcousticWaveOperator {
             ui[ixp2][izm2]+
             _r[ixp2][izp2]*
             ui[ixp2][izp2]);
-
     }
   }
 
@@ -545,13 +544,13 @@ public class AcousticWaveOperator {
 //  // Patra, M. and M. Karttunen, 2005, Stencils
 //  // with Isotropic Error for Differential Operators.
 //  private static final int FD_ORDER = 4;
-//  private static final float C0 = -21.0f/5.0f;
-//  private static final float C1 =  13.0f/15.0f;
-//  private static final float C2 =  4.0f/15.0f;
-//  private static final float C3 = -1.0f/60.0f;
-//  private static final float C4 = -1.0f/30.0f;
+//  private static final double C0 = -21.0f/5.0f;
+//  private static final double C1 =  13.0f/15.0f;
+//  private static final double C2 =  4.0f/15.0f;
+//  private static final double C3 = -1.0f/60.0f;
+//  private static final double C4 = -1.0f/30.0f;
 //  private void forwardStepSliceX(
-//  int ix, float[][] um, float[][] ui, float[][] up) {
+//  int ix, double[][] um, double[][] ui, double[][] up) {
 //    int ixm1 = ix-1;
 //    int ixp1 = ix+1;
 //    int ixm2 = ix-2;
@@ -561,7 +560,7 @@ public class AcousticWaveOperator {
 //      int izp1 = iz+1;
 //      int izm2 = iz-2;
 //      int izp2 = iz+2;
-//      float r = _r[ix][iz];
+//      double r = _r[ix][iz];
 //      // FIXME: Source injection replaces += needed to pass adjoint test.
 //      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+r*(
 //        C1*(ui[ix  ][izm1]+ui[ix  ][izp1]+ui[ixm1][iz  ]+ui[ixp1][iz  ])+
@@ -572,7 +571,7 @@ public class AcousticWaveOperator {
 //    }
 //  }
 //  private void adjointStepSliceX(
-//  int ix, float[][] um, float[][] ui, float[][] up) {
+//  int ix, double[][] um, double[][] ui, double[][] up) {
 //    int ixm1 = ix-1;
 //    int ixp1 = ix+1;
 //    int ixm2 = ix-2;
@@ -582,7 +581,7 @@ public class AcousticWaveOperator {
 //      int izp1 = iz+1;
 //      int izm2 = iz-2;
 //      int izp2 = iz+2;
-//      float r = _r[ix][iz];
+//      double r = _r[ix][iz];
 //      // FIXME: Source injection replaces += needed to pass adjoint test.
 //      up[ix][iz] += (2.0f+C0*r)*ui[ix][iz]-um[ix][iz]+
 //        C1*(_r[ix  ][izm1]*
@@ -630,116 +629,212 @@ public class AcousticWaveOperator {
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
   // edge reflections in numerical modeling of wave propagation.
-  private void absorb(
-  final float[][] um, final float[][] ui, final float[][] up) {
-    final float oxt = (float)(1.0/(_dx*_dt));
-    final float oxx = (float)(1.0/(_dx*_dx));
-    final float ott = (float)(1.0/(_dt*_dt));
-    //final float[][] cp = copy(up);
-    final float[][] cp = up;
+  public void absorb(
+  final double[][] um, final double[][] ui, final double[][] up) {
+    absorbForward(um,ui,up);
+  }
+  public void absorbForward(
+  final double[][] um, final double[][] ui, final double[][] up) {
+    final double oxt = (double)(1.0/(_dx*_dt));
+    final double oxx = (double)(1.0/(_dx*_dx));
+    final double ott = (double)(1.0/(_dt*_dt));
+    final double[][] cp = up;
+    //final double[][] cp = copy(up);
+
     for (int ix=_ixa; ix<_ixb-1; ++ix) {
       for (int iz=_izb; iz<_izc; ++iz) {
-        float si = _s[ix][iz];
-        float a =  0.50f*oxt;
-        float b = -0.50f*ott*si;
-        float c =  0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
+
+        //double si = _s[ix][iz];
+        //double a =  0.50f*oxt;
+        //double b = -0.50f*ott*si;
+        //double c =  0.25f*oxx/si;
+        //double vp = 1.0f/(a-b)*(
+        //  (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
+        //  (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
+        //  (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
+        //  (um[ix+1][iz])*(b-a)
+        //);
+        //double w = _w[ix][iz];
+        //up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
+
+        double si = _s[ix][iz];
+        double w = _w[ix][iz];
+        double m = 1.0f-w;
+        double a =  0.50f*oxt;
+        double b = -0.50f*ott*si;
+        double c =  0.25f*oxx/si;
+        double d =  1.0f/(a-b);
+        up[ix][iz] -= (1.0f-w)*up[ix][iz];
+        up[ix][iz] += um[ix  ][iz-1]*c*d*m;
+        up[ix][iz] += um[ix  ][iz+1]*c*d*m;
+        up[ix][iz] += cp[ix+1][iz+1]*c*d*m;
+        up[ix][iz] += cp[ix+1][iz-1]*c*d*m;
+        up[ix][iz] += um[ix  ][iz  ]*(a+b-2.0f*c)*d*m;
+        up[ix][iz] += cp[ix+1][iz  ]*(a+b-2.0f*c)*d*m;
+        up[ix][iz] += ui[ix  ][iz  ]*(-2.0f*b)*d*m;
+        up[ix][iz] += ui[ix+1][iz  ]*(-2.0f*b)*d*m;
+        up[ix][iz] += um[ix+1][iz  ]*(b-a)*d*m;
+
+      }
+    }
+
+  }
+
+  public void absorbAdjoint(
+  final double[][] um, final double[][] ui, final double[][] up) {
+    final double oxt = (double)(1.0/(_dx*_dt));
+    final double oxx = (double)(1.0/(_dx*_dx));
+    final double ott = (double)(1.0/(_dt*_dt));
+    final double[][] cp = copy(up);
+    //final double[][] cp = up;
+    final double[][] cm = copy(um);
+
+    for (int ix=_ixa; ix<_ixb-1; ++ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+
+        double si = _s[ix][iz];
+        double w = _w[ix][iz];
+        double m = 1.0f-w;
+        double a =  0.50f*oxt;
+        double b = -0.50f*ott*si;
+        double c =  0.25f*oxx/si;
+        double d =  1.0f/(a-b);
+        up[ix][iz] -= (1.0f-w)*cp[ix][iz];
+        um[ix  ][iz-1] += cp[ix][iz]*c*d*m;
+        um[ix  ][iz+1] += cp[ix][iz]*c*d*m;
+        up[ix+1][iz+1] += cp[ix][iz]*c*d*m;
+        up[ix+1][iz-1] += cp[ix][iz]*c*d*m;
+        um[ix  ][iz  ] += cp[ix][iz]*(a+b-2.0f*c)*d*m;
+        up[ix+1][iz  ] += cp[ix][iz]*(a+b-2.0f*c)*d*m;
+        ui[ix  ][iz  ] += cp[ix][iz]*(-2.0f*b)*d*m;
+        ui[ix+1][iz  ] += cp[ix][iz]*(-2.0f*b)*d*m;
+        um[ix+1][iz  ] += cp[ix][iz]*(b-a)*d*m;
+
+        //um[ix][iz] *= w;
+        //up[ix  ][iz-1] += cm[ix][iz]*c*d*m;
+        //up[ix  ][iz+1] += cm[ix][iz]*c*d*m;
+        //um[ix+1][iz+1] += cm[ix][iz]*c*d*m;
+        //um[ix+1][iz-1] += cm[ix][iz]*c*d*m;
+        //up[ix  ][iz  ] += cm[ix][iz]*(a+b-2.0f*c)*d*m;
+        //um[ix+1][iz  ] += cm[ix][iz]*(a+b-2.0f*c)*d*m;
+        //ui[ix  ][iz  ] += cm[ix][iz]*(-2.0f*b)*d*m;
+        //ui[ix+1][iz  ] += cm[ix][iz]*(-2.0f*b)*d*m;
+        //up[ix+1][iz  ] += cm[ix][iz]*(b-a)*d*m;
+      }
+    }
+
+  }
+
+  private void xabsorb(
+  final double[][] um, final double[][] ui, final double[][] up) {
+    final double oxt = (double)(1.0/(_dx*_dt));
+    final double oxx = (double)(1.0/(_dx*_dx));
+    final double ott = (double)(1.0/(_dt*_dt));
+    //final double[][] cp = copy(up);
+    final double[][] cp = up;
+    for (int ix=_ixa; ix<_ixb-1; ++ix) {
+      for (int iz=_izb; iz<_izc; ++iz) {
+        double si = _s[ix][iz];
+        double a =  0.50f*oxt;
+        double b = -0.50f*ott*si;
+        double c =  0.25f*oxx/si;
+        double vp = 1.0f/(a-b)*(
           (um[ix][iz-1]+um[ix][iz+1]+cp[ix+1][iz+1]+cp[ix+1][iz-1])*c+
           (um[ix][iz]+cp[ix+1][iz])*(a+b-2.0f*c)+
           (ui[ix][iz]+ui[ix+1][iz])*(-2.0f*b)+
           (um[ix+1][iz])*(b-a)
         );
-        float w = _w[ix][iz];
+        double w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int ix=_ixd-1; ix>=_ixc+1; --ix) {
       for (int iz=_izb; iz<_izc; ++iz) {
-        float si = _s[ix][iz];
-        float a = -0.50f*oxt;
-        float b =  0.50f*ott*si;
-        float c = -0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
+        double si = _s[ix][iz];
+        double a = -0.50f*oxt;
+        double b =  0.50f*ott*si;
+        double c = -0.25f*oxx/si;
+        double vp = 1.0f/(a-b)*(
           (um[ix][iz-1]+um[ix][iz+1]+cp[ix-1][iz+1]+cp[ix-1][iz-1])*c+
           (um[ix][iz]+cp[ix-1][iz])*(a+b-2.0f*c)+
           (ui[ix][iz]+ui[ix-1][iz])*(-2.0f*b)+
           (um[ix-1][iz])*(b-a)
         );
-        float w = _w[ix][iz];
+        double w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int iz=_iza; iz<_izb-1; ++iz) {
       for (int ix=_ixb; ix<_ixc; ++ix) {
-        float si = _s[ix][iz];
-        float a =  0.50f*oxt;
-        float b = -0.50f*ott*si;
-        float c =  0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
+        double si = _s[ix][iz];
+        double a =  0.50f*oxt;
+        double b = -0.50f*ott*si;
+        double c =  0.25f*oxx/si;
+        double vp = 1.0f/(a-b)*(
           (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz+1]+cp[ix-1][iz+1])*c+
           (um[ix][iz]+cp[ix][iz+1])*(a+b-2.0f*c)+
           (ui[ix][iz]+ui[ix][iz+1])*(-2.0f*b)+
           (um[ix][iz+1])*(b-a)
         );
-        float w = _w[ix][iz];
+        double w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int iz=_izd-1; iz>=_izc+1; --iz) {
       for (int ix=_ixb; ix<_ixc; ++ix) {
-        float si = _s[ix][iz];
-        float a = -0.50f*oxt;
-        float b =  0.50f*ott*si;
-        float c = -0.25f*oxx/si;
-        float vp = 1.0f/(a-b)*(
+        double si = _s[ix][iz];
+        double a = -0.50f*oxt;
+        double b =  0.50f*ott*si;
+        double c = -0.25f*oxx/si;
+        double vp = 1.0f/(a-b)*(
           (um[ix-1][iz]+um[ix+1][iz]+cp[ix+1][iz-1]+cp[ix-1][iz-1])*c+
           (um[ix][iz]+cp[ix][iz-1])*(a+b-2.0f*c)+
           (ui[ix][iz]+ui[ix][iz-1])*(-2.0f*b)+
           (um[ix][iz-1])*(b-a)
         );
-        float w = _w[ix][iz];
+        double w = _w[ix][iz];
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     // Corners
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=_iza; iz<_izb; ++iz) {
-        float w = _w[ix][iz];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
+        double w = _w[ix][iz];
+        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        double vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=_izc; iz<_izd; ++iz) {
-        float w = _w[ix][iz];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
+        double w = _w[ix][iz];
+        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        double vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix+1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int ix=_ixc; ix<_ixd; ++ix) {
       for (int iz=_iza; iz<_izb; ++iz) {
-        float w = _w[ix][iz];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        float vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
+        double w = _w[ix][iz];
+        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        double vp = ui[ix][iz]+r*(ui[ix][iz+1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
     for (int ix=_ixc; ix<_ixd; ++ix) {
       for (int iz=_izc; iz<_izd; ++iz) {
-        float w = _w[ix][iz];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
-        float vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
+        double w = _w[ix][iz];
+        double r = (double)(_dt/(sqrt(2.0)*_dx*_s[ix][iz]));
+        double vp = ui[ix][iz]+r*(ui[ix][iz-1]+ui[ix-1][iz]-2.0f*ui[ix][iz]);
         up[ix][iz] = w*up[ix][iz]+(1.0f-w)*vp;
       }
     }
   }
 
-  private static float[][] extendModel(float[][] c, int b) {
+  private static double[][] extendModel(double[][] c, int b) {
     int nz = c[0].length;
     int nx = c.length;
-    float[][] v = new float[nx+2*b][nz+2*b];
+    double[][] v = new double[nx+2*b][nz+2*b];
     copy(nz,nx,0,0,c,b,b,v);
     for (int ix=b; ix<nx+b; ++ix) {
       for (int iz=0, jz=nz+b; iz<b; ++iz, ++jz) {
@@ -754,12 +849,12 @@ public class AcousticWaveOperator {
     return v;
   }
 
-  private void addRandomBoundary(float maxPerturb, float[][] s) {
-    float[][] r = new float[_nx][_nz];
+  private void addRandomBoundary(double maxPerturb, double[][] s) {
+    double[][] r = new double[_nx][_nz];
     Random random = new Random(012345);
     for (int ix=0; ix<_nx; ++ix) {
       for (int iz=0; iz<_nz; ++iz) {
-        float wi = 1.0f-_w[ix][iz];
+        double wi = 1.0f-_w[ix][iz];
         wi *= wi;
         if (wi>0.0f) {
           s[ix][iz] += wi*maxPerturb*(1.1f*random.nextFloat()-1.0f);
@@ -769,10 +864,10 @@ public class AcousticWaveOperator {
     SimplePlot.asPixels(s);
   }
 
-  private float[][] makeWeights() {
+  private double[][] makeWeights() {
     int fd = FD_ORDER/2;
-    float ob = 1.0f/(_b-1.0f);
-    float[][] w = new float[_nx][_nz];
+    double ob = 1.0f/(_b-1.0f);
+    double[][] w = new double[_nx][_nz];
     for (int ix=_ixa; ix<_ixb; ++ix) {
       for (int iz=ix; iz<_nz-ix; ++iz) {
         w[ix      ][iz] = (ix-fd)*ob;
