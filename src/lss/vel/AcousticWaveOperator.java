@@ -68,25 +68,10 @@ public class AcousticWaveOperator {
     _w = makeWeights();
     float scale = (_dt*_dt/(_dx*_dx));
     _s = extendModel(s,nabsorb);
-    //addRandomBoundary(0.15f,_s);
     _r = copy(_s);
     mul(_r,_r,_r);
     div(scale,_r,_r);
   }
-
-  /* Indexing example for FD_ABSORB/2=2, nabsorb=3, nx=3:
-
-          |ixa|ixb        |ixc|ixd
-  |---|---|---|---|---|---|---|---|---|
-  | S | S | B | M | M | M | B | S | S |
-  |---|---|---|---|---|---|---|---|---|
-          |   |           |   |
-
-    S - stencil cells for finite-difference stencil
-    B - boundary cells for absorbing boundary
-    M - model cells for slowness model
-
-  */
 
   public void applyForward(
   Source source, float[][][] u) {
@@ -301,7 +286,20 @@ public class AcousticWaveOperator {
     }
   }
 
-  // First 21-point Laplacian stencil from
+  /* Indexing example for FD_ABSORB/2=2, nabsorb=3, nx=3:
+
+          |ixa|ixb        |ixc|ixd
+  |---|---|---|---|---|---|---|---|---|
+  | S | S | B | M | M | M | B | S | S |
+  |---|---|---|---|---|---|---|---|---|
+          |   |           |   |
+
+    S - extra stencil cells for finite-difference stencil
+    B - boundary cells for absorbing boundary
+    M - model cells
+  */
+
+  // 21-point Laplacian stencil from
   // Patra, M. and M. Karttunen, 2005, Stencils
   // with Isotropic Error for Differential Operators.
   private static final int FD_ORDER = 4;
@@ -477,7 +475,6 @@ public class AcousticWaveOperator {
 ////      ui[iz  ][_ixd-1] -= up[iz][_ixd]*C1*_r[iz][_ixd];
 //    }
 
-
   }
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
@@ -608,13 +605,12 @@ public class AcousticWaveOperator {
     final float oxt = (float)(1.0/(_dx*_dt));
     final float oxx = (float)(1.0/(_dx*_dx));
     final float ott = (float)(1.0/(_dt*_dt));
-    final float[][] cp = copy(up);
-    //final float[][] cp = up;
+    final float[][] cp = copy(up); // possible to avoid copy?
 
     for (int ix=_ixa; ix<_ixb-1; ++ix) {
       for (int iz=_izb; iz<_izc; ++iz) {
         float si = _s[iz][ix];
-        float m = 1.0f-_w[iz][ix];
+        float m =  1.0f-_w[iz][ix];
         float a =  0.50f*oxt;
         float b = -0.50f*ott*si;
         float c =  0.25f*oxx/si;
@@ -844,25 +840,6 @@ public class AcousticWaveOperator {
     }
   }
 
-  private static float[][] extendModel(float[][] c, int b) {
-    int nx = c[0].length;
-    int nz = c.length;
-    float[][] v = new float[nz+2*b][nx+2*b];
-    copy(nx,nz,0,0,c,b,b,v);
-    for (int iz=b; iz<nz+b; ++iz) {
-      for (int ix=0, jx=nx+b; ix<b; ++ix, ++jx) {
-        v[iz][ix] = v[iz][b];
-        v[iz][jx] = v[iz][nx+b-1];
-      }
-    }
-    for (int iz=0, jz=nz+b; iz<b; ++iz, ++jz) {
-      copy(v[b],v[iz]);
-      copy(v[nz+b-1],v[jz]);
-    }
-    //SimplePlot.asPixels(v).addColorBar();
-    return v;
-  }
-
   private float[][] makeWeights() {
     int fd = FD_ORDER/2;
     float ob = 1.0f/(_b-1.0f);
@@ -886,5 +863,24 @@ public class AcousticWaveOperator {
     }
     //SimplePlot.asPixels(w).addColorBar();
     return w;
+  }
+
+  private static float[][] extendModel(float[][] c, int b) {
+    int nx = c[0].length;
+    int nz = c.length;
+    float[][] v = new float[nz+2*b][nx+2*b];
+    copy(nx,nz,0,0,c,b,b,v);
+    for (int iz=b; iz<nz+b; ++iz) {
+      for (int ix=0, jx=nx+b; ix<b; ++ix, ++jx) {
+        v[iz][ix] = v[iz][b];
+        v[iz][jx] = v[iz][nx+b-1];
+      }
+    }
+    for (int iz=0, jz=nz+b; iz<b; ++iz, ++jz) {
+      copy(v[b],v[iz]);
+      copy(v[nz+b-1],v[jz]);
+    }
+    //SimplePlot.asPixels(v).addColorBar();
+    return v;
   }
 }
