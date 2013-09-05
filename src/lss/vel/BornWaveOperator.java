@@ -29,11 +29,12 @@ public class BornWaveOperator {
     _wave = new AcousticWaveOperator(s,dx,dt,nabsorb);
     int nx = s[0].length;
     int nz = s.length;
-    if (u!=null)
+    if (u!=null) {
       Check.argument(u[0][0].length-nx==2*nabsorb,
         "x-dimension inconsistent");
       Check.argument(u[0].length-nz==2*nabsorb,
         "z-dimension inconsistent");
+    }
     _nabsorb = nabsorb;
     _nz = nz+2*nabsorb;
     _nx = nx+2*nabsorb;
@@ -44,27 +45,33 @@ public class BornWaveOperator {
     _source = source;
   }
 
-  private float[][][] getBackgroundWavefield(int nt) {
-    if (_u==null)
-      _u = new float[nt][_nz][_nx];
-      _wave.applyForward(_source,_u);
-    return _u;
-  }
-
   public void applyForward(float[][] r, Receiver receiver) {
     int nt = receiver.getNt();
-    float[][][] u = getBackgroundWavefield(nt);
-    Source source = new WavefieldSource(u,r);
+    float[][][] b = getBackgroundWavefield(nt);
+    System.out.println("sum(u)="+sum(b));
+    Source source = new WavefieldSource(b,r);
     _wave.applyForward(source,receiver);
   }
 
   public void applyAdjoint(
   float[][][] a, Receiver receiver, float[][] r) {
     int nt = a.length;
-    float[][][] u = getBackgroundWavefield(nt);
+    float[][][] b = getBackgroundWavefield(nt);
+    System.out.println("sum(u)="+sum(b));
     Source source = new ReceiverSource(receiver);
     _wave.applyAdjoint(source,a);
-    AcousticWaveOperator.collapse(u,a,_nabsorb,r);
+    AcousticWaveOperator.collapse(b,a,_nabsorb,r);
+  }
+
+  private float[][][] getBackgroundWavefield(int nt) {
+    if (_u==null) {
+      _u = new float[nt][_nz][_nx];
+      _wave.applyForward(_source,_u);
+      //for (int it=0; it<nt; ++it)
+      //  for (int iz=0; iz<nz; ++iz)
+      //    for (int ix=0; ix<nx; ++ix)
+    }
+    return _u;
   }
 
   private void rmul(final float[][] r, final float[][][] u) {

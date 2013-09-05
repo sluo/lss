@@ -29,6 +29,15 @@ public class AcousticWaveOperator {
     return significantDigits;
   }
 
+  public static float dot(float[][] u, float[][] a) {
+    int nx = u[0].length;
+    int nz = u.length;
+    float sum = 0.0f;
+      for (int iz=0; iz<nz; ++iz)
+        for (int ix=0; ix<nx; ++ix)
+          sum += u[iz][ix]*a[iz][ix];
+    return sum;
+  }
   public static float dot(float[][][] u, float[][][] a) {
     return dot(u,a,0);
   }
@@ -150,6 +159,30 @@ public class AcousticWaveOperator {
     private float _dt,_fpeak,_tdelay;
   }
 
+  public static class Gaussian4Source implements Source {
+    public Gaussian4Source(int xs, int zs, float dt, float fpeak) {
+      _tdelay = 1.0f/fpeak;
+      _fpeak = fpeak;
+      _dt = dt;
+      _xs = xs;
+      _zs = zs;
+    }
+    public void add(float[][] ui, int it, int nabsorb) {
+      ui[_zs+nabsorb][_xs+nabsorb] += gaussian(it*_dt-_tdelay);
+    }
+    private float gaussian(float t) {
+      double a = PI*_fpeak;
+      double aa = a*a;
+      double x = a*t;
+      double xx = x*x;
+      //return (float)(2.0*aa*(3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+      //return (float)((3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
+      return (float)((0.075-0.3*xx+0.1*xx*xx)*exp(-xx));
+    }
+    private int _xs,_zs;
+    private float _dt,_fpeak,_tdelay;
+  }
+
   public static class ReceiverSource implements Source {
     public ReceiverSource(Receiver receiver) {
       int[][] c = receiver.getIndices();
@@ -191,8 +224,8 @@ public class AcousticWaveOperator {
           for (int iz=0; iz<_nz; ++iz)
             ui[iz][ix] += _u[it][iz][ix];
       } else {
-        for (int ix=nabsorb; ix<_nx; ++ix)
-          for (int iz=0; iz<_nz; ++iz)
+        for (int ix=nabsorb; ix<_nx-nabsorb; ++ix)
+          for (int iz=nabsorb; iz<_nz-nabsorb; ++iz)
             ui[iz][ix] += _u[it][iz][ix]*_r[iz-nabsorb][ix-nabsorb];
       }
     }
@@ -268,6 +301,10 @@ public class AcousticWaveOperator {
     int pit = (forward)?1:-1;
     source.add(um,fit-2*pit,_nabsorb);
     source.add(ui,fit-pit  ,_nabsorb);
+    if (receiver!=null) {
+      receiver.setData(um,fit-2*pit,_nabsorb);
+      receiver.setData(ui,fit-pit  ,_nabsorb);
+    }
     for (int it=fit, count=0; count<nt-2; it+=pit, ++count) {
 
       // Set next time step.
