@@ -5,15 +5,15 @@ from imports import *
 
 #############################################################################
 
-sz = Sampling(11,0.016,0.0)
-sx = Sampling(12,0.016,0.0)
-st = Sampling(13,0.0012,0.0)
+#sz = Sampling(11,0.016,0.0)
+#sx = Sampling(12,0.016,0.0)
+#st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
 #st = Sampling(2003,0.0012,0.0)
-#sz = Sampling(265,0.012,0.0); stride = 3
-#sx = Sampling(767,0.012,0.0)
-#st = Sampling(5001,0.0012,0.0)
+sz = Sampling(265,0.012,0.0); stride = 3
+sx = Sampling(767,0.012,0.0)
+st = Sampling(5001,0.0012,0.0)
 #sz = Sampling(199,0.016,0.0); stride = 4
 #sx = Sampling(576,0.016,0.0)
 #st = Sampling(5001,0.0012,0.0)
@@ -26,16 +26,21 @@ xs,zs = [nx/2],[0]
 #xs,zs = rampint(2,11,53),fillint(0,53)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 12.0 # Ricker wavelet peak frequency
+fpeak = 10.0 # Ricker wavelet peak frequency
 nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
   #goAcousticData()
-  #goBornData()
+  goBornData()
   #adjointTest()
   #adjointTestMultiSource()
-  adjointTestMultiSourceParallel()
+  #adjointTestMultiSourceParallel()
+  #goInversion()
+
+def goInversion():
+  # TODO
+  pass
 
 def goAcousticData():
   s = getLayeredModel()
@@ -57,22 +62,22 @@ def goAcousticData():
 #  #display(u,perc=99.0,title="wavefield")
 
 def goBornData():
-  s = getLayeredModel()
-  #s = getMarmousi(stride)
+  #s = getLayeredModel()
+  s = getMarmousi(stride)
   s0,s1 = makeBornModel(s)
   bwo = BornWaveOperator(
-    #AcousticWaveOperator.RickerSource(xs[0],zs[0],dt,fpeak),
-    AcousticWaveOperator.Gaussian4Source(xs[0],zs[0],dt,fpeak),
     s,dx,dt,nabsorb)
-  receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
+  receiver = Receiver(xr,zr,nt)
+  u = zerofloat(nxp,nzp,nt)
+  source = Source.Gaussian4Source(xs[0],zs[0],dt,fpeak)
   sw = Stopwatch(); sw.start()
-  bwo.applyForward(s1,receiver)
+  bwo.applyForward(source,u,s1,receiver)
   print sw.time()
   d = receiver.getData()
-  plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
-  #plot(d,cmap=gray,sperc=100.0,title="data")
-  #plot(s0,cmap=jet,title="background slowness (s/km)")
-  #plot(s1,sperc=100.0,title="reflectivity")
+  #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
+  plot(d,cmap=gray,sperc=99.5,title="data")
+  plot(s0,cmap=jet,title="background slowness (s/km)")
+  plot(s1,sperc=100.0,title="reflectivity")
 
 def makeBornModel(s,sigma0=0.050,sigma1=None):
   """
@@ -91,7 +96,7 @@ def makeBornModel(s,sigma0=0.050,sigma1=None):
   ref1.apply(s,t)
   sub(s,t,s1)
   r = sub(mul(s,s),mul(t,t))
-  GaussianTaper.apply1(0.25,r,r)
+  #GaussianTaper.apply1(0.25,r,r)
   return s0,r
 
 def like(x):
@@ -241,6 +246,15 @@ def getMarmousi(stride=3):
 
 def iceil(x):
   return int(ceil(x))
+
+def read(name,image=None):
+  if not image:
+    image = zerofloat(nz,nx)
+  fileName = name
+  ais = ArrayInputStream(fileName)
+  ais.readFloats(image)
+  ais.close()
+  return image
 
 #############################################################################
 # plotting
