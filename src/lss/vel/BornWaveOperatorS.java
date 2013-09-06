@@ -22,6 +22,8 @@ public class BornWaveOperatorS {
     return new Receiver[n];
   }
 
+  ///////////////////////////////////////////////////////////////////////////  
+
   public BornWaveOperatorS(
   float[][] s, double dx, double dt, 
   int nabsorb, SharedFloat4 u, SharedFloat4 a) {
@@ -37,7 +39,7 @@ public class BornWaveOperatorS {
   public void applyForward(
   final Source[] source, final float[][] rx, final Receiver[] receiver) {
     final int ns = source.length;
-    final int np = _u.getN4(); // number of parellel shots
+    final int np = _u.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
     parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int isou) {
@@ -52,7 +54,7 @@ public class BornWaveOperatorS {
     final int ns = source.length;
     final int nx = ry[0].length;
     final int nz = ry.length;
-    final int np = _a.getN4(); // number of parellel shots
+    final int np = _a.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
     float[][] rz = parallel.reduce(ns,new Parallel.ReduceInt<float[][]>() {
       public float[][] compute(int isou) {
@@ -75,7 +77,7 @@ public class BornWaveOperatorS {
     final int ns = receiver.length;
     final int nx = ry[0].length;
     final int nz = ry.length;
-    final int np = _a.getN4(); // number of parellel shots
+    final int np = _a.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
     float[][] rz = parallel.reduce(ns,new Parallel.ReduceInt<float[][]>() {
       public float[][] compute(int isou) {
@@ -96,7 +98,7 @@ public class BornWaveOperatorS {
   public void applyForward(
   final float[][] rx, final Receiver[] receiver) {
     final int ns = receiver.length;
-    final int np = _u.getN4(); // number of parellel shots
+    final int np = _u.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
     parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int isou) {
@@ -105,14 +107,12 @@ public class BornWaveOperatorS {
       }
     });
   }
-
-  // Mostly for adjoint test.
   public void applyAdjoint(
   final Receiver[] receiver, final float[][] ry) {
     final int ns = receiver.length;
     final int nx = ry[0].length;
     final int nz = ry.length;
-    final int np = _a.getN4(); // number of parellel shots
+    final int np = _a.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
     float[][] rz = parallel.reduce(ns,new Parallel.ReduceInt<float[][]>() {
       public float[][] compute(int isou) {

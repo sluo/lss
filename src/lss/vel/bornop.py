@@ -6,15 +6,18 @@ from dnp import *
 
 #############################################################################
 
+sz = Sampling(201,0.0025,0.0)
+sx = Sampling(202,0.0025,0.0)
+st = Sampling(2003,0.0005,0.0)
 #sz = Sampling(11,0.016,0.0)
 #sx = Sampling(12,0.016,0.0)
 #st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
 #st = Sampling(2003,0.0012,0.0)
-sz = Sampling(265,0.012,0.0); stride = 3
-sx = Sampling(767,0.012,0.0)
-st = Sampling(5001,0.0012,0.0)
+#sz = Sampling(265,0.012,0.0); stride = 3
+#sx = Sampling(767,0.012,0.0)
+#st = Sampling(5001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 xs,zs = [nx/2],[0]
@@ -24,7 +27,7 @@ xs,zs = [nx/2],[0]
 xs,zs = rampint(1,15,52),fillint(0,52)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 10.0 # Ricker wavelet peak frequency
+fpeak = 40.0 # Ricker wavelet peak frequency
 nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
@@ -34,11 +37,11 @@ np = min(16,ns) # number of parallel sources
 
 def main(args):
   #goAcousticData()
-  #goBornData()
+  goBornData()
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
-  goInversion()
+  #goInversion()
 
 def goInversion():
   #s = getLayeredModel()
@@ -73,14 +76,14 @@ def goInversion():
   # CG solver.
   print "solving..."
   niter = 20
-  ma = LinearOperator(born,source,receiver)
+  ma = CgOperator(born,source,receiver)
   cg = CgSolver(0.0,niter);
   cg.solve(ma,vb,vx);
 
   plot(rx,sperc=99.5)
   plot(ry,sperc=99.5)
 
-class LinearOperator(CgSolver.A):
+class CgOperator(CgSolver.A):
   def __init__(self,born,source,receiver):
     self.born = born
     self.source = source
@@ -89,6 +92,10 @@ class LinearOperator(CgSolver.A):
     x = vx.getArray()
     y = vy.getArray()
     self.born.applyHessian(self.source,self.receiver,x,y)
+
+class QsOperator(LinearTransform):
+  def __init__(self):
+    pass
 
 def goAcousticData():
   s = getLayeredModel()
@@ -110,8 +117,8 @@ def goAcousticData():
 #  #display(u,perc=99.0,title="wavefield")
 
 def goBornData():
-  #s = getLayeredModel()
-  s = getMarmousi(stride)
+  s = getLayeredModel()
+  #s = getMarmousi(stride)
   s0,s1 = makeBornModel(s)
   bwo = BornWaveOperator(
     s,dx,dt,nabsorb)
