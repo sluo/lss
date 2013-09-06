@@ -34,7 +34,8 @@ def main(args):
   #goAcousticData()
   #goBornData()
   #adjointTest()
-  adjointTestMultiSource()
+  #adjointTestMultiSource()
+  adjointTestMultiSourceParallel()
 
 def goAcousticData():
   s = getLayeredModel()
@@ -102,14 +103,14 @@ def adjointTest():
   random = Random(01234)
   #random = Random()
   b = randfloat(random,nxp,nzp,nt); sub(b,0.5,b) # background wavefield
-  bwo = BornWaveOperator(b,s,dx,dt,nabsorb)
+  bwo = BornWaveOperator(s,dx,dt,nabsorb)
   ra = randfloat(random,nx,nz) # random reflectivity
   rb = zerofloat(nx,nz) 
   db = randfloat(random,nt,nr) # random data
   reca = AcousticWaveOperator.Receiver(xr,zr,nt)
   recb = AcousticWaveOperator.Receiver(xr,zr,db)
-  bwo.applyForward(ra,reca)
-  bwo.applyAdjoint(zerofloat(nxp,nzp,nt),recb,rb)
+  bwo.applyForward(b,ra,reca)
+  bwo.applyAdjoint(b,zerofloat(nxp,nzp,nt),recb,rb)
   sum1 = dot(ra,rb)
   sum2 = dot(reca.getData(),recb.getData())
   print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
@@ -118,32 +119,30 @@ def adjointTest():
 
 def adjointTestMultiSource():
   nsou = 3
-  random = Random()
-  #random = Random(01234)
+  #random = Random()
+  random = Random(01234)
   s = fillfloat(0.25,nx,nz)
   add(mul(sub(randfloat(Random(0),nx,nz),0.5),0.05),s,s)
   b = AcousticWaveOperator.randfloat(random,nxp,nzp,nt,nsou)
+  born = BornWaveOperator(s,dx,dt,nabsorb)
 
   # Forward
   ra = randfloat(random,nx,nz) # random reflectivity
   da = zerofloat(nt,nr,nsou)
   for isou in range(nsou):
     bi = b[isou]
-    bwo = BornWaveOperator(bi,s,dx,dt,nabsorb)
     rec = AcousticWaveOperator.Receiver(xr,zr,da[isou])
-    bwo.applyForward(ra,rec)
-    #copy(rec.getData(),da[isou])
+    born.applyForward(bi,ra,rec)
 
   # Adjoint
   rb = zerofloat(nx,nz)
   db = randfloat(random,nt,nr,nsou) # random data
   for isou in range(nsou):
     bi = b[isou]
-    bwo = BornWaveOperator(bi,s,dx,dt,nabsorb)
     rec = AcousticWaveOperator.Receiver(xr,zr,nt)
     copy(db[isou],rec.getData())
     rt = zerofloat(nx,nz)
-    bwo.applyAdjoint(zerofloat(nxp,nzp,nt),rec,rt)
+    born.applyAdjoint(bi,zerofloat(nxp,nzp,nt),rec,rt)
     add(rt,rb,rb)
 
   # Dot product
@@ -151,6 +150,40 @@ def adjointTestMultiSource():
   print 'sum(rb)=%f'%sum(rb)
   print 'sum(da)=%f'%sum(da)
   print 'sum(db)=%f'%sum(db)
+  sum1 = dot(ra,rb)
+  sum2 = dot(da,db)
+  print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
+  print sum1
+  print sum2
+
+def adjointTestMultiSourceParallel():
+  nsou = 4 # number of sources
+  psou = 2 # number of sources to compute in parallel
+  #random = Random()
+  random = Random(01234)
+  s = fillfloat(0.25,nx,nz)
+  add(mul(sub(randfloat(Random(0),nx,nz),0.5),0.05),s,s)
+  u = SharedFloat4(AcousticWaveOperator.randfloat(random,nxp,nzp,nt,psou))
+  a = SharedFloat4(nxp,nzp,nt,psou)
+  born = BornWaveOperatorS(s,dx,dt,nabsorb,u,a)
+
+  # Forward
+  ra = randfloat(random,nx,nz) # random reflectivity
+  da = zerofloat(nt,nr,nsou)
+  reca = BornWaveOperatorS.getReceiverArray(nsou)
+  for isou in range(nsou):
+    reca[isou] = Receiver(xr,zr,da[isou])
+  born.applyForward(ra,reca)
+
+  # Adjoint
+  rb = zerofloat(nx,nz)
+  db = randfloat(random,nt,nr,nsou) # random data
+  recb = BornWaveOperatorS.getReceiverArray(nsou)
+  for isou in range(nsou):
+    recb[isou] = Receiver(xr,zr,db[isou])
+  born.applyAdjoint(recb,rb)
+
+  # Dot product
   sum1 = dot(ra,rb)
   sum2 = dot(da,db)
   print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)

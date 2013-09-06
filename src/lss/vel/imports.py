@@ -26,6 +26,6 @@ from edu.mines.jtk.util.ArrayMath import *
 from lss.dev import *
 #from lss.fault import *
 #from lss.flat import *
-#from lss.util import *
+from lss.util import *
 from lss.vel import *
 from lss.vel.Util import *
