@@ -2,6 +2,7 @@
 # Wavefield modeling using AcousticWaveOperator
 
 from imports import *
+from dnp import *
 
 #############################################################################
 
@@ -14,40 +15,87 @@ from imports import *
 sz = Sampling(265,0.012,0.0); stride = 3
 sx = Sampling(767,0.012,0.0)
 st = Sampling(5001,0.0012,0.0)
-#sz = Sampling(199,0.016,0.0); stride = 4
-#sx = Sampling(576,0.016,0.0)
-#st = Sampling(5001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-#xs,zs = rampint(25,25,22),fillint(0,22)
-#xs,zs = rampint(2,11,53),fillint(0,53)
+#xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+xs,zs = rampint(1,15,52),fillint(0,52)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 10.0 # Ricker wavelet peak frequency
 nabsorb = 12 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
+np = min(16,ns) # number of parallel sources
+
+# TODO
+# Test adjoint with TransformQuadratic
 
 def main(args):
   #goAcousticData()
-  goBornData()
+  #goBornData()
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
-  #goInversion()
+  goInversion()
 
 def goInversion():
-  # TODO
-  pass
+  #s = getLayeredModel()
+  s = getMarmousi(stride)
+  s0,rx = makeBornModel(s)
+
+  # Allocate wavefields.
+  print "allocating..."
+  u = SharedFloat4(nxp,nzp,nt,np)
+  a = SharedFloat4(nxp,nzp,nt,np)
+
+  # Sources and receivers.
+  source = BornWaveOperatorS.getSourceArray(ns)
+  receiver = BornWaveOperatorS.getReceiverArray(ns)
+  for isou in range(ns):
+    source[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+    receiver[isou] = Receiver(xr,zr,nt)
+
+  # Born operator.
+  born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
+
+  # RHS vector.
+  print "computing RHS..."
+  rr = like(rx)
+  born.applyHessian(source,receiver,rx,rr)
+  vb = VecArrayFloat2(rr)
+
+  # Solution vector.
+  ry = zerofloat(nx,nz)
+  vx = VecArrayFloat2(ry)
+
+  # CG solver.
+  print "solving..."
+  niter = 20
+  ma = LinearOperator(born,source,receiver)
+  cg = CgSolver(0.0,niter);
+  cg.solve(ma,vb,vx);
+
+  plot(rx,sperc=99.5)
+  plot(ry,sperc=99.5)
+
+class LinearOperator(CgSolver.A):
+  def __init__(self,born,source,receiver):
+    self.born = born
+    self.source = source
+    self.receiver = receiver
+  def apply(self,vx,vy):
+    x = vx.getArray()
+    y = vy.getArray()
+    self.born.applyHessian(self.source,self.receiver,x,y)
 
 def goAcousticData():
   s = getLayeredModel()
   #s = getMarmousi(stride)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
-  source = AcousticWaveOperator.RickerSource(xs[0],zs[0],dt,fpeak)
-  receiver = AcousticWaveOperator.Receiver(xr,zr,nt)
+  source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
+  receiver = Receiver(xr,zr,nt)
   u = zerofloat(nxp,nzp,nt)
   sw = Stopwatch(); sw.start()
   awo.applyForward(source,receiver,u)
@@ -112,8 +160,8 @@ def adjointTest():
   ra = randfloat(random,nx,nz) # random reflectivity
   rb = zerofloat(nx,nz) 
   db = randfloat(random,nt,nr) # random data
-  reca = AcousticWaveOperator.Receiver(xr,zr,nt)
-  recb = AcousticWaveOperator.Receiver(xr,zr,db)
+  reca = Receiver(xr,zr,nt)
+  recb = Receiver(xr,zr,db)
   bwo.applyForward(b,ra,reca)
   bwo.applyAdjoint(b,zerofloat(nxp,nzp,nt),recb,rb)
   sum1 = dot(ra,rb)
@@ -136,7 +184,7 @@ def adjointTestMultiSource():
   da = zerofloat(nt,nr,nsou)
   for isou in range(nsou):
     bi = b[isou]
-    rec = AcousticWaveOperator.Receiver(xr,zr,da[isou])
+    rec = Receiver(xr,zr,da[isou])
     born.applyForward(bi,ra,rec)
 
   # Adjoint
@@ -144,7 +192,7 @@ def adjointTestMultiSource():
   db = randfloat(random,nt,nr,nsou) # random data
   for isou in range(nsou):
     bi = b[isou]
-    rec = AcousticWaveOperator.Receiver(xr,zr,nt)
+    rec = Receiver(xr,zr,nt)
     copy(db[isou],rec.getData())
     rt = zerofloat(nx,nz)
     born.applyAdjoint(bi,zerofloat(nxp,nzp,nt),rec,rt)
