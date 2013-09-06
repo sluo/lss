@@ -1,15 +1,14 @@
 package lss.vel;
 
-import java.util.Random;
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
+import lss.vel.AcousticWaveOperator.*;
+
 // testing
 import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
-
-import lss.vel.AcousticWaveOperator.*;
 
 public class BornWaveOperator {
 
@@ -48,7 +47,6 @@ public class BornWaveOperator {
   public void applyForward(float[][] r, Receiver receiver) {
     int nt = receiver.getNt();
     float[][][] b = getBackgroundWavefield(nt);
-    System.out.println("sum(u)="+sum(b));
     Source source = new WavefieldSource(b,r);
     _wave.applyForward(source,receiver);
   }
@@ -57,7 +55,6 @@ public class BornWaveOperator {
   float[][][] a, Receiver receiver, float[][] r) {
     int nt = a.length;
     float[][][] b = getBackgroundWavefield(nt);
-    System.out.println("sum(u)="+sum(b));
     Source source = new ReceiverSource(receiver);
     _wave.applyAdjoint(source,a);
     AcousticWaveOperator.collapse(b,a,_nabsorb,r);

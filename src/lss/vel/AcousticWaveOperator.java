@@ -29,6 +29,14 @@ public class AcousticWaveOperator {
     return significantDigits;
   }
 
+  public static float[][][][] randfloat(
+  java.util.Random random, int n1, int n2, int n3, int n4) {
+    float[][][][] r = new float[n4][][][];
+    for (int i4=0; i4<n4; ++i4)
+      r[i4] = edu.mines.jtk.util.ArrayMath.randfloat(random,n1,n2,n3);
+    return r;
+  }
+
   public static float dot(float[][] u, float[][] a) {
     int nx = u[0].length;
     int nz = u.length;
@@ -247,6 +255,17 @@ public class AcousticWaveOperator {
       _xr = xr;
       _zr = zr;
       _data = new float[_nr][nt];
+    }
+    public Receiver(int[] xr, int[] zr, float[][] data) {
+      int nxr = xr.length;
+      int nzr = zr.length;
+      Check.argument(nxr==nzr,"nxr==nzr");
+      _nr = nxr;
+      Check.argument(data.length==_nr,"data.length==nr");
+      _nt = data[0].length;
+      _xr = xr;
+      _zr = zr;
+      _data = data;
     }
     public void setData(float[][] ui, int it, int nabsorb) {
       for (int ir=0; ir<_nr; ++ir) {

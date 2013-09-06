@@ -5,12 +5,12 @@ from imports import *
 
 #############################################################################
 
-#sz = Sampling(11,0.016,0.0)
-#sx = Sampling(12,0.016,0.0)
-#st = Sampling(13,0.0012,0.0)
-sz = Sampling(201,0.016,0.0)
-sx = Sampling(202,0.016,0.0)
-st = Sampling(2003,0.0012,0.0)
+sz = Sampling(11,0.016,0.0)
+sx = Sampling(12,0.016,0.0)
+st = Sampling(13,0.0012,0.0)
+#sz = Sampling(201,0.016,0.0)
+#sx = Sampling(202,0.016,0.0)
+#st = Sampling(2003,0.0012,0.0)
 #sz = Sampling(265,0.012,0.0); stride = 3
 #sx = Sampling(767,0.012,0.0)
 #st = Sampling(5001,0.0012,0.0)
@@ -32,9 +32,9 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
   #goAcousticData()
-  goBornData()
+  #goBornData()
   #adjointTest()
-  #adjointTestMulti()
+  adjointTestMultiSource()
 
 def goAcousticData():
   s = getLayeredModel()
@@ -105,47 +105,57 @@ def adjointTest():
   bwo = BornWaveOperator(b,s,dx,dt,nabsorb)
   ra = randfloat(random,nx,nz) # random reflectivity
   rb = zerofloat(nx,nz) 
-  da = zerofloat(nt,nr)
   db = randfloat(random,nt,nr) # random data
   reca = AcousticWaveOperator.Receiver(xr,zr,nt)
-  recb = AcousticWaveOperator.Receiver(xr,zr,nt)
-  copy(da,reca.getData())
-  copy(db,recb.getData())
+  recb = AcousticWaveOperator.Receiver(xr,zr,db)
   bwo.applyForward(ra,reca)
   bwo.applyAdjoint(zerofloat(nxp,nzp,nt),recb,rb)
   sum1 = dot(ra,rb)
-  sum2 = dot(da,db)
   sum2 = dot(reca.getData(),recb.getData())
   print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
   print sum1
   print sum2
 
-def adjointTestMulti():
+def adjointTestMultiSource():
+  nsou = 3
+  random = Random()
+  #random = Random(01234)
   s = fillfloat(0.25,nx,nz)
   add(mul(sub(randfloat(Random(0),nx,nz),0.5),0.05),s,s)
-  random = Random(01234)
-  #random = Random()
-  ra = randfloat(random,nx,nz) # random reflectivity
-  rb = zerofloat(nx,nz) 
+  b = AcousticWaveOperator.randfloat(random,nxp,nzp,nt,nsou)
 
-  # TODO
-  #for isou in range(1):
-  #b = randfloat(random,nxp,nzp,nt); sub(b,0.5,b) # background wavefield
-  #bwo = BornWaveOperator(b,s,dx,dt,nabsorb)
-  #da = zerofloat(nt,nr)
-  #db = randfloat(random,nt,nr) # random data
-  #reca = AcousticWaveOperator.Receiver(xr,zr,nt)
-  #recb = AcousticWaveOperator.Receiver(xr,zr,nt)
-  #copy(da,reca.getData())
-  #copy(db,recb.getData())
-  #bwo.applyForward(ra,reca)
-  #bwo.applyAdjoint(zerofloat(nxp,nzp,nt),recb,rb)
-  #sum1 = dot(ra,rb)
-  #sum2 = dot(da,db)
-  #sum2 = dot(reca.getData(),recb.getData())
-  #print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
-  #print sum1
-  #print sum2
+  # Forward
+  ra = randfloat(random,nx,nz) # random reflectivity
+  da = zerofloat(nt,nr,nsou)
+  for isou in range(nsou):
+    bi = b[isou]
+    bwo = BornWaveOperator(bi,s,dx,dt,nabsorb)
+    rec = AcousticWaveOperator.Receiver(xr,zr,da[isou])
+    bwo.applyForward(ra,rec)
+    #copy(rec.getData(),da[isou])
+
+  # Adjoint
+  rb = zerofloat(nx,nz)
+  db = randfloat(random,nt,nr,nsou) # random data
+  for isou in range(nsou):
+    bi = b[isou]
+    bwo = BornWaveOperator(bi,s,dx,dt,nabsorb)
+    rec = AcousticWaveOperator.Receiver(xr,zr,nt)
+    copy(db[isou],rec.getData())
+    rt = zerofloat(nx,nz)
+    bwo.applyAdjoint(zerofloat(nxp,nzp,nt),rec,rt)
+    add(rt,rb,rb)
+
+  # Dot product
+  print 'sum(ra)=%f'%sum(ra)
+  print 'sum(rb)=%f'%sum(rb)
+  print 'sum(da)=%f'%sum(da)
+  print 'sum(db)=%f'%sum(db)
+  sum1 = dot(ra,rb)
+  sum2 = dot(da,db)
+  print "adjoint test:",AcousticWaveOperator.compareDigits(sum1,sum2)
+  print sum1
+  print sum2
 
 def dot(u,a):
   return AcousticWaveOperator.dot(u,a)
