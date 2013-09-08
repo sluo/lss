@@ -373,141 +373,18 @@ public class AcousticWaveOperator {
     M - model cells
   */
 
-  // 21-point Laplacian stencil from
-  // Patra, M. and M. Karttunen, 2005, Stencils
-  // with Isotropic Error for Differential Operators.
-  private static final int FD_ORDER = 4;
-  private static final float C0 = -9.0f/2.0f;
-  private static final float C1 =  16.0f/15.0f;
-  private static final float C2 =  2.0f/15.0f;
-  private static final float C3 = -1.0f/15.0f;
-  private static final float C4 = -1.0f/120.0f;
-
-  private void forwardStep(
-  final float[][] um, final float[][] ui, final float[][] up) {
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      int izm1 = iz-1;
-      int izp1 = iz+1;
-      int izm2 = iz-2;
-      int izp2 = iz+2;
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        int ixm1 = ix-1;
-        int ixp1 = ix+1;
-        int ixm2 = ix-2;
-        int ixp2 = ix+2;
-        float r = _r[iz][ix];
-        up[iz][ix] += (2.0f+C0*r)*ui[iz][ix]-um[iz][ix]+r*(
-          C1*(ui[izm1][ix  ]+ui[izp1][ix  ]+ui[iz  ][ixm1]+ui[iz  ][ixp1])+
-          C2*(ui[izm1][ixm1]+ui[izp1][ixm1]+ui[izm1][ixp1]+ui[izp1][ixp1])+
-          C3*(ui[izm2][ix  ]+ui[izp2][ix  ]+ui[iz  ][ixm2]+ui[iz  ][ixp2])+
-          C4*(ui[izm2][ixm2]+ui[izp2][ixm2]+ui[izm2][ixp2]+ui[izp2][ixp2]));
-        //up[iz][ix] -= um[iz  ][ix  ];
-        //up[iz][ix] += ui[iz  ][ix  ]*(2.0f+C0*r);
-        //up[iz][ix] += ui[izm1][ix  ]*C1*r;
-        //up[iz][ix] += ui[izp1][ix  ]*C1*r;
-        //up[iz][ix] += ui[iz  ][ixm1]*C1*r;
-        //up[iz][ix] += ui[iz  ][ixp1]*C1*r;
-        //up[iz][ix] += ui[izm1][ixm1]*C2*r;
-        //up[iz][ix] += ui[izp1][ixm1]*C2*r;
-        //up[iz][ix] += ui[izm1][ixp1]*C2*r;
-        //up[iz][ix] += ui[izp1][ixp1]*C2*r;
-        //up[iz][ix] += ui[izm2][ix  ]*C3*r;
-        //up[iz][ix] += ui[izp2][ix  ]*C3*r;
-        //up[iz][ix] += ui[iz  ][ixm2]*C3*r;
-        //up[iz][ix] += ui[iz  ][ixp2]*C3*r;
-        //up[iz][ix] += ui[izm2][ixm2]*C4*r;
-        //up[iz][ix] += ui[izp2][ixm2]*C4*r;
-        //up[iz][ix] += ui[izm2][ixp2]*C4*r;
-        //up[iz][ix] += ui[izp2][ixp2]*C4*r;
-      }
-    }});
-  }
-
-  private void adjointStep(
-  final float[][] um, final float[][] ui, final float[][] up) {
-
-    //for (int iz=_iza; iz<_izd; ++iz) {
-    //  int izm1 = iz-1;
-    //  int izp1 = iz+1;
-    //  int izm2 = iz-2;
-    //  int izp2 = iz+2;
-    //  for (int ix=_ixa; ix<_ixd; ++ix) {
-    //    int ixm1 = ix-1;
-    //    int ixp1 = ix+1;
-    //    int ixm2 = ix-2;
-    //    int ixp2 = ix+2;
-    //    float r = _r[iz][ix];
-    //    um[iz  ][ix  ] -= up[iz][ix];
-    //    ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
-    //    ui[izm1][ix  ] += up[iz][ix]*C1*r;
-    //    ui[izp1][ix  ] += up[iz][ix]*C1*r;
-    //    ui[iz  ][ixm1] += up[iz][ix]*C1*r;
-    //    ui[iz  ][ixp1] += up[iz][ix]*C1*r;
-    //    ui[izm1][ixm1] += up[iz][ix]*C2*r;
-    //    ui[izp1][ixm1] += up[iz][ix]*C2*r;
-    //    ui[izm1][ixp1] += up[iz][ix]*C2*r;
-    //    ui[izp1][ixp1] += up[iz][ix]*C2*r;
-    //    ui[izm2][ix  ] += up[iz][ix]*C3*r;
-    //    ui[izp2][ix  ] += up[iz][ix]*C3*r;
-    //    ui[iz  ][ixm2] += up[iz][ix]*C3*r;
-    //    ui[iz  ][ixp2] += up[iz][ix]*C3*r;
-    //    ui[izm2][ixm2] += up[iz][ix]*C4*r;
-    //    ui[izp2][ixm2] += up[iz][ix]*C4*r;
-    //    ui[izm2][ixp2] += up[iz][ix]*C4*r;
-    //    ui[izp2][ixp2] += up[iz][ix]*C4*r;
-    //  }
-    //}
-
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        float r = _r[iz][ix];
-        ui[iz-2][ix  ] += up[iz][ix]*C3*r;
-        ui[iz-2][ix-2] += up[iz][ix]*C4*r;
-        ui[iz-2][ix+2] += up[iz][ix]*C4*r;
-      }
-    }});
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        float r = _r[iz][ix];
-        ui[iz-1][ix  ] += up[iz][ix]*C1*r;
-        ui[iz-1][ix-1] += up[iz][ix]*C2*r;
-        ui[iz-1][ix+1] += up[iz][ix]*C2*r;
-      }
-    }});
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        float r = _r[iz][ix];
-        um[iz  ][ix  ] -= up[iz][ix];
-        ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
-        ui[iz  ][ix-1] += up[iz][ix]*C1*r;
-        ui[iz  ][ix+1] += up[iz][ix]*C1*r;
-        ui[iz  ][ix-2] += up[iz][ix]*C3*r;
-        ui[iz  ][ix+2] += up[iz][ix]*C3*r;
-      }
-    }});
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        float r = _r[iz][ix];
-        ui[iz+1][ix  ] += up[iz][ix]*C1*r;
-        ui[iz+1][ix-1] += up[iz][ix]*C2*r;
-        ui[iz+1][ix+1] += up[iz][ix]*C2*r;
-      }
-    }});
-    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
-    public void compute(int iz) {
-      for (int ix=_ixa; ix<_ixd; ++ix) {
-        float r = _r[iz][ix];
-        ui[iz+2][ix  ] += up[iz][ix]*C3*r;
-        ui[iz+2][ix-2] += up[iz][ix]*C4*r;
-        ui[iz+2][ix+2] += up[iz][ix]*C4*r;
-      }
-    }});
-
+//  // 21-point Laplacian stencil from
+//  // Patra, M. and M. Karttunen, 2005, Stencils
+//  // with Isotropic Error for Differential Operators.
+//  private static final int FD_ORDER = 4;
+//  private static final float C0 = -9.0f/2.0f;
+//  private static final float C1 =  16.0f/15.0f;
+//  private static final float C2 =  2.0f/15.0f;
+//  private static final float C3 = -1.0f/15.0f;
+//  private static final float C4 = -1.0f/120.0f;
+//
+//  private void forwardStep(
+//  final float[][] um, final float[][] ui, final float[][] up) {
 //    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
 //    public void compute(int iz) {
 //      int izm1 = iz-1;
@@ -520,35 +397,227 @@ public class AcousticWaveOperator {
 //        int ixm2 = ix-2;
 //        int ixp2 = ix+2;
 //        float r = _r[iz][ix];
-//        um[iz][ix] -= up[iz  ][ix  ];
-//        ui[iz][ix] += up[iz  ][ix  ]*(2.0f+C0*r);
-//        ui[iz][ix] += up[izp1][ix  ]*C1*r;
-//        ui[iz][ix] += up[izm1][ix  ]*C1*r;
-//        ui[iz][ix] += up[iz  ][ixp1]*C1*r;
-//        ui[iz][ix] += up[iz  ][ixm1]*C1*r;
-//        ui[iz][ix] += up[izp1][ixp1]*C2*r;
-//        ui[iz][ix] += up[izm1][ixp1]*C2*r;
-//        ui[iz][ix] += up[izp1][ixm1]*C2*r;
-//        ui[iz][ix] += up[izm1][ixm1]*C2*r;
-//        ui[iz][ix] += up[izp2][ix  ]*C3*r;
-//        ui[iz][ix] += up[izm2][ix  ]*C3*r;
-//        ui[iz][ix] += up[iz  ][ixp2]*C3*r;
-//        ui[iz][ix] += up[iz  ][ixm2]*C3*r;
-//        ui[iz][ix] += up[izp2][ixp2]*C4*r;
-//        ui[iz][ix] += up[izm2][ixp2]*C4*r;
-//        ui[iz][ix] += up[izp2][ixm2]*C4*r;
-//        ui[iz][ix] += up[izm2][ixm2]*C4*r;
+//        up[iz][ix] += (2.0f+C0*r)*ui[iz][ix]-um[iz][ix]+r*(
+//          C1*(ui[izm1][ix  ]+ui[izp1][ix  ]+ui[iz  ][ixm1]+ui[iz  ][ixp1])+
+//          C2*(ui[izm1][ixm1]+ui[izp1][ixm1]+ui[izm1][ixp1]+ui[izp1][ixp1])+
+//          C3*(ui[izm2][ix  ]+ui[izp2][ix  ]+ui[iz  ][ixm2]+ui[iz  ][ixp2])+
+//          C4*(ui[izm2][ixm2]+ui[izp2][ixm2]+ui[izm2][ixp2]+ui[izp2][ixp2]));
+//        //up[iz][ix] -= um[iz  ][ix  ];
+//        //up[iz][ix] += ui[iz  ][ix  ]*(2.0f+C0*r);
+//        //up[iz][ix] += ui[izm1][ix  ]*C1*r;
+//        //up[iz][ix] += ui[izp1][ix  ]*C1*r;
+//        //up[iz][ix] += ui[iz  ][ixm1]*C1*r;
+//        //up[iz][ix] += ui[iz  ][ixp1]*C1*r;
+//        //up[iz][ix] += ui[izm1][ixm1]*C2*r;
+//        //up[iz][ix] += ui[izp1][ixm1]*C2*r;
+//        //up[iz][ix] += ui[izm1][ixp1]*C2*r;
+//        //up[iz][ix] += ui[izp1][ixp1]*C2*r;
+//        //up[iz][ix] += ui[izm2][ix  ]*C3*r;
+//        //up[iz][ix] += ui[izp2][ix  ]*C3*r;
+//        //up[iz][ix] += ui[iz  ][ixm2]*C3*r;
+//        //up[iz][ix] += ui[iz  ][ixp2]*C3*r;
+//        //up[iz][ix] += ui[izm2][ixm2]*C4*r;
+//        //up[iz][ix] += ui[izp2][ixm2]*C4*r;
+//        //up[iz][ix] += ui[izm2][ixp2]*C4*r;
+//        //up[iz][ix] += ui[izp2][ixp2]*C4*r;
+//      }
 //    }});
-//    for (int iz=_iza; iz<_izd; ++iz) {
-////      ui[iz  ][ix+1  ] += up[iz][ix    ]*C1*r;
-////      ui[iz  ][_ixd  ] += up[iz][_ixd-1]*C1*_r[iz][_ixd-1];
-////      ui[iz  ][_ixa  ] -= up[iz][_ixa-1]*C1*_r[iz][_ixa-1];
+//  }
 //
-////      ui[iz  ][ix-1  ] += up[iz][ix  ]*C1*r;
-////      ui[iz  ][_ixa-1] += up[iz][_ixa]*C1*_r[iz][_ixa];
-////      ui[iz  ][_ixd-1] -= up[iz][_ixd]*C1*_r[iz][_ixd];
-//    }
+//  private void adjointStep(
+//  final float[][] um, final float[][] ui, final float[][] up) {
+//
+//    //for (int iz=_iza; iz<_izd; ++iz) {
+//    //  int izm1 = iz-1;
+//    //  int izp1 = iz+1;
+//    //  int izm2 = iz-2;
+//    //  int izp2 = iz+2;
+//    //  for (int ix=_ixa; ix<_ixd; ++ix) {
+//    //    int ixm1 = ix-1;
+//    //    int ixp1 = ix+1;
+//    //    int ixm2 = ix-2;
+//    //    int ixp2 = ix+2;
+//    //    float r = _r[iz][ix];
+//    //    um[iz  ][ix  ] -= up[iz][ix];
+//    //    ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
+//    //    ui[izm1][ix  ] += up[iz][ix]*C1*r;
+//    //    ui[izp1][ix  ] += up[iz][ix]*C1*r;
+//    //    ui[iz  ][ixm1] += up[iz][ix]*C1*r;
+//    //    ui[iz  ][ixp1] += up[iz][ix]*C1*r;
+//    //    ui[izm1][ixm1] += up[iz][ix]*C2*r;
+//    //    ui[izp1][ixm1] += up[iz][ix]*C2*r;
+//    //    ui[izm1][ixp1] += up[iz][ix]*C2*r;
+//    //    ui[izp1][ixp1] += up[iz][ix]*C2*r;
+//    //    ui[izm2][ix  ] += up[iz][ix]*C3*r;
+//    //    ui[izp2][ix  ] += up[iz][ix]*C3*r;
+//    //    ui[iz  ][ixm2] += up[iz][ix]*C3*r;
+//    //    ui[iz  ][ixp2] += up[iz][ix]*C3*r;
+//    //    ui[izm2][ixm2] += up[iz][ix]*C4*r;
+//    //    ui[izp2][ixm2] += up[iz][ix]*C4*r;
+//    //    ui[izm2][ixp2] += up[iz][ix]*C4*r;
+//    //    ui[izp2][ixp2] += up[iz][ix]*C4*r;
+//    //  }
+//    //}
+//
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        float r = _r[iz][ix];
+//        ui[iz-2][ix  ] += up[iz][ix]*C3*r;
+//        ui[iz-2][ix-2] += up[iz][ix]*C4*r;
+//        ui[iz-2][ix+2] += up[iz][ix]*C4*r;
+//      }
+//    }});
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        float r = _r[iz][ix];
+//        ui[iz-1][ix  ] += up[iz][ix]*C1*r;
+//        ui[iz-1][ix-1] += up[iz][ix]*C2*r;
+//        ui[iz-1][ix+1] += up[iz][ix]*C2*r;
+//      }
+//    }});
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        float r = _r[iz][ix];
+//        um[iz  ][ix  ] -= up[iz][ix];
+//        ui[iz  ][ix  ] += up[iz][ix]*(2.0f+C0*r);
+//        ui[iz  ][ix-1] += up[iz][ix]*C1*r;
+//        ui[iz  ][ix+1] += up[iz][ix]*C1*r;
+//        ui[iz  ][ix-2] += up[iz][ix]*C3*r;
+//        ui[iz  ][ix+2] += up[iz][ix]*C3*r;
+//      }
+//    }});
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        float r = _r[iz][ix];
+//        ui[iz+1][ix  ] += up[iz][ix]*C1*r;
+//        ui[iz+1][ix-1] += up[iz][ix]*C2*r;
+//        ui[iz+1][ix+1] += up[iz][ix]*C2*r;
+//      }
+//    }});
+//    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    public void compute(int iz) {
+//      for (int ix=_ixa; ix<_ixd; ++ix) {
+//        float r = _r[iz][ix];
+//        ui[iz+2][ix  ] += up[iz][ix]*C3*r;
+//        ui[iz+2][ix-2] += up[iz][ix]*C4*r;
+//        ui[iz+2][ix+2] += up[iz][ix]*C4*r;
+//      }
+//    }});
+//
+//    //Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+//    //public void compute(int iz) {
+//    //  int izm1 = iz-1;
+//    //  int izp1 = iz+1;
+//    //  int izm2 = iz-2;
+//    //  int izp2 = iz+2;
+//    //  for (int ix=_ixa; ix<_ixd; ++ix) {
+//    //    int ixm1 = ix-1;
+//    //    int ixp1 = ix+1;
+//    //    int ixm2 = ix-2;
+//    //    int ixp2 = ix+2;
+//    //    float r = _r[iz][ix];
+//    //    um[iz][ix] -= up[iz  ][ix  ];
+//    //    ui[iz][ix] += up[iz  ][ix  ]*(2.0f+C0*r);
+//    //    ui[iz][ix] += up[izp1][ix  ]*C1*r;
+//    //    ui[iz][ix] += up[izm1][ix  ]*C1*r;
+//    //    ui[iz][ix] += up[iz  ][ixp1]*C1*r;
+//    //    ui[iz][ix] += up[iz  ][ixm1]*C1*r;
+//    //    ui[iz][ix] += up[izp1][ixp1]*C2*r;
+//    //    ui[iz][ix] += up[izm1][ixp1]*C2*r;
+//    //    ui[iz][ix] += up[izp1][ixm1]*C2*r;
+//    //    ui[iz][ix] += up[izm1][ixm1]*C2*r;
+//    //    ui[iz][ix] += up[izp2][ix  ]*C3*r;
+//    //    ui[iz][ix] += up[izm2][ix  ]*C3*r;
+//    //    ui[iz][ix] += up[iz  ][ixp2]*C3*r;
+//    //    ui[iz][ix] += up[iz  ][ixm2]*C3*r;
+//    //    ui[iz][ix] += up[izp2][ixp2]*C4*r;
+//    //    ui[iz][ix] += up[izm2][ixp2]*C4*r;
+//    //    ui[iz][ix] += up[izp2][ixm2]*C4*r;
+//    //    ui[iz][ix] += up[izm2][ixm2]*C4*r;
+//    //}});
+//    //for (int iz=_iza; iz<_izd; ++iz) {
+//    //  // TODO
+//    //  //ui[iz  ][ix+1  ] += up[iz][ix    ]*C1*r;
+//    //  //ui[iz  ][_ixd  ] += up[iz][_ixd-1]*C1*_r[iz][_ixd-1];
+//    //  //ui[iz  ][_ixa  ] -= up[iz][_ixa-1]*C1*_r[iz][_ixa-1];
+//    // 
+//    //  //ui[iz  ][ix-1  ] += up[iz][ix  ]*C1*r;
+//    //  //ui[iz  ][_ixa-1] += up[iz][_ixa]*C1*_r[iz][_ixa];
+//    //  //ui[iz  ][_ixd-1] -= up[iz][_ixd]*C1*_r[iz][_ixd];
+//    //}
+//
+//  }
 
+  // 20th order stencil coefficients from Farhad.
+  private static final int FD_ORDER = 20;
+  private static final float SQRT2 = sqrt(2.0f);
+  private static final float C00 = -0.32148051f*10.0f*2.0f;
+  private static final float C01 =  0.19265816f*10.0f;
+  private static final float C02 = -0.43052632f*1.0f; 
+  private static final float C03 =  0.15871000f*1.0f;
+  private static final float C04 = -0.68711400f*0.1f;
+  private static final float C05 =  0.31406935f*0.1f;
+  private static final float C06 = -0.14454222f*0.1f;
+  private static final float C07 =  0.65305182f*0.01f;
+  private static final float C08 = -0.28531535f*0.01f;
+  private static final float C09 =  0.11937032f*0.01f;
+  private static final float C10 = -0.47508613f*0.001f;
+
+  private void forwardStep(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      float[] upi = up[iz];
+      float[] umi = um[iz];
+      float[] uii = ui[iz];
+      float[] uim01 = ui[iz-1 ], uip01 = ui[iz+1 ];
+      float[] uim02 = ui[iz-2 ], uip02 = ui[iz+2 ];
+      float[] uim03 = ui[iz-3 ], uip03 = ui[iz+3 ];
+      float[] uim04 = ui[iz-4 ], uip04 = ui[iz+4 ];
+      float[] uim05 = ui[iz-5 ], uip05 = ui[iz+5 ];
+      float[] uim06 = ui[iz-6 ], uip06 = ui[iz+6 ];
+      float[] uim07 = ui[iz-7 ], uip07 = ui[iz+7 ];
+      float[] uim08 = ui[iz-8 ], uip08 = ui[iz+8 ];
+      float[] uim09 = ui[iz-9 ], uip09 = ui[iz+9 ];
+      float[] uim10 = ui[iz-10], uip10 = ui[iz+10];
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        float q = 0.5f*r;
+        upi[ix] += 1.0f*(
+          ((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
+          C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
+          C02*(uim02[ix]+uii[ix-2 ]+uii[ix+2 ]+uip02[ix])+
+          C03*(uim03[ix]+uii[ix-3 ]+uii[ix+3 ]+uip03[ix])+
+          C04*(uim04[ix]+uii[ix-4 ]+uii[ix+4 ]+uip04[ix])+
+          C05*(uim05[ix]+uii[ix-5 ]+uii[ix+5 ]+uip05[ix])+
+          C06*(uim06[ix]+uii[ix-6 ]+uii[ix+6 ]+uip06[ix])+
+          C07*(uim07[ix]+uii[ix-7 ]+uii[ix+7 ]+uip07[ix])+
+          C08*(uim08[ix]+uii[ix-8 ]+uii[ix+8 ]+uip08[ix])+
+          C09*(uim09[ix]+uii[ix-9 ]+uii[ix+9 ]+uip09[ix])+
+          C10*(uim10[ix]+uii[ix-10]+uii[ix+10]+uip10[ix])))
+          //+
+          //((2.0f+C00*q)*uii[ix]-umi[ix]+q*(
+          //C01*(uim01[ix-1 ]+uim01[ix+1 ]+uip01[ix-1 ]+uip01[ix+1 ])+
+          //C02*(uim02[ix-2 ]+uim02[ix+2 ]+uip02[ix-2 ]+uip02[ix+2 ])+
+          //C03*(uim03[ix-3 ]+uim03[ix+3 ]+uip03[ix-3 ]+uip03[ix+3 ])+
+          //C04*(uim04[ix-4 ]+uim04[ix+4 ]+uip04[ix-4 ]+uip04[ix+4 ])+
+          //C05*(uim05[ix-5 ]+uim05[ix+5 ]+uip05[ix-5 ]+uip05[ix+5 ])+
+          //C06*(uim06[ix-6 ]+uim06[ix+6 ]+uip06[ix-6 ]+uip06[ix+6 ])+
+          //C07*(uim07[ix-7 ]+uim07[ix+7 ]+uip07[ix-7 ]+uip07[ix+7 ])+
+          //C08*(uim08[ix-8 ]+uim08[ix+8 ]+uip08[ix-8 ]+uip08[ix+8 ])+
+          //C09*(uim09[ix-9 ]+uim09[ix+9 ]+uip09[ix-9 ]+uip09[ix+9 ])+
+          //C10*(uim10[ix-10]+uim10[ix+10]+uip10[ix-10]+uip10[ix+10])))
+        );
+      }
+    }});
+  }
+  private void adjointStep(
+  final float[][] um, final float[][] ui, final float[][] up) {
+    forwardStep(um,ui,up);
   }
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing

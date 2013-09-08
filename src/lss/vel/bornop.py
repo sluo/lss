@@ -6,29 +6,33 @@ from dnp import *
 
 #############################################################################
 
-sz = Sampling(201,0.0025,0.0)
-sx = Sampling(202,0.0025,0.0)
-st = Sampling(2003,0.0005,0.0)
 #sz = Sampling(11,0.016,0.0)
 #sx = Sampling(12,0.016,0.0)
 #st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
 #st = Sampling(2003,0.0012,0.0)
+#sz = Sampling(401,0.0025,0.0) # for 40 Hz
+#sx = Sampling(402,0.0025,0.0)
+#st = Sampling(5003,0.0001,0.0)
+sz = Sampling(201,0.005,0.0) # for 30 Hz
+sx = Sampling(202,0.005,0.0)
+st = Sampling(3003,0.0004,0.0)
 #sz = Sampling(265,0.012,0.0); stride = 3
 #sx = Sampling(767,0.012,0.0)
 #st = Sampling(5001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
+#xs,zs = [0],[0]
 xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
 #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
-xs,zs = rampint(1,15,52),fillint(0,52)
+#xs,zs = rampint(1,15,52),fillint(0,52)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 40.0 # Ricker wavelet peak frequency
-nabsorb = 12 # absorbing boundary size
+fpeak = 30.0 # Ricker wavelet peak frequency
+nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
 
@@ -151,7 +155,7 @@ def makeBornModel(s,sigma0=0.050,sigma1=None):
   ref1.apply(s,t)
   sub(s,t,s1)
   r = sub(mul(s,s),mul(t,t))
-  #GaussianTaper.apply1(0.25,r,r)
+  GaussianTaper.apply1(0.25,r,r)
   return s0,r
 
 def like(x):
@@ -255,10 +259,11 @@ def dot(u,a):
 
 def getLayeredModel():
   """Make slowness (s/km) model."""
-  s = fillfloat(0.5,nx,nz)
+  s = fillfloat(1.0/1.5,nx,nz) # water velocity
+  #s = fillfloat(0.5,nx,nz)
   for iz in range(nz/3,2*nz/3):
     for ix in range(nx):
-      s[iz][ix] = 0.35
+      s[iz][ix] = 0.50
   for iz in range(2*nz/3,nz):
     for ix in range(nx):
       s[iz][ix] = 0.2
