@@ -13,7 +13,21 @@ fpeak = 10.0
 
 def main(args):
   #goZeroPhase()
-  goMinimumPhase()
+  #goMinimumPhase()
+  goPhaseRotate()
+
+def goPhaseRotate(p=-0.25*FLT_PI):
+  rx = getTrace()
+  fft = Fft(rx)
+  cy = fft.applyForward(rx)
+  t = like(cy)
+  for i in range(len(cy)/2):
+    t[2*i  ] = cos(p)
+    t[2*i+1] = sin(p)
+  cmul(t,cy,cy)
+  ry = fft.applyInverse(cy)
+  points(rx)
+  points(ry)
 
 def goZeroPhase():
   x = getTrace()
@@ -41,11 +55,11 @@ def findMinimumPhase(rx):
   n = len(rx)
   fft = Fft(rx)
   cx = fft.applyForward(rx)
-  #points(cx)
   cx = cabs(cx)
+  points(cx)
   mul(cx,cx,cx) # spectrum
   #points(cx)
-  add(1.0e-8*max(cx),cx,cx) # stabilize for logarithm
+  add(1.0e-4*max(cx),cx,cx) # stabilize for logarithm
   cx = cmplx(cx,like(cx)) # spectrum
   cx = clog(cx)
   #points(cx)
@@ -58,6 +72,7 @@ def findMinimumPhase(rx):
   cz = cexp(cz)
   rz = fft.applyInverse(cz)
   #points(rz)
+  points(cabs(fft.applyForward(rz)))
   return rz
 
 def like(x):
