@@ -5,30 +5,36 @@ import edu.mines.jtk.util.Check;
 public class Receiver {
 
   public Receiver(int xr, int zr, int nt) {
-    this(new int[]{xr},new int[]{zr},nt);
+    this(new int[]{xr},new int[]{zr},nt,null);
   }
 
   public Receiver(int[] xr, int[] zr, int nt) {
-    int nxr = xr.length;
-    int nzr = zr.length;
-    Check.argument(nxr==nzr,"nxr==nzr");
-    _nr = nxr;
-    _nt = nt;
-    _xr = xr;
-    _zr = zr;
-    _data = new float[_nr][nt];
+    this(xr,zr,nt,null);
   }
 
   public Receiver(int[] xr, int[] zr, float[][] data) {
+    this(xr,zr,-1,data);
+  }
+
+  private Receiver(int[] xr, int[] zr, int nt, float[][] data) {
     int nxr = xr.length;
     int nzr = zr.length;
     Check.argument(nxr==nzr,"nxr==nzr");
     _nr = nxr;
-    Check.argument(data.length==_nr,"data.length==nr");
-    _nt = data[0].length;
     _xr = xr;
     _zr = zr;
-    _data = data;
+    for (int ir=0; ir<_nr; ++ir) {
+      Check.argument(_xr[ir]>=0,"xr[ir]>=0");
+      Check.argument(_zr[ir]>=0,"zr[ir]>=0");
+    }
+    if (data!=null) {
+      Check.argument(data.length==_nr,"data.length==nr");
+      _nt = data[0].length;
+      _data = data;
+    } else {
+      _nt = nt;
+      _data = new float[_nr][_nt];
+    }
   }
 
   public void setData(float[][] ui, int it, int nabsorb) {
@@ -37,6 +43,12 @@ public class Receiver {
       int zr = _zr[ir]+nabsorb;
       _data[ir][it] = ui[zr][xr];
     }
+  }
+
+  public void setData(float[][] d) {
+    Check.argument(d[0].length==_nt,"d[0].length==_nt");
+    Check.argument(d.length==_nr,"d.length==_nt");
+    edu.mines.jtk.util.ArrayMath.copy(d,_data);
   }
 
   public int[][] getIndices() {

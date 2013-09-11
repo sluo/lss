@@ -586,7 +586,7 @@ public class AcousticWaveOperator {
       float[] uim10 = ui[iz-10], uip10 = ui[iz+10];
       for (int ix=_ixa; ix<_ixd; ++ix) {
         float r = _r[iz][ix];
-        float q = 0.5f*r;
+        //float q = 0.5f*r;
         upi[ix] += 1.0f*(
           ((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
           C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
@@ -617,7 +617,115 @@ public class AcousticWaveOperator {
   }
   private void adjointStep(
   final float[][] um, final float[][] ui, final float[][] up) {
-    forwardStep(um,ui,up);
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      float[] umi = um[iz];
+      float[] uii = ui[iz];
+      float[] upi = up[iz];
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        float upr = upi[ix]*r;
+        umi[ix   ] -= upi[ix];
+        uii[ix-10] += upr*C10;
+        uii[ix-9 ] += upr*C09;
+        uii[ix-8 ] += upr*C08;
+        uii[ix-7 ] += upr*C07;
+        uii[ix-6 ] += upr*C06;
+        uii[ix-5 ] += upr*C05;
+        uii[ix-4 ] += upr*C04;
+        uii[ix-3 ] += upr*C03;
+        uii[ix-2 ] += upr*C02;
+        uii[ix-1 ] += upr*C01;
+        uii[ix   ] += upi[ix]*(2.0f+C00*r);
+        uii[ix+1 ] += upr*C01;
+        uii[ix+2 ] += upr*C02;
+        uii[ix+3 ] += upr*C03;
+        uii[ix+4 ] += upr*C04;
+        uii[ix+5 ] += upr*C05;
+        uii[ix+6 ] += upr*C06;
+        uii[ix+7 ] += upr*C07;
+        uii[ix+8 ] += upr*C08;
+        uii[ix+9 ] += upr*C09;
+        uii[ix+10] += upr*C10;
+      }
+    }});
+    Parallel.loop(_ixa,_ixd,new Parallel.LoopInt() {
+    public void compute(int ix) {
+      for (int iz=_iza; iz<_izd; ++iz) {
+        float r = _r[iz][ix];
+        float upr = up[iz][ix]*r;
+        ui[iz-10][ix   ] += upr*C10;
+        ui[iz-9 ][ix   ] += upr*C09;
+        ui[iz-8 ][ix   ] += upr*C08;
+        ui[iz-7 ][ix   ] += upr*C07;
+        ui[iz-6 ][ix   ] += upr*C06;
+        ui[iz-5 ][ix   ] += upr*C05;
+        ui[iz-4 ][ix   ] += upr*C04;
+        ui[iz-3 ][ix   ] += upr*C03;
+        ui[iz-2 ][ix   ] += upr*C02;
+        ui[iz-1 ][ix   ] += upr*C01;
+        ui[iz+1 ][ix   ] += upr*C01;
+        ui[iz+2 ][ix   ] += upr*C02;
+        ui[iz+3 ][ix   ] += upr*C03;
+        ui[iz+4 ][ix   ] += upr*C04;
+        ui[iz+5 ][ix   ] += upr*C05;
+        ui[iz+6 ][ix   ] += upr*C06;
+        ui[iz+7 ][ix   ] += upr*C07;
+        ui[iz+8 ][ix   ] += upr*C08;
+        ui[iz+9 ][ix   ] += upr*C09;
+        ui[iz+10][ix   ] += upr*C10;
+      }
+    }});
+  }
+  private void xadjointStep( // FIXME: not exact adjoint!
+  final float[][] um, final float[][] ui, final float[][] up) {
+    Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+    public void compute(int iz) {
+      for (int ix=_ixa; ix<_ixd; ++ix) {
+        float r = _r[iz][ix];
+        um[iz][ix] += (2.0f+C00*r)*ui[iz][ix]-up[iz][ix]+
+          C01*(_r[iz-1 ][ix   ]*ui[iz-1 ][ix   ]+
+               _r[iz   ][ix-1 ]*ui[iz   ][ix-1 ]+
+               _r[iz   ][ix+1 ]*ui[iz   ][ix+1 ]+
+               _r[iz+1 ][ix   ]*ui[iz+1 ][ix   ])+
+          C02*(_r[iz-2 ][ix   ]*ui[iz-2 ][ix   ]+
+               _r[iz   ][ix-2 ]*ui[iz   ][ix-2 ]+
+               _r[iz   ][ix+2 ]*ui[iz   ][ix+2 ]+
+               _r[iz+2 ][ix   ]*ui[iz+2 ][ix   ])+
+          C03*(_r[iz-3 ][ix   ]*ui[iz-3 ][ix   ]+
+               _r[iz   ][ix-3 ]*ui[iz   ][ix-3 ]+
+               _r[iz   ][ix+3 ]*ui[iz   ][ix+3 ]+
+               _r[iz+3 ][ix   ]*ui[iz+3 ][ix   ])+
+          C04*(_r[iz-4 ][ix   ]*ui[iz-4 ][ix   ]+
+               _r[iz   ][ix-4 ]*ui[iz   ][ix-4 ]+
+               _r[iz   ][ix+4 ]*ui[iz   ][ix+4 ]+
+               _r[iz+4 ][ix   ]*ui[iz+4 ][ix   ])+
+          C05*(_r[iz-5 ][ix   ]*ui[iz-5 ][ix   ]+
+               _r[iz   ][ix-5 ]*ui[iz   ][ix-5 ]+
+               _r[iz   ][ix+5 ]*ui[iz   ][ix+5 ]+
+               _r[iz+5 ][ix   ]*ui[iz+5 ][ix   ])+
+          C06*(_r[iz-6 ][ix   ]*ui[iz-6 ][ix   ]+
+               _r[iz   ][ix-6 ]*ui[iz   ][ix-6 ]+
+               _r[iz   ][ix+6 ]*ui[iz   ][ix+6 ]+
+               _r[iz+6 ][ix   ]*ui[iz+6 ][ix   ])+
+          C07*(_r[iz-7 ][ix   ]*ui[iz-7 ][ix   ]+
+               _r[iz   ][ix-7 ]*ui[iz   ][ix-7 ]+
+               _r[iz   ][ix+7 ]*ui[iz   ][ix+7 ]+
+               _r[iz+7 ][ix   ]*ui[iz+7 ][ix   ])+
+          C08*(_r[iz-8 ][ix   ]*ui[iz-8 ][ix   ]+
+               _r[iz   ][ix-8 ]*ui[iz   ][ix-8 ]+
+               _r[iz   ][ix+8 ]*ui[iz   ][ix+8 ]+
+               _r[iz+8 ][ix   ]*ui[iz+8 ][ix   ])+
+          C09*(_r[iz-9 ][ix   ]*ui[iz-9 ][ix   ]+
+               _r[iz   ][ix-9 ]*ui[iz   ][ix-9 ]+
+               _r[iz   ][ix+9 ]*ui[iz   ][ix+9 ]+
+               _r[iz+9 ][ix   ]*ui[iz+9 ][ix   ])+
+          C10*(_r[iz-10][ix   ]*ui[iz-10][ix   ]+
+               _r[iz   ][ix-10]*ui[iz   ][ix-10]+
+               _r[iz   ][ix+10]*ui[iz   ][ix+10]+
+               _r[iz+10][ix   ]*ui[iz+10][ix   ]);
+      }
+    }});
   }
 
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing

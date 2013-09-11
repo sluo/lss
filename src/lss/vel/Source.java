@@ -40,13 +40,10 @@ public interface Source {
       ui[_zs+nabsorb][_xs+nabsorb] += gaussian(it*_dt-_tdelay);
     }
     private float gaussian(float t) {
-      double a = PI*_fpeak;
-      double aa = a*a;
-      double x = a*t;
+      double x = PI*_fpeak*t;
       double xx = x*x;
-      //return (float)(2.0*aa*(3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
       //return (float)((3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
-      return (float)((0.075-0.3*xx+0.1*xx*xx)*exp(-xx));
+      return (float)((0.075-0.3*xx+0.1*xx*xx)*exp(-xx)); // 0.025 scaling
     }
     private int _xs,_zs;
     private float _dt,_fpeak,_tdelay;

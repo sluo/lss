@@ -15,8 +15,8 @@ from dnp import *
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
-sz = Sampling(201,0.005,0.0) # for 30 Hz
-sx = Sampling(202,0.005,0.0)
+sz = Sampling(201,0.00625,0.0) # for 30 Hz
+sx = Sampling(202,0.00625,0.0)
 st = Sampling(3003,0.0004,0.0)
 #sz = Sampling(265,0.012,0.0); stride = 3
 #sx = Sampling(767,0.012,0.0)
@@ -182,7 +182,7 @@ def adjointTest():
   print sum2
 
 def adjointTestMultiSource():
-  nsou = 3
+  nsou = 1
   #random = Random()
   random = Random(01234)
   s = fillfloat(0.25,nx,nz)
