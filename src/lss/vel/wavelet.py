@@ -12,20 +12,42 @@ st = Sampling(nt,dt,ft)
 fpeak = 10.0
 
 def main(args):
-  #goZeroPhase()
+  goZeroPhase()
   #goMinimumPhase()
-  goPhaseRotate()
+  #rotateAndDifferentiate()
 
-def goPhaseRotate(p=-0.25*FLT_PI):
+def rotateAndDifferentiate():
   rx = getTrace()
   fft = Fft(rx)
+  sf = fft.getFrequencySampling1()
+  nf = sf.count
+
+  # Forward FFT
   cy = fft.applyForward(rx)
+
+  # Phase rotation
+  p = 0.25*FLT_PI
   t = like(cy)
-  for i in range(len(cy)/2):
-    t[2*i  ] = cos(p)
-    t[2*i+1] = sin(p)
+  for i in range(nf):
+    w = sf.getValue(i)
+    t[2*i  ] = -cos(p)
+    t[2*i+1] = -sin(p)
+    #t[2*i  ] = -w*w*cos(p) # include 2nd time derivative
+    #t[2*i+1] = -w*w*sin(p) # include 2nd time derivative
   cmul(t,cy,cy)
+
+  # Differentiate
+  sf = fft.getFrequencySampling1()
+  s = like(cy)
+  for i in range(nf):
+    w = sf.getValue(i)
+    s[2*i  ] = -w*w # for 2nd derivative
+    #s[2*i+1] = w # for 1st derivative
+  cmul(s,cy,cy)
+
+  # Inverse FFT
   ry = fft.applyInverse(cy)
+
   points(rx)
   points(ry)
 

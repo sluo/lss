@@ -49,6 +49,22 @@ public interface Source {
     private float _dt,_fpeak,_tdelay;
   }
 
+  public static class WaveletSource implements Source {
+    public WaveletSource(int xs, int zs, float[] w) {
+      _xs = xs;
+      _zs = zs;
+      _nt = w.length;
+      _w = w;
+    }
+    public void add(float[][] ui, int it, int nabsorb) {
+      if (it>=_nt) 
+        return;
+      ui[_zs+nabsorb][_xs+nabsorb] += _w[it];
+    }
+    private float[] _w;
+    private int _xs,_zs,_nt;
+  }
+
   public static class ReceiverSource implements Source {
     public ReceiverSource(Receiver receiver) {
       int[][] c = receiver.getIndices();

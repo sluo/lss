@@ -554,7 +554,6 @@ public class AcousticWaveOperator {
 
   // 20th order stencil coefficients from Farhad.
   private static final int FD_ORDER = 20;
-  private static final float SQRT2 = sqrt(2.0f);
   private static final float C00 = -0.32148051f*10.0f*2.0f;
   private static final float C01 =  0.19265816f*10.0f;
   private static final float C02 = -0.43052632f*1.0f; 
@@ -587,8 +586,10 @@ public class AcousticWaveOperator {
       for (int ix=_ixa; ix<_ixd; ++ix) {
         float r = _r[iz][ix];
         //float q = 0.5f*r;
-        upi[ix] += 1.0f*(
-          ((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
+        //float a = 0.5461f; // (Jo et. al., 1996)
+        float a = 1.0f;
+        upi[ix] += (
+          a*((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
           C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
           C02*(uim02[ix]+uii[ix-2 ]+uii[ix+2 ]+uip02[ix])+
           C03*(uim03[ix]+uii[ix-3 ]+uii[ix+3 ]+uip03[ix])+
@@ -600,7 +601,7 @@ public class AcousticWaveOperator {
           C09*(uim09[ix]+uii[ix-9 ]+uii[ix+9 ]+uip09[ix])+
           C10*(uim10[ix]+uii[ix-10]+uii[ix+10]+uip10[ix])))
           //+
-          //((2.0f+C00*q)*uii[ix]-umi[ix]+q*(
+          //(1.0f-a)*((2.0f+C00*q)*uii[ix]-umi[ix]+q*(
           //C01*(uim01[ix-1 ]+uim01[ix+1 ]+uip01[ix-1 ]+uip01[ix+1 ])+
           //C02*(uim02[ix-2 ]+uim02[ix+2 ]+uip02[ix-2 ]+uip02[ix+2 ])+
           //C03*(uim03[ix-3 ]+uim03[ix+3 ]+uip03[ix-3 ]+uip03[ix+3 ])+
@@ -728,6 +729,8 @@ public class AcousticWaveOperator {
     }});
   }
 
+  private static final float SQRT2 = sqrt(2.0f);
+
   // Liu, Y. and M. K. Sen, 2010, A hybrid scheme for absorbing
   // edge reflections in numerical modeling of wave propagation.
   public void forwardAbsorb(
@@ -816,7 +819,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz][ix] += -m*up[iz][ix]+m*(
           ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix])
         );
@@ -825,7 +828,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz][ix] += -m*up[iz][ix]+m*(
           ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix])
         );
@@ -834,7 +837,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz][ix] += -m*up[iz][ix]+m*(
           ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix])
         );
@@ -843,7 +846,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz][ix] += -m*up[iz][ix]+m*(
           ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix])
         );
@@ -942,7 +945,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz  ][ix  ] -= cp[iz][ix]*m;
         ui[iz  ][ix  ] += cp[iz][ix]*m;
         ui[iz+1][ix  ] += cp[iz][ix]*m*r;
@@ -953,7 +956,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz  ][ix  ] -= cp[iz][ix]*m;
         ui[iz  ][ix  ] += cp[iz][ix]*m;
         ui[iz-1][ix  ] += cp[iz][ix]*m*r;
@@ -964,7 +967,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz  ][ix  ] -= cp[iz][ix]*m;
         ui[iz  ][ix  ] += cp[iz][ix]*m;
         ui[iz+1][ix  ] += cp[iz][ix]*m*r;
@@ -975,7 +978,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float m = 1.0f-_w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         up[iz  ][ix  ] -= cp[iz][ix]*m;
         ui[iz  ][ix  ] += cp[iz][ix]*m;
         ui[iz-1][ix  ] += cp[iz][ix]*m*r;
@@ -1060,7 +1063,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float w = _w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         float vp = ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix]);
         up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
       }
@@ -1068,7 +1071,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixa; ix<_ixb; ++ix) {
         float w = _w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         float vp = ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix+1]-2.0f*ui[iz][ix]);
         up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
       }
@@ -1076,7 +1079,7 @@ public class AcousticWaveOperator {
     for (int iz=_iza; iz<_izb; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float w = _w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         float vp = ui[iz][ix]+r*(ui[iz+1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix]);
         up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
       }
@@ -1084,7 +1087,7 @@ public class AcousticWaveOperator {
     for (int iz=_izc; iz<_izd; ++iz) {
       for (int ix=_ixc; ix<_ixd; ++ix) {
         float w = _w[iz][ix];
-        float r = (float)(_dt/(sqrt(2.0)*_dx*_s[iz][ix]));
+        float r = _dt/(SQRT2*_dx*_s[iz][ix]);
         float vp = ui[iz][ix]+r*(ui[iz-1][ix]+ui[iz][ix-1]-2.0f*ui[iz][ix]);
         up[iz][ix] = w*up[iz][ix]+(1.0f-w)*vp;
       }

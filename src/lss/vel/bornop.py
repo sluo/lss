@@ -23,6 +23,7 @@ st = Sampling(3003,0.0004,0.0)
 #st = Sampling(5001,0.0012,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
+fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [0],[0]
 xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
@@ -31,7 +32,7 @@ xs,zs = [nx/2],[0]
 #xs,zs = rampint(1,15,52),fillint(0,52)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 30.0 # Ricker wavelet peak frequency
+fpeak = 20.0 # Ricker wavelet peak frequency
 nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
@@ -42,6 +43,7 @@ np = min(16,ns) # number of parallel sources
 def main(args):
   #goAcousticData()
   goBornData()
+  #makeSource()
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
@@ -124,19 +126,58 @@ def goBornData():
   s = getLayeredModel()
   #s = getMarmousi(stride)
   s0,s1 = makeBornModel(s)
+  #zero(s1)
+  #for ix in range(nx):
+  #  s1[nz/3][ix] = 1.00
   bwo = BornWaveOperator(
     s,dx,dt,nabsorb)
   receiver = Receiver(xr,zr,nt)
   u = zerofloat(nxp,nzp,nt)
-  source = Source.Gaussian4Source(xs[0],zs[0],dt,fpeak)
+  #source = Source.Gaussian4Source(xs[0],zs[0],dt,fpeak)
+  source = makeSource()
   sw = Stopwatch(); sw.start()
   bwo.applyForward(source,u,s1,receiver)
   print sw.time()
   d = receiver.getData()
   #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
+  SimplePlot.asPoints(d[nr/2])
   plot(d,cmap=gray,sperc=99.5,title="data")
   plot(s0,cmap=jet,title="background slowness (s/km)")
   plot(s1,sperc=100.0,title="reflectivity")
+def makeSource():
+  def ricker(t):
+    x = FLT_PI*fpeak*(t-1.5/fpeak)
+    xx = x*x
+    return (1.0-2.0*xx)*exp(-xx);
+  w = zerofloat(nt)
+  for it in range(nt):
+    t = ft+it*dt
+    w[it] = ricker(t)
+  #SimplePlot.asPoints(w)
+  w = rotateAndDifferentiate(w)
+  SimplePlot.asPoints(w)
+  return Source.WaveletSource(xs[0],zs[0],w)
+def rotateAndDifferentiate(rx):
+  fft = Fft(rx)
+  sf = fft.getFrequencySampling1()
+  nf = sf.count
+  cy = fft.applyForward(rx) # forward FFT
+  p = 0.25*FLT_PI # phase rotation angle
+  t = zerofloat(2*nf)
+  for i in range(nf):
+    w = sf.getValue(i)
+    t[2*i  ] = cos(p) # phase rotation
+    t[2*i+1] = sin(p) # phase rotation
+  cmul(t,cy,cy)
+  #t = zerofloat(2*nf)
+  #for i in range(nf):
+  #  w = sf.getValue(i)
+  #  t[2*i  ] = w*w # negative 2nd time derivative
+  #  #t[2*i+1] = w   # 1st time derivative
+  #cmul(t,cy,cy)
+  ry = fft.applyInverse(cy) # inverse FFT
+  return ry
+
 
 def makeBornModel(s,sigma0=0.050,sigma1=None):
   """
@@ -266,7 +307,8 @@ def getLayeredModel():
       s[iz][ix] = 0.50
   for iz in range(2*nz/3,nz):
     for ix in range(nx):
-      s[iz][ix] = 0.2
+      #s[iz][ix] = 0.2
+      s[iz][ix] = 0.5
   return s
 
 def like(x):
