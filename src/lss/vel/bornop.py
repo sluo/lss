@@ -1,5 +1,5 @@
 #############################################################################
-# Wavefield modeling using AcousticWaveOperator
+# Wavefield modeling using BornWaveOperator
 
 from imports import *
 from dnp import *
@@ -15,24 +15,26 @@ from dnp import *
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
-sz = Sampling(201,0.00625,0.0) # for 30 Hz
-sx = Sampling(202,0.00625,0.0)
-st = Sampling(3003,0.0004,0.0)
-#sz = Sampling(265,0.012,0.0); stride = 3
-#sx = Sampling(767,0.012,0.0)
-#st = Sampling(5001,0.0012,0.0)
+#sz = Sampling(201,0.00625,0.0) # for 30 Hz
+#sx = Sampling(202,0.00625,0.0)
+#sz = Sampling(313,0.004,0.0) # for 30 Hz
+#sx = Sampling(314,0.004,0.0)
+#st = Sampling(3003,0.0004,0.0)
+sz = Sampling(265,0.012,0.0); stride = 3
+sx = Sampling(767,0.012,0.0)
+st = Sampling(5001,0.0010,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [0],[0]
-xs,zs = [nx/2],[0]
+#xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
 #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
-#xs,zs = rampint(1,15,52),fillint(0,52)
+xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 20.0 # Ricker wavelet peak frequency
+fpeak = 10.0 # Ricker wavelet peak frequency
 nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
@@ -42,12 +44,12 @@ np = min(16,ns) # number of parallel sources
 
 def main(args):
   #goAcousticData()
-  goBornData()
+  #goBornData()
   #makeSource()
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
-  #goInversion()
+  goInversion()
 
 def goInversion():
   #s = getLayeredModel()
@@ -68,6 +70,7 @@ def goInversion():
 
   # Born operator.
   born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
+  born.setReflectivityRoughening(0.25*nx*nz/sum(s0)/fpeak)
 
   # RHS vector.
   print "computing RHS..."
@@ -81,10 +84,13 @@ def goInversion():
 
   # CG solver.
   print "solving..."
-  niter = 20
-  ma = CgOperator(born,source,receiver)
-  cg = CgSolver(0.0,niter);
-  cg.solve(ma,vb,vx);
+  niter = 1
+  if niter>1:
+    ma = CgOperator(born,source,receiver)
+    cg = CgSolver(0.0,niter);
+    cg.solve(ma,vb,vx);
+  else:
+    copy(rr,ry)
 
   plot(rx,sperc=99.5)
   plot(ry,sperc=99.5)
@@ -104,8 +110,9 @@ class QsOperator(LinearTransform):
     pass
 
 def goAcousticData():
-  s = getLayeredModel()
-  #s = getMarmousi(stride)
+  #s = getLayeredModel()
+  s = getMarmousi(stride)
+  s,_ = makeBornModel(s)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
   source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
   receiver = Receiver(xr,zr,nt)
@@ -114,17 +121,17 @@ def goAcousticData():
   awo.applyForward(source,receiver,u)
   print sw.time()
   d = receiver.getData()
-  for it in range(900):
+  for it in range(1300): # mute direct arrival
     for ir in range(nr):
       d[ir][it] = 0.0
-  plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
-  #plot(d,cmap=gray,sperc=100.0,title="data")
-#  plot(s,cmap=jet,title="slowness (s/km)")
-#  #display(u,perc=99.0,title="wavefield")
+  points(d[nr/2])
+  plot(d,cmap=gray,sperc=99.9,title="data")
+  #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
+  #plot(s,cmap=jet,title="slowness (s/km)")
 
 def goBornData():
-  s = getLayeredModel()
-  #s = getMarmousi(stride)
+  #s = getLayeredModel()
+  s = getMarmousi(stride)
   s0,s1 = makeBornModel(s)
   #zero(s1)
   #for ix in range(nx):
@@ -133,17 +140,20 @@ def goBornData():
     s,dx,dt,nabsorb)
   receiver = Receiver(xr,zr,nt)
   u = zerofloat(nxp,nzp,nt)
+  source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
   #source = Source.Gaussian4Source(xs[0],zs[0],dt,fpeak)
-  source = makeSource()
+  #source = makeSource()
   sw = Stopwatch(); sw.start()
   bwo.applyForward(source,u,s1,receiver)
   print sw.time()
   d = receiver.getData()
   #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
-  SimplePlot.asPoints(d[nr/2])
-  plot(d,cmap=gray,sperc=99.5,title="data")
+  points(d[nr/2])
+  plot(d,cmap=gray,sperc=99.9,title="data")
   plot(s0,cmap=jet,title="background slowness (s/km)")
   plot(s1,sperc=100.0,title="reflectivity")
+
+# Phase rotated Ricker
 def makeSource():
   def ricker(t):
     x = FLT_PI*fpeak*(t-1.5/fpeak)
@@ -153,9 +163,9 @@ def makeSource():
   for it in range(nt):
     t = ft+it*dt
     w[it] = ricker(t)
-  #SimplePlot.asPoints(w)
+  #points(w)
   w = rotateAndDifferentiate(w)
-  SimplePlot.asPoints(w)
+  points(w)
   return Source.WaveletSource(xs[0],zs[0],w)
 def rotateAndDifferentiate(rx):
   fft = Fft(rx)
@@ -178,19 +188,20 @@ def rotateAndDifferentiate(rx):
   ry = fft.applyInverse(cy) # inverse FFT
   return ry
 
-
-def makeBornModel(s,sigma0=0.050,sigma1=None):
+def makeBornModel(s):
   """
   sigma0: smoothing for background model
   sigma1: smoothing for perturbation
   """
+  sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
+  sigma1 = 0.5*sigma0 # quarter wavelength
+  print 'sigma0=%f'%sigma0
+  print 'sigma1=%f'%sigma1
   s0,s1 = like(s),like(s)
   ref0 = RecursiveExponentialFilter(sigma0/dx)
   ref0.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
   ref0.apply(s,s0)
   t = copy(s)
-  if sigma1 is None:
-    sigma1 = sigma0
   ref1 = RecursiveExponentialFilter(sigma1/dx)
   ref1.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
   ref1.apply(s,t)
@@ -209,6 +220,8 @@ def adjointTest():
   #random = Random()
   b = randfloat(random,nxp,nzp,nt); sub(b,0.5,b) # background wavefield
   bwo = BornWaveOperator(s,dx,dt,nabsorb)
+  bwo.setIlluminationCompensation(True)
+  bwo.setReflectivityRoughening(1.0)
   ra = randfloat(random,nx,nz) # random reflectivity
   rb = zerofloat(nx,nz) 
   db = randfloat(random,nt,nr) # random data
@@ -271,6 +284,7 @@ def adjointTestMultiSourceParallel():
   u = SharedFloat4(AcousticWaveOperator.randfloat(random,nxp,nzp,nt,psou))
   a = SharedFloat4(nxp,nzp,nt,psou)
   born = BornWaveOperatorS(s,dx,dt,nabsorb,u,a)
+  born.setReflectivityRoughening(1.0)
 
   # Forward
   ra = randfloat(random,nx,nz) # random reflectivity
@@ -384,42 +398,8 @@ def plot(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   if cmin<cmax:
     pv.setClips(cmin,cmax)
 
-def display(image,cmap=gray,cmin=0,cmax=0,perc=100,title=None):
-  world = World()
-  addImageToWorld(world,image,cmap,cmin,cmax,perc)
-  makeFrame(world,title)
-
-def addImageToWorld(world,image,cmap=gray,cmin=0,cmax=0,perc=100):
-  ipg = ImagePanelGroup(image)
-  ipg.setColorModel(cmap)
-  #ipg.setSlices(k1,k2,k3)
-  if cmin<cmax:
-    ipg.setClips(cmin,cmax)
-  if perc<100:
-    ipg.setPercentiles(100-perc,perc)
-  world.addChild(ipg)
-  return ipg
-
-def addColorBar(frame,label):
-  cbar = ColorBar(label)
-  cbar.setFont(cbar.getFont().deriveFont(64.0))
-  frame.add(cbar,BorderLayout.EAST)
-  #frame.viewCanvas.setBackground(frame.getBackground())
-  return cbar
-
-def makeFrame(world,title=None):
-  frame = SimpleFrame(world)
-  if title:
-    frame.setTitle(title)
-  view = frame.getOrbitView()
-  view.setAxesScale(1.0,10.0,10.0)
-  view.setScale(1.2)
-  #view.setAzimuth(250)
-  #view.setElevation(50)
-  #frame.viewCanvas.setBackground(frame.getBackground())
-  frame.setSize(800,600)
-  frame.setVisible(True)
-  return frame
+def points(x):
+  SimplePlot.asPoints(x)
 
 #############################################################################
 # Do everything on Swing thread.

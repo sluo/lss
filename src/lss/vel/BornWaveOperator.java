@@ -13,15 +13,31 @@ public class BornWaveOperator {
   public BornWaveOperator(
   float[][] s, double dx, double dt, int nabsorb) {
     _wave = new AcousticWaveOperator(s,dx,dt,nabsorb);
-    int nx = s[0].length;
-    int nz = s.length;
+    _nx = s[0].length;
+    _nz = s.length;
     _nabsorb = nabsorb;
-    _nz = nz+2*nabsorb;
-    _nx = nx+2*nabsorb;
+    _nzp = _nz+2*nabsorb;
+    _nxp = _nx+2*nabsorb;
     _dx = (float)dx;
     _dt = (float)dt;
     _s = s;
   }
+
+  public void setIlluminationCompensation(boolean illum) {
+    _illum = illum;
+  }
+
+  public void setReflectivityRoughening(double sigma) {
+    if (sigma>0.0) {
+      _ref = new RecursiveExponentialFilter(sigma/_dx);
+      _ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_VALUE);
+    } else {
+      _ref = null;
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // forward
 
   public void applyForward(
   Source source, float[][][] b, float[][] rx, Receiver receiver) {
@@ -61,8 +77,104 @@ public class BornWaveOperator {
       Check.argument(b[0][0].length==u[0][0].length,"consistent nx");
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
-    _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
+    float[][] qx = copy(rx);
+    applyForwardPrecondition(b,qx);
+    _wave.applyForward(new Source.WavefieldSource(b,qx),receiver,u);
   }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // adjoint
+
+  public void applyAdjoint(
+  Source source, float[][][] b,
+  float[][][] a, Receiver receiver, float[][] ry) {
+    _wave.applyForward(source,b);
+    applyAdjoint(b,a,receiver,ry);
+  }
+
+  public void applyAdjoint(
+  float[][][] b, float[][][] a, Receiver receiver, float[][] ry) {
+    Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,
+      "x-dimension inconsistent");
+    Check.argument(b[0].length-ry.length==2*_nabsorb,
+      "z-dimension inconsistent");
+    _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
+    AcousticWaveOperator.collapse(b,a,_nabsorb,ry);
+    applyAdjointPrecondition(b,ry);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // hessian
+
+  public void applyHessian(
+  Source source, float[][][] b, float[][][] a,
+  Receiver receiver, float[][] rx, float[][] ry) {
+    applyForward(source,b,rx,receiver);
+    applyAdjoint(b,a,receiver,ry);
+  }
+
+  public void applyHessian(
+  float[][][] b, float[][][] a,
+  Receiver receiver, float[][] rx, float[][] ry) {
+    applyForward(b,rx,receiver);
+    applyAdjoint(b,a,receiver,ry);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // preconditioning
+
+  private void applyForwardPrecondition(float[][][] b, float[][] r) {
+    applyForwardRoughen(r);
+    if (_illum) {
+      mul(inverseIllumination(b),r,r);
+    }
+  }
+
+  private void applyAdjointPrecondition(float[][][] b, float[][] r) {
+    if (_illum) {
+      mul(inverseIllumination(b),r,r);
+    }
+    applyAdjointRoughen(r);
+  }
+
+  private void applyForwardRoughen(float[][] r) {
+    if (_ref!=null) {
+      float[][] s = new float[_nz][_nx];
+      _ref.apply1(r,s);
+      _ref.apply2(s,s);
+      sub(r,s,r);
+    }
+  }
+
+  private void applyAdjointRoughen(float[][] r) {
+    if (_ref!=null) {
+      float[][] s = new float[_nz][_nx];
+      _ref.apply2(r,s);
+      _ref.apply1(s,s);
+      sub(r,s,r);
+    }
+  }
+
+  private float[][] inverseIllumination(float[][][] u) {
+    int nx = u[0][0].length-2*_nabsorb;
+    int nz = u[0].length-2*_nabsorb;
+    float[][] m = new float[nz][nx];
+    AcousticWaveOperator.collapse(u,u,_nabsorb,m);
+    add(1.0e-6f*max(abs(m)),m,m); // stabilize division
+    div(1.0f,m,m);
+    return m;
+  }
+
+  //////////////////////////////////////////////////////////////////////////
+  // private
+
+  private boolean _illum = false; // gradient illumination compensation
+  private RecursiveExponentialFilter _ref = null; // gradient roughening
+  private AcousticWaveOperator _wave;
+  private int _nabsorb;
+  private float _dx,_dt;
+  private int _nx,_nz,_nxp,_nzp;
+  private float[][] _s; // background slowness
 
   // 20th order stencil coefficients from Farhad.
   private static final int FD_ORDER = 20;
@@ -77,6 +189,7 @@ public class BornWaveOperator {
   private static final float C08 = -0.28531535f*0.01f;
   private static final float C09 =  0.11937032f*0.01f;
   private static final float C10 = -0.47508613f*0.001f;
+  private static final float FF = 400.0f; // fudge factor
   private void scaleLaplacian(final float[][][] u) {
     final int nx = u[0][0].length;
     final int nz = u[0].length;
@@ -110,8 +223,9 @@ public class BornWaveOperator {
         float[] uim09 = uif[iz-9 ], uip09 = uif[iz+9 ];
         float[] uim10 = uif[iz-10], uip10 = uif[iz+10];
         for (int ix=ixa; ix<ixd; ++ix) {
+          float f = FF*_dt*_dt*_dx;
           float d = s[iz][ix]*_dx;
-          float r = -1.0f/(d*d);
+          float r = -f/(d*d);
           //float q = 0.5f*r;
           //float a = 0.5461f; // (Jo et. al., 1996)
           //float b = 1.0f-a;
@@ -168,45 +282,5 @@ public class BornWaveOperator {
     //SimplePlot.asPixels(v).addColorBar();
     return v;
   }
-
-  public void applyAdjoint(
-  Source source, float[][][] b,
-  float[][][] a, Receiver receiver, float[][] ry) {
-    _wave.applyForward(source,b);
-    applyAdjoint(b,a,receiver,ry);
-  }
-
-  public void applyAdjoint(
-  float[][][] b, float[][][] a, Receiver receiver, float[][] ry) {
-    Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,
-      "x-dimension inconsistent");
-    Check.argument(b[0].length-ry.length==2*_nabsorb,
-      "z-dimension inconsistent");
-    _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
-    AcousticWaveOperator.collapse(b,a,_nabsorb,ry);
-  }
-
-  public void applyHessian(
-  Source source, float[][][] b, float[][][] a,
-  Receiver receiver, float[][] rx, float[][] ry) {
-    applyForward(source,b,rx,receiver);
-    applyAdjoint(b,a,receiver,ry);
-  }
-
-  public void applyHessian(
-  float[][][] b, float[][][] a,
-  Receiver receiver, float[][] rx, float[][] ry) {
-    applyForward(b,rx,receiver);
-    applyAdjoint(b,a,receiver,ry);
-  }
-
-  //////////////////////////////////////////////////////////////////////////
-  // private
-
-  private AcousticWaveOperator _wave;
-  private int _nabsorb;
-  private int _nx,_nz;
-  private float _dx,_dt;
-  private float[][] _s; // background slowness
 
 }
