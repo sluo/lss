@@ -1,6 +1,4 @@
-import os
-import sys
-import jarray
+import os,sys,jarray,time
 
 from java.awt import *
 from java.io import *
@@ -19,14 +17,8 @@ from edu.mines.jtk.sgl import *
 from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
-#from tp import *
-#from dnp import *
-#from util import *
-
 #from lss.dev import *
-from lss.eni import *
 #from lss.fault import *
 #from lss.flat import *
-from lss.util import *
+#from lss.util import *
 from lss.vel import *
-#from lss.vel.Util import *

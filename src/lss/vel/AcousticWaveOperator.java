@@ -62,12 +62,63 @@ public class AcousticWaveOperator {
   }
 
   //////////////////////////////////////////////////////////////////////////
+  // static
+
+
+  public static float[][] crop(float[][] x, int nabsorb) {
+    int nx = x[0].length;
+    int nz = x.length;
+    return copy(nx-2*nabsorb,nz-2*nabsorb,nabsorb,nabsorb,x);
+  }
+
+  public static void zeroBoundary(float[][] x, int nabsorb) {
+    int nx = x[0].length;
+    int nz = x.length;
+    for (int iz=0, jz=nz-nabsorb; iz<nabsorb; ++iz, ++jz) {
+      for (int ix=0; ix<nx; ++ix) {
+        x[iz][ix] = 0.0f;
+      }
+    }
+    for (int iz=nabsorb; iz<nz-nabsorb; ++iz) {
+      for (int ix=0, jx=nx-nabsorb; ix<nabsorb; ++ix, ++jx) {
+        x[iz][ix] = 0.0f;
+      }
+    }
+  }
+  public static void zeroBoundary(float[][][] x, int nabsorb) {
+    int nt = x.length;
+    for (int it=0; it<nt; ++it) {
+      zeroBoundary(x[it],nabsorb);
+    }
+  }
+
+  public static float[][] collapse(
+  float[][][] u, float[][][] a, int nabsorb) {
+    int nx = u[0][0].length;
+    int nz = u[0].length;
+    float[][] r = new float[nz-2*nabsorb][nx-2*nabsorb];
+    collapse(u,a,nabsorb,r);
+    return r;
+  }
+  public static void collapse(
+  float[][][] u, float[][][] a, int nabsorb, float[][] r) {
+    zero(r);
+    int nx = u[0][0].length;
+    int nz = u[0].length;
+    int nt = u.length;
+    for (int it=0; it<nt; ++it)
+      for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
+        for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
+          r[iz-nabsorb][ix-nabsorb] += u[it][iz][ix]*a[it][iz][ix];
+  }
+
+  //////////////////////////////////////////////////////////////////////////
 
   public AcousticWaveOperator(
   float[][] s, double dx, double dt, int nabsorb) {
     int nx = s[0].length;
     int nz = s.length;
-    Check.argument(nabsorb>=FD_ORDER/2,"nabsorb>=FD_ORDER/2");
+    Check.argument(nabsorb>=FD_ORDER,"nabsorb>=FD_ORDER");
     _nabsorb = nabsorb;
     _b = nabsorb-FD_ORDER/2;
     _nz = nz+2*nabsorb;
@@ -112,35 +163,6 @@ public class AcousticWaveOperator {
 
   public void applyAdjoint(Source source, Receiver receiver, float[][][] u) {
     apply(false,source,receiver,u);
-  }
-
-  //////////////////////////////////////////////////////////////////////////
-  // static
-
-  public static float[][] crop(float[][] x, int nabsorb) {
-    int nx = x[0].length;
-    int nz = x.length;
-    return copy(nx-2*nabsorb,nz-2*nabsorb,nabsorb,nabsorb,x);
-  }
-
-  public static float[][] collapse(
-  float[][][] u, float[][][] a, int nabsorb) {
-    int nx = u[0][0].length;
-    int nz = u[0].length;
-    float[][] r = new float[nz-2*nabsorb][nx-2*nabsorb];
-    collapse(u,a,nabsorb,r);
-    return r;
-  }
-  public static void collapse(
-  float[][][] u, float[][][] a, int nabsorb, float[][] r) {
-    zero(r);
-    int nx = u[0][0].length;
-    int nz = u[0].length;
-    int nt = u.length;
-    for (int it=0; it<nt; ++it)
-      for (int iz=nabsorb; iz<nz-nabsorb; ++iz)
-        for (int ix=nabsorb; ix<nx-nabsorb; ++ix)
-          r[iz-nabsorb][ix-nabsorb] += u[it][iz][ix]*a[it][iz][ix];
   }
 
   //////////////////////////////////////////////////////////////////////////

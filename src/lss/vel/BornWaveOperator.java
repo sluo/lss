@@ -23,6 +23,10 @@ public class BornWaveOperator {
     _s = s;
   }
 
+  public AcousticWaveOperator getWaveOperator() {
+    return _wave;
+  }
+
   public void setIlluminationCompensation(boolean illum) {
     _illum = illum;
   }
@@ -77,9 +81,7 @@ public class BornWaveOperator {
       Check.argument(b[0][0].length==u[0][0].length,"consistent nx");
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
-    float[][] qx = copy(rx);
-    applyForwardPrecondition(b,qx);
-    _wave.applyForward(new Source.WavefieldSource(b,qx),receiver,u);
+    _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -89,18 +91,16 @@ public class BornWaveOperator {
   Source source, float[][][] b,
   float[][][] a, Receiver receiver, float[][] ry) {
     _wave.applyForward(source,b);
+    scaleLaplacian(b); // equivalent to negative 2nd time derivative
     applyAdjoint(b,a,receiver,ry);
   }
 
   public void applyAdjoint(
   float[][][] b, float[][][] a, Receiver receiver, float[][] ry) {
-    Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,
-      "x-dimension inconsistent");
-    Check.argument(b[0].length-ry.length==2*_nabsorb,
-      "z-dimension inconsistent");
+    Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
+    Check.argument(b[0].length-ry.length==2*_nabsorb,"consistent nz");
     _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
     AcousticWaveOperator.collapse(b,a,_nabsorb,ry);
-    applyAdjointPrecondition(b,ry);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -121,48 +121,14 @@ public class BornWaveOperator {
   }
 
   ////////////////////////////////////////////////////////////////////////////
-  // preconditioning
+  // illumination map
 
-  private void applyForwardPrecondition(float[][][] b, float[][] r) {
-    applyForwardRoughen(r);
-    if (_illum) {
-      mul(inverseIllumination(b),r,r);
-    }
-  }
-
-  private void applyAdjointPrecondition(float[][][] b, float[][] r) {
-    if (_illum) {
-      mul(inverseIllumination(b),r,r);
-    }
-    applyAdjointRoughen(r);
-  }
-
-  private void applyForwardRoughen(float[][] r) {
-    if (_ref!=null) {
-      float[][] s = new float[_nz][_nx];
-      _ref.apply1(r,s);
-      _ref.apply2(s,s);
-      sub(r,s,r);
-    }
-  }
-
-  private void applyAdjointRoughen(float[][] r) {
-    if (_ref!=null) {
-      float[][] s = new float[_nz][_nx];
-      _ref.apply2(r,s);
-      _ref.apply1(s,s);
-      sub(r,s,r);
-    }
-  }
-
-  private float[][] inverseIllumination(float[][][] u) {
-    int nx = u[0][0].length-2*_nabsorb;
-    int nz = u[0].length-2*_nabsorb;
-    float[][] m = new float[nz][nx];
-    AcousticWaveOperator.collapse(u,u,_nabsorb,m);
-    add(1.0e-6f*max(abs(m)),m,m); // stabilize division
-    div(1.0f,m,m);
-    return m;
+  public void applyForIllumination(
+  Source source, float[][][] b, float[][] m) {
+    Check.argument(b[0][0].length-m[0].length==2*_nabsorb,"consistent nx");
+    Check.argument(b[0].length-m.length==2*_nabsorb,"consistent nz");
+    _wave.applyForward(source,b);
+    AcousticWaveOperator.collapse(b,b,_nabsorb,m);
   }
 
   //////////////////////////////////////////////////////////////////////////

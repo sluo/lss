@@ -1,5 +1,6 @@
 package lss.vel;
 
+import edu.mines.jtk.util.Parallel;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 public interface Source {
@@ -7,9 +8,10 @@ public interface Source {
   public void add(float[][] ui, int it, int nabsorb);
 
   ////////////////////////////////////////////////////////////////////////////
+  // implementation
 
-  public static class RickerSource implements Source {
-    public RickerSource(int xs, int zs, float dt, float fpeak) {
+  static abstract class PointSource implements Source {
+    public PointSource(int xs, int zs, float dt, float fpeak) {
       _tdelay = 1.0f/fpeak;
       _fpeak = fpeak;
       _dt = dt;
@@ -17,36 +19,48 @@ public interface Source {
       _zs = zs;
     }
     public void add(float[][] ui, int it, int nabsorb) {
-      ui[_zs+nabsorb][_xs+nabsorb] += ricker(it*_dt-_tdelay);
+      ui[_zs+nabsorb][_xs+nabsorb] += function(it*_dt-_tdelay);
     }
-    private float ricker(float t) {
+    abstract float function(float t);
+    float _dt,_fpeak,_tdelay;
+    int _xs,_zs;
+  }
+
+  public static class RickerSource extends PointSource {
+    public RickerSource(int xs, int zs, float dt, float fpeak) {
+      super(xs,zs,dt,fpeak);
+    }
+    float function(float t) {
       float x = FLT_PI*_fpeak*t;
       float xx = x*x;
       return (float)((1.0-2.0*xx)*exp(-xx));
     }
-    private int _xs,_zs;
-    private float _dt,_fpeak,_tdelay;
   }
 
-  public static class Gaussian4Source implements Source {
+  public static class Gaussian4Source extends PointSource {
     public Gaussian4Source(int xs, int zs, float dt, float fpeak) {
-      _tdelay = 1.0f/fpeak;
-      _fpeak = fpeak;
-      _dt = dt;
-      _xs = xs;
-      _zs = zs;
+      super(xs,zs,dt,fpeak);
     }
-    public void add(float[][] ui, int it, int nabsorb) {
-      ui[_zs+nabsorb][_xs+nabsorb] += gaussian(it*_dt-_tdelay);
-    }
-    private float gaussian(float t) {
+    float function(float t) {
       double x = PI*_fpeak*t;
       double xx = x*x;
       //return (float)((3.0-12.0*xx+4.0*xx*xx)*exp(-xx));
       return (float)((0.075-0.3*xx+0.1*xx*xx)*exp(-xx)); // 0.025 scaling
     }
-    private int _xs,_zs;
-    private float _dt,_fpeak,_tdelay;
+  }
+
+  public static class SimultaneousSource implements Source {
+    public SimultaneousSource(Source[] source) {
+      _ns = source.length;
+      _source = source;
+    }
+    public void add(final float[][] ui, final int it, final int nabsorb) {
+      for (int isou=0; isou<_ns; ++isou) {
+        _source[isou].add(ui,it,nabsorb);
+      }
+    }
+    private int _ns;
+    private Source[] _source;
   }
 
   public static class WaveletSource implements Source {
@@ -100,21 +114,26 @@ public interface Source {
       _u = u;
       _r = r;
     }
-    public void add(float[][] ui, int it, int nabsorb) {
+    public void add(final float[][] ui, final int it, final int nabsorb) {
       if (_r==null) {
-        for (int ix=0; ix<_nx; ++ix)
-          for (int iz=0; iz<_nz; ++iz)
+        Parallel.loop(_nz,new Parallel.LoopInt() {
+        public void compute(int iz) {
+          for (int ix=0; ix<_nx; ++ix) {
             ui[iz][ix] += _u[it][iz][ix];
+          }
+        }});
       } else {
-        for (int ix=nabsorb; ix<_nx-nabsorb; ++ix)
-          for (int iz=nabsorb; iz<_nz-nabsorb; ++iz)
+        Parallel.loop(nabsorb,_nz-nabsorb,new Parallel.LoopInt() {
+        public void compute(int iz) {
+          for (int ix=nabsorb; ix<_nx-nabsorb; ++ix) {
             ui[iz][ix] += _u[it][iz][ix]*_r[iz-nabsorb][ix-nabsorb];
+          }
+        }});
       }
     }
     private float[][] _r = null; //reflectivity
     private float[][][] _u;
     private int _nz,_nx;
   }
-
 
 }

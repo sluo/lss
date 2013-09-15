@@ -6,12 +6,9 @@ from dnp import *
 
 #############################################################################
 
-#sz = Sampling(11,0.016,0.0)
-#sx = Sampling(12,0.016,0.0)
-#st = Sampling(13,0.0012,0.0)
 #sz = Sampling(201,0.016,0.0)
 #sx = Sampling(202,0.016,0.0)
-#st = Sampling(2003,0.0012,0.0)
+#st = Sampling(2003,0.0010,0.0)
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
@@ -22,7 +19,7 @@ from dnp import *
 #st = Sampling(3003,0.0004,0.0)
 sz = Sampling(265,0.012,0.0); stride = 3
 sx = Sampling(767,0.012,0.0)
-st = Sampling(5001,0.0010,0.0)
+st = Sampling(5501,0.0010,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 fz,fx,ft = sz.first,sx.first,st.first
@@ -32,15 +29,15 @@ fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
 #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
 xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
+#xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
-fpeak = 10.0 # Ricker wavelet peak frequency
+fpeak = 20.0 # Ricker wavelet peak frequency
 nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
 
-# TODO
-# Test adjoint with TransformQuadratic
+# TODO: Test adjoint with TransformQuadratic
 
 def main(args):
   #goAcousticData()
@@ -49,12 +46,87 @@ def main(args):
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
-  goInversion()
+  #goInversion()
+  goAmplitudeInversion()
+
+def goAmplitudeInversion():
+  nouter = 1 # outer iterations
+  ninner = 3 # inner iterations
+  
+  # Slowness and reflectivity models.
+  s = getMarmousi(stride); s0,s1 = makeBornModel(s)
+  #s = getLayeredModel(); s0,s1 = makeBornModel(s); s0 = fillfloat(0.25,nx,nz)
+
+  # Allocate wavefields.
+  print "allocating..."
+  u = SharedFloat4(nxp,nzp,nt,np)
+  a = SharedFloat4(nxp,nzp,nt,np)
+
+  # Born operator.
+  born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
+
+  # Sources and receivers.
+  src = BornWaveOperatorS.getSourceArray(ns)
+  rep = BornWaveOperatorS.getReceiverArray(ns) # predicted
+  reo = BornWaveOperatorS.getReceiverArray(ns) # observed
+  for isou in range(ns):
+    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+    rep[isou] = Receiver(xr,zr,nt)
+    reo[isou] = Receiver(xr,zr,nt)
+
+  # Observed data.
+  born.applyForward(src,s1,reo)
+
+  # Slowness error.
+  mul(0.95,s0,s0) 
+
+  # CG solver.
+  ref = RecursiveExponentialFilter(0.5/fpeak/dx)
+  mm = PreconditionOperator(born,src,ref)
+  ma = HessianOperator(born,src,rep)
+  cg = CgSolver(0.0,ninner);
+
+  # Data warping.
+  td = 4 # time decimation
+  maxShift = 0.1 # max shift (seconds)
+  strainT,strainR,strainS = 0.50,0.20,0.20 # 3d warping
+  #strainT,strainR,strainS = 0.50,0.20,-1.0 # 2d warping
+  smoothT,smoothR,smoothS = 16.0,4.0,4.0
+  warp = DataWarping(
+    strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
+
+  for iout in range(nouter):
+
+    # RHS vector.
+    print "computing RHS..."
+    vb = VecArrayFloat2(zerofloat(nx,nz))
+    born.applyAdjoint(src,reo,vb.getArray())
+
+    # Solution vector.
+    vx = VecArrayFloat2(zerofloat(nx,nz))
+
+    # Solve.
+    print "solving..."
+    cg.solve(ma,mm,vb,vx);
+
+    plot(reo[ns/2].getData())
+    plot(rep[ns/2].getData())
+    
+    # Warp.
+    if nouter>1:
+      print "warping..."
+      reo = warp.warp(rep,reo)
+
+    plot(reo[ns/2].getData())
+
+  plot(s0,cmap=jet)
+  plot(s1,sperc=99.5)
+  plot(vx.getArray(),sperc=99.5)
+
 
 def goInversion():
-  #s = getLayeredModel()
-  s = getMarmousi(stride)
-  s0,rx = makeBornModel(s)
+  s = getMarmousi(stride); s0,s1 = makeBornModel(s)
+  #s = getLayeredModel(); s0,s1 = makeBornModel(s); s0 = fillfloat(0.25,nx,nz)
 
   # Allocate wavefields.
   print "allocating..."
@@ -70,32 +142,37 @@ def goInversion():
 
   # Born operator.
   born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
-  born.setReflectivityRoughening(0.25*nx*nz/sum(s0)/fpeak)
 
   # RHS vector.
   print "computing RHS..."
-  rr = like(rx)
-  born.applyHessian(source,receiver,rx,rr)
-  vb = VecArrayFloat2(rr)
+  rb = like(s1)
+  vb = VecArrayFloat2(rb)
+  born.applyHessian(source,receiver,s1,rb)
 
   # Solution vector.
-  ry = zerofloat(nx,nz)
-  vx = VecArrayFloat2(ry)
+  rx = zerofloat(nx,nz)
+  vx = VecArrayFloat2(rx)
 
   # CG solver.
   print "solving..."
-  niter = 1
+  niter = 3
   if niter>1:
-    ma = CgOperator(born,source,receiver)
+    ref = RecursiveExponentialFilter(0.5/fpeak/dx)
+    mm = PreconditionOperator(born,source,ref)
+    ma = HessianOperator(born,source,receiver)
     cg = CgSolver(0.0,niter);
-    cg.solve(ma,vb,vx);
+    cg.solve(ma,mm,vb,vx);
   else:
-    copy(rr,ry)
+    copy(rb,rx)
+    ref = RecursiveExponentialFilter(0.5/fpeak/dx)
+    mm = PreconditionOperator(born,source,ref)
+    mm.apply(vx,vx)
 
+  plot(s0,cmap=jet)
+  plot(s1,sperc=99.5)
   plot(rx,sperc=99.5)
-  plot(ry,sperc=99.5)
 
-class CgOperator(CgSolver.A):
+class HessianOperator(CgSolver.A):
   def __init__(self,born,source,receiver):
     self.born = born
     self.source = source
@@ -105,9 +182,29 @@ class CgOperator(CgSolver.A):
     y = vy.getArray()
     self.born.applyHessian(self.source,self.receiver,x,y)
 
-class QsOperator(LinearTransform):
-  def __init__(self):
-    pass
+class PreconditionOperator(CgSolver.A):
+  def __init__(self,born,source,ref):
+    self.born = born
+    self.source = source
+    self.ref = ref
+    self.illum = None
+  def apply(self,vx,vy):
+    x = vx.getArray()
+    y = vy.getArray()
+    self.born.applyAdjointRoughen(self.ref,x,y)
+    self.compensateIllum(y,y)
+    self.born.applyForwardRoughen(self.ref,y,y)
+  def compensateIllum(self,x,y):
+    if self.illum is None:
+      print "computing preconditioner..."
+      nx,nz = len(y[0]),len(y)
+      self.illum = m = zerofloat(nx,nz)
+      self.born.applyForIllumination(self.source,m)
+      div(1.0,m,m) # 1/illumination
+      mul(m,m,m) # squared
+      mul(1.0/max(abs(m)),m,m) # normalized
+      plot(m,cmap=jet)
+    mul(self.illum,x,y)
 
 def goAcousticData():
   #s = getLayeredModel()
@@ -193,8 +290,10 @@ def makeBornModel(s):
   sigma0: smoothing for background model
   sigma1: smoothing for perturbation
   """
-  sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
-  sigma1 = 0.5*sigma0 # quarter wavelength
+  #sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
+  #sigma1 = 0.5*sigma0 # quarter wavelength
+  sigma0 = 1.0/fpeak
+  sigma1 = 0.5*sigma0
   print 'sigma0=%f'%sigma0
   print 'sigma1=%f'%sigma1
   s0,s1 = like(s),like(s)
@@ -309,6 +408,21 @@ def adjointTestMultiSourceParallel():
   print sum1
   print sum2
 
+  # Preconditioner test
+  ra = randfloat(random,nx,nz)
+  rb = randfloat(random,nx,nz)
+  ca = zerofloat(nx,nz)
+  cb = zerofloat(nx,nz)
+  ref = RecursiveExponentialFilter(1.0)
+  born.applyForwardRoughen(ref,ra,ca)
+  born.applyAdjointRoughen(ref,rb,cb)
+  sum1 = dot(ra,cb)
+  sum2 = dot(rb,ca)
+  print "preconditioner adjoint test:",\
+    AcousticWaveOperator.compareDigits(sum1,sum2)
+  print sum1
+  print sum2
+
 def dot(u,a):
   return AcousticWaveOperator.dot(u,a)
 
@@ -321,8 +435,8 @@ def getLayeredModel():
       s[iz][ix] = 0.50
   for iz in range(2*nz/3,nz):
     for ix in range(nx):
-      #s[iz][ix] = 0.2
-      s[iz][ix] = 0.5
+      s[iz][ix] = 0.2
+      #s[iz][ix] = 0.5
   return s
 
 def like(x):
@@ -403,8 +517,14 @@ def points(x):
 
 #############################################################################
 # Do everything on Swing thread.
-
+import sys,time
 class RunMain(Runnable):
   def run(self):
+    start = time.time()
     main(sys.argv)
-SwingUtilities.invokeLater(RunMain())
+    s = time.time()-start
+    h = int(s/3600); s -= h*3600
+    m = int(s/60); s -= m*60
+    print '%02d:%02d:%02d'%(h,m,s)
+if __name__=='__main__':
+  SwingUtilities.invokeLater(RunMain())

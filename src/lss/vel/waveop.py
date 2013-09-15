@@ -33,7 +33,7 @@ xs,zs = rampint(2,11,53),fillint(0,53)
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 12.0 # Ricker wavelet peak frequency
-nabsorb = 10 # absorbing boundary size
+nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 
 def main(args):
@@ -110,12 +110,18 @@ def adjointTest():
   vb = copy(sb)
   ua = zerofloat(nxp,nzp,nt)
   ub = zerofloat(nxp,nzp,nt)
+  #AcousticWaveOperator.zeroBoundary(sa,10)
+  #AcousticWaveOperator.zeroBoundary(sb,10)
+  #AcousticWaveOperator.zeroBoundary(va,10)
+  #AcousticWaveOperator.zeroBoundary(vb,10)
+  #AcousticWaveOperator.zeroBoundary(ua,10)
+  #AcousticWaveOperator.zeroBoundary(ub,10)
   awo = AcousticWaveOperator(s,dx,dt,nabsorb)
   sw = Stopwatch(); sw.start()
-  awo.applyForward(AcousticWaveOperator.WavefieldSource(sa),ua)
+  awo.applyForward(Source.WavefieldSource(sa),ua)
   print 'time:',sw.time(); sw.restart()
   for i in range(2):
-    awo.applyAdjoint(AcousticWaveOperator.WavefieldSource(sb),ub)
+    awo.applyAdjoint(Source.WavefieldSource(sb),ub)
   sw.stop(); print 'time:',sw.time()
   print 'sum(ua)=%f'%sum(ua)
   print 'sum(ub)=%f'%sum(ub)
