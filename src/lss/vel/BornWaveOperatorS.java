@@ -33,13 +33,19 @@ public class BornWaveOperatorS {
     _u = u;
     _a = a;
     _s = s;
-    _dx = dx;
-    _dt = dt;
+    _nx = s[0].length;
+    _nz = s.length;
     _nabsorb = nabsorb;
+  }
+
+  public int[] getDimensions() {
+    return new int[]{_nx,_nz};
   }
 
   public void applyForward(
   final Source[] source, final float[][] rx, final Receiver[] receiver) {
+    Check.argument(rx[0].length==_nx,"consistent nx");
+    Check.argument(rx.length==_nz,"consistent nz");
     final int ns = source.length;
     final int np = _u.getN4(); // number of parallel shots
     PartialParallel parallel = new PartialParallel(np);
@@ -53,6 +59,8 @@ public class BornWaveOperatorS {
 
   public void applyAdjoint(
   final Source[] source, final Receiver[] receiver, final float[][] ry) {
+    Check.argument(ry[0].length==_nx,"consistent nx");
+    Check.argument(ry.length==_nz,"consistent nz");
     final int ns = source.length;
     final int nx = ry[0].length;
     final int nz = ry.length;
@@ -76,6 +84,10 @@ public class BornWaveOperatorS {
   public void applyHessian(
   final Source[] source, final Receiver[] receiver,
   final float[][] rx, final float[][] ry) {
+    Check.argument(rx[0].length==_nx,"consistent nx");
+    Check.argument(rx.length==_nz,"consistent nz");
+    Check.argument(ry[0].length==_nx,"consistent nx");
+    Check.argument(ry.length==_nz,"consistent nz");
     final int ns = receiver.length;
     final int nx = ry[0].length;
     final int nz = ry.length;
@@ -183,7 +195,7 @@ public class BornWaveOperatorS {
   // private
 
   private final int _nabsorb;
-  private final double _dx,_dt;
+  private final int _nx,_nz;
   private final float[][] _s;
   private final SharedFloat4 _u;
   private final SharedFloat4 _a;

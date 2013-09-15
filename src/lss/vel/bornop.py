@@ -6,9 +6,9 @@ from dnp import *
 
 #############################################################################
 
-#sz = Sampling(201,0.016,0.0)
-#sx = Sampling(202,0.016,0.0)
-#st = Sampling(2003,0.0010,0.0)
+sz = Sampling(201,0.016,0.0)
+sx = Sampling(202,0.016,0.0)
+st = Sampling(2003,0.0010,0.0)
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
@@ -17,9 +17,9 @@ from dnp import *
 #sz = Sampling(313,0.004,0.0) # for 30 Hz
 #sx = Sampling(314,0.004,0.0)
 #st = Sampling(3003,0.0004,0.0)
-sz = Sampling(265,0.012,0.0); stride = 3
-sx = Sampling(767,0.012,0.0)
-st = Sampling(5501,0.0010,0.0)
+#sz = Sampling(265,0.012,0.0); stride = 3
+#sx = Sampling(767,0.012,0.0)
+#st = Sampling(5501,0.0010,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 fz,fx,ft = sz.first,sx.first,st.first
@@ -27,8 +27,8 @@ fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
 #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-#xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
-xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
+xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+#xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
 #xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
@@ -46,8 +46,9 @@ def main(args):
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
-  #goInversion()
-  goAmplitudeInversion()
+  #goAmplitudeInversion()
+  #goInversionCg()
+  goInversionQs()
 
 def goAmplitudeInversion():
   nouter = 1 # outer iterations
@@ -109,27 +110,27 @@ def goAmplitudeInversion():
     print "solving..."
     cg.solve(ma,mm,vb,vx);
 
-    plot(reo[ns/2].getData())
-    plot(rep[ns/2].getData())
+    pixels(reo[ns/2].getData())
+    pixels(rep[ns/2].getData())
     
     # Warp.
     if nouter>1:
       print "warping..."
       reo = warp.warp(rep,reo)
 
-    plot(reo[ns/2].getData())
+    pixels(reo[ns/2].getData())
 
-  plot(s0,cmap=jet)
-  plot(s1,sperc=99.5)
-  plot(vx.getArray(),sperc=99.5)
+  pixels(s0,cmap=jet)
+  pixels(s1,sperc=99.5)
+  pixels(vx.getArray(),sperc=99.5)
 
 
-def goInversion():
-  s = getMarmousi(stride); s0,s1 = makeBornModel(s)
-  #s = getLayeredModel(); s0,s1 = makeBornModel(s); s0 = fillfloat(0.25,nx,nz)
+def goInversionCg():
+  #s = getMarmousi(stride); s0,s1 = makeBornModel(s)
+  s = getLayeredModel(); s0,s1 = makeBornModel(s); s0 = fillfloat(0.25,nx,nz)
 
   # Allocate wavefields.
-  print "allocating..."
+  print "allocating"
   u = SharedFloat4(nxp,nzp,nt,np)
   a = SharedFloat4(nxp,nzp,nt,np)
 
@@ -144,7 +145,7 @@ def goInversion():
   born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
 
   # RHS vector.
-  print "computing RHS..."
+  print "computing RHS"
   rb = like(s1)
   vb = VecArrayFloat2(rb)
   born.applyHessian(source,receiver,s1,rb)
@@ -154,9 +155,10 @@ def goInversion():
   vx = VecArrayFloat2(rx)
 
   # CG solver.
-  print "solving..."
-  niter = 3
-  if niter>1:
+  niter = 1
+  #if niter>1:
+  if True:
+    print "starting CgSolver"
     ref = RecursiveExponentialFilter(0.5/fpeak/dx)
     mm = PreconditionOperator(born,source,ref)
     ma = HessianOperator(born,source,receiver)
@@ -168,9 +170,9 @@ def goInversion():
     mm = PreconditionOperator(born,source,ref)
     mm.apply(vx,vx)
 
-  plot(s0,cmap=jet)
-  plot(s1,sperc=99.5)
-  plot(rx,sperc=99.5)
+  pixels(s0,cmap=jet)
+  pixels(s1,sperc=99.5)
+  pixels(rx,sperc=99.5)
 
 class HessianOperator(CgSolver.A):
   def __init__(self,born,source,receiver):
@@ -178,6 +180,7 @@ class HessianOperator(CgSolver.A):
     self.source = source
     self.receiver = receiver
   def apply(self,vx,vy):
+    print "applying LHS"
     x = vx.getArray()
     y = vy.getArray()
     self.born.applyHessian(self.source,self.receiver,x,y)
@@ -189,6 +192,7 @@ class PreconditionOperator(CgSolver.A):
     self.ref = ref
     self.illum = None
   def apply(self,vx,vy):
+    print "applying preconditioner"
     x = vx.getArray()
     y = vy.getArray()
     self.born.applyAdjointRoughen(self.ref,x,y)
@@ -196,15 +200,82 @@ class PreconditionOperator(CgSolver.A):
     self.born.applyForwardRoughen(self.ref,y,y)
   def compensateIllum(self,x,y):
     if self.illum is None:
-      print "computing preconditioner..."
+      print "computing preconditioner"
       nx,nz = len(y[0]),len(y)
       self.illum = m = zerofloat(nx,nz)
       self.born.applyForIllumination(self.source,m)
       div(1.0,m,m) # 1/illumination
       mul(m,m,m) # squared
       mul(1.0/max(abs(m)),m,m) # normalized
-      plot(m,cmap=jet)
+      pixels(m,cmap=jet)
     mul(self.illum,x,y)
+
+def goInversionQs():
+  niter = 5
+  #s = getMarmousi(stride); s0,s1 = makeBornModel(s)
+  s = getLayeredModel(); s0,s1 = makeBornModel(s); s0 = fillfloat(0.25,nx,nz)
+  ################
+  print "allocating"
+  u = SharedFloat4(nxp,nzp,nt,np)
+  a = SharedFloat4(nxp,nzp,nt,np)
+  born = BornWaveOperatorS(s0,dx,dt,nabsorb,u,a)
+  src = BornWaveOperatorS.getSourceArray(ns)
+  rcp = BornWaveOperatorS.getReceiverArray(ns) # predicted
+  for isou in range(ns):
+    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+    rcp[isou] = Receiver(xr,zr,nt)
+  qt = QuadraticTransform(0.5/fpeak/dt,s1,born,src,rcp)
+  rx = QuadraticSolver(qt).solve(niter,None).getData()
+  pixels(s0,cmap=jet)
+  pixels(s1,sperc=99.5)
+  pixels(rx,sperc=99.5)
+
+class QuadraticTransform(Quadratic):
+  def __init__(self,sigma,r,born,src,rcp,rco=None,mask=None):
+    self.ref = RecursiveExponentialFilter(sigma)
+    self.nx = len(r[0])
+    self.nz = len(r)
+    self.rr = r # reflectivity
+    self.born = born # BornWaveOperatorS
+    self.src = src # source
+    self.rcp = rcp # predicted data
+    self.rco = rco # observed data
+    self.mask = mask # optional mask
+    self.illum = None # inverse illumination
+  def getB(self):
+    #print "! computing RHS"
+    rb = zerofloat(self.nx,self.nz)
+    vb = ArrayVect2f(rb,1.0)
+    if self.rco is None:
+      self.born.applyHessian(self.src,self.rcp,self.rr,rb)
+    else:
+      self.born.applyAdjoint(self.src,self.rco,rb)
+    mul(-1.0,rb,rb) # gradient = adjoint applied to negative observed data?
+    return vb
+  def multiplyHessian(self,vx):
+    #print "! applying LHS"
+    rx = vx.getData()
+    self.born.applyHessian(self.src,self.rcp,rx,rx)
+  def inverseHessian(self,vx):
+    #print "applying preconditioner"
+    rx,ry = vx.getData(),zerofloat(nx,nz)
+    self.born.applyAdjointRoughen(self.ref,rx,ry)
+    self.applyIllum(ry,ry)
+    self.applyMask(ry,ry)
+    self.born.applyForwardRoughen(self.ref,ry,rx)
+  def applyIllum(self,rx,ry):
+    if self.illum is None:
+      #print "! computing illumination"
+      self.illum = m = zerofloat(self.nx,self.nz)
+      self.born.applyForIllumination(self.src,m)
+      div(1.0,m,m) # 1/illumination
+      mul(m,m,m) # squared
+      mul(1.0/max(abs(m)),m,m) # normalized
+      pixels(m,cmap=jet)
+    mul(self.illum,rx,ry)
+  def applyMask(self,rx,ry):
+    if self.mask is not None:
+      mul(self.mask,rx,ry)
 
 def goAcousticData():
   #s = getLayeredModel()
@@ -222,9 +293,9 @@ def goAcousticData():
     for ir in range(nr):
       d[ir][it] = 0.0
   points(d[nr/2])
-  plot(d,cmap=gray,sperc=99.9,title="data")
-  #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
-  #plot(s,cmap=jet,title="slowness (s/km)")
+  pixels(d,cmap=gray,sperc=99.9,title="data")
+  #pixels(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
+  #pixels(s,cmap=jet,title="slowness (s/km)")
 
 def goBornData():
   #s = getLayeredModel()
@@ -244,11 +315,11 @@ def goBornData():
   bwo.applyForward(source,u,s1,receiver)
   print sw.time()
   d = receiver.getData()
-  #plot(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
+  #pixels(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
   points(d[nr/2])
-  plot(d,cmap=gray,sperc=99.9,title="data")
-  plot(s0,cmap=jet,title="background slowness (s/km)")
-  plot(s1,sperc=100.0,title="reflectivity")
+  pixels(d,cmap=gray,sperc=99.9,title="data")
+  pixels(s0,cmap=jet,title="background slowness (s/km)")
+  pixels(s1,sperc=100.0,title="reflectivity")
 
 # Phase rotated Ricker
 def makeSource():
@@ -492,7 +563,7 @@ def read(name,image=None):
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
-def plot(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
+def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   if len(x)==nz:
     x = transpose(x)
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
