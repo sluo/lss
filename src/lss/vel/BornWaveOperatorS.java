@@ -28,8 +28,6 @@ public class BornWaveOperatorS {
   float[][] s, double dx, double dt, 
   int nabsorb, SharedFloat4 u, SharedFloat4 a) {
     _born = new BornWaveOperator(s,dx,dt,nabsorb);
-    _born.setIlluminationCompensation(false);
-    _born.setReflectivityRoughening(0.0);
     _u = u;
     _a = a;
     _s = s;

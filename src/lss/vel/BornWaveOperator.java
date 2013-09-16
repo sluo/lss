@@ -27,19 +27,6 @@ public class BornWaveOperator {
     return _wave;
   }
 
-  public void setIlluminationCompensation(boolean illum) {
-    _illum = illum;
-  }
-
-  public void setReflectivityRoughening(double sigma) {
-    if (sigma>0.0) {
-      _ref = new RecursiveExponentialFilter(sigma/_dx);
-      _ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_VALUE);
-    } else {
-      _ref = null;
-    }
-  }
-
   ////////////////////////////////////////////////////////////////////////////
   // forward
 
@@ -125,17 +112,19 @@ public class BornWaveOperator {
 
   public void applyForIllumination(
   Source source, float[][][] b, float[][] m) {
-    Check.argument(b[0][0].length-m[0].length==2*_nabsorb,"consistent nx");
-    Check.argument(b[0].length-m.length==2*_nabsorb,"consistent nz");
+    int nx = b[0][0].length;
+    int nz = b[0].length;
+    int nt = b.length;
+    Check.argument(nx-m[0].length==2*_nabsorb,"consistent nx");
+    Check.argument(nz-m.length==2*_nabsorb,"consistent nz");
     _wave.applyForward(source,b);
     AcousticWaveOperator.collapse(b,b,_nabsorb,m);
+    mul(1.0f/nx/nz/nt,m,m);
   }
 
   //////////////////////////////////////////////////////////////////////////
   // private
 
-  private boolean _illum = false; // gradient illumination compensation
-  private RecursiveExponentialFilter _ref = null; // gradient roughening
   private AcousticWaveOperator _wave;
   private int _nabsorb;
   private float _dx,_dt;
