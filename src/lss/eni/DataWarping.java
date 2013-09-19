@@ -9,16 +9,18 @@ import lss.vel.Receiver;
 public class DataWarping {
 
   public DataWarping(
-  double strainT, double strainR, double strainS,
-  double smoothT, double smoothR, double smoothS,
-  double maxShift, double dt) {
+    double strainT, double strainR, double strainS,
+    double smoothT, double smoothR, double smoothS,
+    double maxShift, double dt)
+  {
     this(strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,1);
   }
 
   public DataWarping(
-  double strainT, double strainR, double strainS,
-  double smoothT, double smoothR, double smoothS,
-  double maxShift, double dt, int td) {
+    double strainT, double strainR, double strainS,
+    double smoothT, double smoothR, double smoothS,
+    double maxShift, double dt, int td)
+  {
     Check.argument(td>=1,"td>=1");
     int shiftMax = (int)(maxShift/(td*dt));
     _warp = new DynamicWarping(-shiftMax,shiftMax);
@@ -46,7 +48,8 @@ public class DataWarping {
   }
 
   public Receiver[] warp(
-  final Receiver[] rp, final Receiver[] ro, final float[][][] u) {
+    final Receiver[] rp, final Receiver[] ro, final float[][][] u)
+  {
     final int nt = u[0][0].length;
     final int nr = u[0].length;
     final int ns = u.length;
@@ -90,8 +93,10 @@ public class DataWarping {
   private DynamicWarping _warp;
 
   private void findShifts(
-  final float[][][] rp, final float[][][] ro, final float[][][] u) {
-    rmsFilter(rp,ro);
+    final float[][][] rp, final float[][][] ro, final float[][][] u)
+  {
+    //rmsFilter(rp,ro); // FIXME
+    addRandomNoise(10.0f,rp,ro);
     if (_3d) {
       _warp.findShifts(rp,ro,u);
     } else {
@@ -103,9 +108,28 @@ public class DataWarping {
     }
   }
 
+  private void addRandomNoise(float snr, float[][][] x, float[][][] y) {
+    int n1 = x[0][0].length;
+    int n2 = x[0].length;
+    int n3 = x.length;
+    //float xrms = sqrt(sum(mul(x,x))/n1/n2/n3);
+    //float yrms = sqrt(sum(mul(y,y))/n1/n2/n3);
+    float xrms = rms(x);
+    float yrms = rms(y);
+    float arms = 0.5f*(xrms+yrms); // average rms of signal
+    java.util.Random random = new java.util.Random(012345);
+    float[][][] s = sub(randfloat(random,n1,n2,n3),0.5f);
+    new RecursiveGaussianFilter(1.0).apply000(s,s); // bandlimited noise
+    //float srms = sqrt(sum(mul(s,s))/n1/n2/n3); // rms of noise
+    float srms = rms(s); // rms of noise
+    mul(arms/(srms*snr),s,s);
+    add(s,x,x);
+    add(s,y,y);
+  }
+
   private void rmsFilter(float[][][] x, float[][][] y) {
-    edu.mines.jtk.mosaic.SimplePlot.asPixels(x[0]);
-    edu.mines.jtk.mosaic.SimplePlot.asPixels(y[0]);
+    plot(x[0],"x before");
+    plot(y[0],"y before");
     equalize(x,y);
     float[][][] xx = mul(x,x);
     float[][][] yy = mul(y,y);
@@ -128,9 +152,16 @@ public class DataWarping {
     mul(num,x,x);
     mul(num,y,y);
     equalize(x,y);
-    edu.mines.jtk.mosaic.SimplePlot.asPixels(num[0]);
-    edu.mines.jtk.mosaic.SimplePlot.asPixels(x[0]);
-    edu.mines.jtk.mosaic.SimplePlot.asPixels(y[0]);
+    plot(num[0],"numerator");
+    plot(x[0],"x after");
+    plot(y[0],"y after");
+  }
+
+  private static void plot(float[][] x, String title) {
+    edu.mines.jtk.mosaic.SimplePlot sp =
+      edu.mines.jtk.mosaic.SimplePlot.asPixels(x);
+    sp.setTitle(title);
+    sp.addColorBar();
   }
 
   private static void equalize(float[][][] x, float[][][] y) {

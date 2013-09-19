@@ -1,7 +1,7 @@
 package lss.vel;
 
 import edu.mines.jtk.util.Check;
-import edu.mines.jtk.util.ArrayMath;
+import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Receiver {
 
@@ -17,11 +17,13 @@ public class Receiver {
     this(xr,zr,-1,data);
   }
 
+  public Receiver(Receiver rc) {
+    this(copy(rc.getXIndices()),copy(rc.getZIndices()),copy(rc.getData()));
+  }
+
   private Receiver(int[] xr, int[] zr, int nt, float[][] data) {
-    int nxr = xr.length;
-    int nzr = zr.length;
-    Check.argument(nxr==nzr,"nxr==nzr");
-    _nr = nxr;
+    Check.argument(xr.length==zr.length,"xr.length==zr.length");
+    _nr = xr.length;
     _xr = xr;
     _zr = zr;
     for (int ir=0; ir<_nr; ++ir) {
@@ -49,7 +51,7 @@ public class Receiver {
   public void setData(float[][] d) {
     Check.argument(d[0].length==_nt,"d[0].length==_nt");
     Check.argument(d.length==_nr,"d.length==_nt");
-    ArrayMath.copy(d,_data);
+    copy(d,_data);
   }
 
   public int[][] getIndices() {
@@ -74,11 +76,6 @@ public class Receiver {
 
   public int getNr() {
     return _nr;
-  }
-
-  public Receiver copy() {
-    return new Receiver(
-      ArrayMath.copy(_xr),ArrayMath.copy(_zr),ArrayMath.copy(_data));
   }
 
   private int _nr,_nt;
