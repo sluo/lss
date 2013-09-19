@@ -39,11 +39,14 @@ public class WaveOperator {
    * Applies the forward operator (modeling).
    */
   public float[] applyForward(float[] m) {
+    float[][] u = new float[_nt][_nz];
+    return applyForward(m,u);
+  }
+  public float[] applyForward(float[] m, float[][] u) {
 
     // (1) Expand to dimensions of wavefield.
-    float[][] u = new float[_nt][];
     for (int it=0; it<_nt; ++it)
-      u[it] = copy(m);
+      copy(m,u[it]);
 
     // (2) Multiply by background wavefield.
     mul(getBackgroundWavefield(),u,u);
@@ -66,9 +69,12 @@ public class WaveOperator {
    * Applies the adjoint operator (migration).
    */
   public float[] applyAdjoint(float[] d) {
+    float[][] u = new float[_nt][_nz];
+    return applyAdjoint(d,u);
+  }
+  public float[] applyAdjoint(float[] d, float[][] u) {
 
     // (4') Insert data at z=0.
-    float[][] u = new float[_nt][_nz];
     for (int it=0; it<_nt; ++it)
       u[it][0] = d[it];
 
@@ -147,12 +153,13 @@ public class WaveOperator {
       ui = u[it];
       um = (it>0)?u[it-1]:new float[nz];
 
+      /*
       for (int iz=1; iz<nz-1; ++iz)
         um[iz] += a[iz+1]*ui[iz+1]+a[iz-1]*ui[iz-1]+
           2.0f*(1.0f-a[iz])*ui[iz]-up[iz];
       um[0   ] += a[1   ]*ui[1   ]+2.0f*(1.0f-a[0   ])*ui[0   ]-up[0   ];
       um[nz-1] += a[nz-2]*ui[nz-2]+2.0f*(1.0f-a[nz-1])*ui[nz-1]-up[nz-1];
-      /*
+      */
       um[0] -= up[0];
       ui[0] += 2.0f*(1.0f-a[0])*up[0];
       ui[1] += a[0]*up[0];
@@ -165,7 +172,6 @@ public class WaveOperator {
         ui[iz+1] += a[iz]*up[iz];
         ui[iz  ] += 2.0f*(1.0f-a[iz])*up[iz];
       }
-      */
     }
   }
 
@@ -203,7 +209,7 @@ public class WaveOperator {
   private Sampling _st;
 
   // Computes wavefield for background model.
-  private float[][] getBackgroundWavefield() {
+  protected float[][] getBackgroundWavefield() {
     if (_b==null) {
       _b = new float[_nt][_nz];
       for (int it=0; it<_nt; ++it) {
@@ -240,13 +246,17 @@ public class WaveOperator {
   //////////////////////////////////////////////////////////////////////////
   // testing
 
-  // Layered reflectivity tests:
-  //   nt=1667, constant slowness, useAdjoint=true
-  //   nt=1667, constant slowness, useAdjoint=false
-  //   nt=1667, random slowness, useAdjoint=false
-  //   nt=1667, random slowness, useAdjoint=false, damp=1.0e-5f
-  //   nt=2801, constant slowness, useAdjoint=true, niter=1
-  //   nt=2801, constant slowness, useAdjoint=true, niter=100
+  // Tests:
+  //   nt=1667 , constant slowness,  USE_ADJOINT=true,   niter=1
+  //   nt=1667 , constant slowness,  USE_ADJOINT=true,  *niter=100*
+  //   nt=1667 , constant slowness, *USE_ADJOINT=false*, niter=100
+  //   nt=1667 , *ramp slowness*,    USE_ADJOINT=false,  niter=100
+  //  (nt=1667 ,  ramp slowness,     USE_ADJOINT=false, damp=1.0e-5f)
+  //   nt=1667 ,  ramp slowness,    *USE_ADJOINT=true*,  niter=100
+  //  *nt=2801*, constant slowness,  USE_ADJOINT=true,  *niter=1*
+  //   nt=2801 , constant slowness,  USE_ADJOINT=true,  *niter=100*
+
+  private static final boolean USE_ADJOINT = true;
 
   public static void main(String[] args) { 
     //goMigrationQs(); // QuadraticSolver
@@ -269,6 +279,69 @@ public class WaveOperator {
   private static float[] getReflectivity(int nz) {
     return getLayeredReflectivity(nz);
     //return getRandomReflectivity(nz);
+  }
+
+  private static void goMigrationCg() {
+    Par par = getPar();
+    float[] s = par.s;
+    float[] r = par.r;
+    WaveOperator wave = par.wave;
+    Sampling sz = par.sz;
+    Sampling st = par.st;
+    int nz = sz.getCount();
+    int nt = st.getCount();
+    double dz = sz.getDelta();
+    double dt = st.getDelta();
+
+    // RHS vector.
+    float[][] u = new float[nt][nz];
+    float[] d = wave.applyForward(r,u);
+    float[] b = wave.applyAdjoint(d);
+    VecArrayFloat1 vb = new VecArrayFloat1(b);
+
+    float[][] q = copy(wave.getBackgroundWavefield());
+    pixels(q,sz,st,"incident wavefield");
+    for (int it=0; it<nt; ++it)
+      copy(r,q[it]);
+    pixels(q,sz,st,"reflectivity");
+    pixels(u,sz,st,"scattered wavefield");
+
+    // Model vector; solution vector.
+    float[] x = new float[nz];
+    VecArrayFloat1 vx = new VecArrayFloat1(x);
+
+    // Conjugate gradient solver.
+    int niter = 1;
+    float damp = 0.0e-5f; // model damping
+    A ma = new A(USE_ADJOINT,wave,damp*sum(mul(b,b))/b.length);
+    CgSolver cg = new CgSolver(0.0001f,niter);
+    cg.solve(ma,vb,vx);
+    
+    plots(d,wave.applyForward(x),s,r,x);
+  }
+
+  private static class A implements CgSolver.A {
+    A(boolean useAdjoint, WaveOperator wave, float damp) {
+      _adjoint = useAdjoint;
+      _wave = wave;
+      _damp = damp;
+    }
+    public void apply(Vec vx, Vec vy) {
+      VecArrayFloat1 v1x = (VecArrayFloat1)vx;
+      VecArrayFloat1 v1y = (VecArrayFloat1)vy;
+      float[] x = v1x.getArray();
+      float[] y = v1y.getArray();
+      if (_adjoint) {
+        copy(_wave.applyAdjoint(_wave.applyForward(x)),y);
+      } else {
+        copy(_wave.applyBackward(_wave.applyForward(x)),y);
+      }
+      if (_damp>0.0f)
+        add(mul(_damp,x),y,y);
+    }
+    private WaveOperator _wave;
+    private boolean _adjoint;
+    private float _damp;
   }
 
   private static void goMigrationQs() {
@@ -296,8 +369,7 @@ public class WaveOperator {
     LogMonitor monitor = new LogMonitor("QuadraticSolver",log);
 
     // Linear transform.
-    boolean useAdjoint = true;
-    WaveTransform ma = new WaveTransform(useAdjoint,wave);
+    WaveTransform ma = new WaveTransform(USE_ADJOINT,wave);
 
     // LinearTransform tests.
     System.out.println("Transpose precision: "+
@@ -346,62 +418,6 @@ public class WaveOperator {
     private boolean _adjoint;
   }
 
-  private static void goMigrationCg() {
-    Par par = getPar();
-    float[] s = par.s;
-    float[] r = par.r;
-    WaveOperator wave = par.wave;
-    Sampling sz = par.sz;
-    Sampling st = par.st;
-    int nz = sz.getCount();
-    int nt = st.getCount();
-    double dz = sz.getDelta();
-    double dt = st.getDelta();
-
-    // RHS vector.
-    float[] d = wave.applyForward(r);
-    float[] b = wave.applyAdjoint(d);
-    VecArrayFloat1 vb = new VecArrayFloat1(b);
-
-    // Model vector; solution vector.
-    float[] x = new float[nz];
-    VecArrayFloat1 vx = new VecArrayFloat1(x);
-
-    // Conjugate gradient solver.
-    int niter = 100;
-    float damp = 0.0e-5f; // model damping
-    boolean useAdjoint = true;
-    A ma = new A(useAdjoint,wave,damp*sum(mul(b,b))/b.length);
-    CgSolver cg = new CgSolver(0.0001f,niter);
-    cg.solve(ma,vb,vx);
-    
-    plots(d,wave.applyForward(x),s,r,x);
-  }
-
-  private static class A implements CgSolver.A {
-    A(boolean useAdjoint, WaveOperator wave, float damp) {
-      _adjoint = useAdjoint;
-      _wave = wave;
-      _damp = damp;
-    }
-    public void apply(Vec vx, Vec vy) {
-      VecArrayFloat1 v1x = (VecArrayFloat1)vx;
-      VecArrayFloat1 v1y = (VecArrayFloat1)vy;
-      float[] x = v1x.getArray();
-      float[] y = v1y.getArray();
-      if (_adjoint) {
-        copy(_wave.applyAdjoint(_wave.applyForward(x)),y);
-      } else {
-        copy(_wave.applyBackward(_wave.applyForward(x)),y);
-      }
-      if (_damp>0.0f)
-        add(mul(_damp,x),y,y);
-    }
-    private WaveOperator _wave;
-    private boolean _adjoint;
-    private float _damp;
-  }
-
   private static class Par {
     public Par(Sampling sz, Sampling st) {
       this.sz = sz;
@@ -436,7 +452,7 @@ public class WaveOperator {
     m[nz/4] = -1.0f;
     //m[nz/2] = -1.0f;
     //m[3*nz/4] = -1.0f;
-    new RecursiveGaussianFilter(4.0).apply1(m,m);
+    new RecursiveGaussianFilter(4.0).apply2(m,m);
     mul(1.0f/max(abs(m)),m,m);
     return m;
   }
