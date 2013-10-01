@@ -591,9 +591,6 @@ def makeBornModel(s):
   GaussianTaper.apply1(0.25,r,r)
   return s0,r
 
-def like(x):
-  return zerofloat(len(x[0]),len(x))
-
 def adjointTest():
   s = fillfloat(0.25,nx,nz)
   add(mul(sub(randfloat(Random(0),nx,nz),0.5),0.05),s,s)
