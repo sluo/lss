@@ -38,6 +38,11 @@ nabsorb = 22 # absorbing boundary size
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
 
+pngdatDir = None
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+
 # TODO: Test adjoint with TransformQuadratic
 
 def main(args):
@@ -236,8 +241,8 @@ class PreconditionOperator(CgSolver.A):
     mul(self.illum,x,y)
 
 def goAmplitudeInversionQs():
-  #nouter,ninner,nfinal = 2,2,2 # outer, inner, inner for last outer
-  nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 4,2,5 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
   warp3d = False # use 3D warping
   s,r,m = getModelAndMask()
@@ -266,7 +271,7 @@ def goAmplitudeInversionQs():
 
   # BornSolver
   ref = RecursiveExponentialFilter(0.5/(fpeak*dx))
-  bs = BornSolver(born,src,rcp,rco,ref)
+  bs = BornSolver(born,src,rcp,rco,ref,m)
 
   # DataWarping.
   td = 4 # time decimation
@@ -290,9 +295,9 @@ def goAmplitudeInversionQs():
       pixels(w[ns/2],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
   pixels(rco[ns/2].getData(),title='rco')
-  #pixels(s,cmap=jet,title='s')
-  #pixels(e,cmap=jet,title='e')
-  #pixels(r,sperc=99.5,title='r')
+  pixels(s,cmap=jet,title='s')
+  pixels(e,cmap=jet,title='e')
+  pixels(r,sperc=99.5,title='r')
 
 def goInversionQs():
   niter = 2
@@ -773,6 +778,16 @@ def read(name,image=None):
   ais.close()
   return image
 
+def write(fname,image):
+  aos = ArrayOutputStream(fname)
+  aos.writeFloats(image)
+  aos.close()
+
+def cleanDir(dir):
+  os.chdir(dir)
+  for f in os.listdir(dir):
+    os.remove(f)
+
 #############################################################################
 # plotting
 
@@ -798,6 +813,9 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
     pv.setClips(-clip,clip)
   if cmin<cmax:
     pv.setClips(cmin,cmax)
+  if title and pngdatDir:
+    sp.paintToPng(360,3.33,pngdatDir+title+'.png')
+    write(pngdatDir+title+'.dat',x)
 
 def points(x):
   SimplePlot.asPoints(x)
@@ -808,6 +826,9 @@ import sys,time
 class RunMain(Runnable):
   def run(self):
     start = time.time()
+    if pngdatDir is not None:
+      print 'cleaning '+pngdatDir.split('/')[-2]
+      cleanDir(pngdatDir)
     main(sys.argv)
     s = time.time()-start
     h = int(s/3600); s -= h*3600

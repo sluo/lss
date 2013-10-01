@@ -13,8 +13,15 @@ import edu.mines.jtk.mosaic.*;
 public class BornSolver {
 
   public BornSolver(
-    BornOperatorS born, Source[] src,
-    Receiver[] rcp, Receiver[] rco, RecursiveExponentialFilter ref)
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    RecursiveExponentialFilter ref)
+  {
+    this(born,src,rcp,rco,ref,null);
+  }
+
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    RecursiveExponentialFilter ref, float[][] m)
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
     int[] nxz = born.getNxNz();
@@ -25,6 +32,7 @@ public class BornSolver {
     _rcp = rcp;
     _rco = rco;
     _ref = ref;
+    _m = m;
     _ii = new float[_nz][_nx];
     computeInverseIllumination(_ii);
     _qs = new QuadraticSolver(new Q());
