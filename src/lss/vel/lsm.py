@@ -22,13 +22,13 @@ sfile = None
 #sfile = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares2/s1_4.dat'
 
 def main(args):
-  #setupForLayered()
-  setupForMarmousi()
+  setupForLayered()
+  #setupForMarmousi()
 
   #initialize()
   #compareData()
   #showData()
-  #WaveformInversion()
+  WaveformInversion()
   #AmplitudeInversion()
   #plotFiles()
 
@@ -86,9 +86,9 @@ def setupForLayered():
   st = Sampling(2750,0.0015,0.0)
   nz,nx,nt = sz.count,sx.count,st.count
   dz,dx,dt = sz.delta,sx.delta,st.delta
-  kxs,kzs = [0],[0]
+  #kxs,kzs = [0],[0]
   #kxs,kzs = [nx/2],[0]
-  #kxs,kzs = rampint(1,10,51),fillint(0,51)
+  kxs,kzs = rampint(1,10,51),fillint(0,51)
   #kxs,kzs = rampint(1,5,101),fillint(0,101)
   kxr,kzr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(kxs),len(kxr)
@@ -102,7 +102,7 @@ def setupForLayered():
     s1 = read(sfile)
   psou = min(18,ns)
   fpeak = 10.0
-  niter = 10
+  niter = 1
   sw = Stopwatch(); sw.start()
   u = zeros(nz,nx,nt,psou)
   a = zeros(nz,nx,nt,psou)
@@ -270,7 +270,7 @@ def plotWarpings():
 
 def compareData():
   dob = modelBornData(t0,t1); dob = dob[ns/2]
-  #GaussianTaper.apply(0.8,s1,s1)
+  #GaussianTaper.apply2(0.8,s1,s1)
   dsb = modelBornData(s0,s1); dsb = dsb[ns/2]
   ra,v = like(dsb),like(dsb)
   makeWarpedResidual(dsb,dob,ra=ra,v=v) # warped residuals
@@ -531,7 +531,7 @@ class Inversion():
           Wavefield.Receiver(kzr,kxr),
           s0,ds)
       self.residual(ds,do,r)
-      #GaussianTaper.apply(r,r) # taper
+      #GaussianTaper.apply2(r,r) # taper
       wave.modelAcousticWavefield(
         Wavefield.AdjointSource(dt,kzr,kxr,r),s0,ai)
       return makeGradient(ui,ai,d2=False)
@@ -993,7 +993,7 @@ def getGaussian1(gmul=1.0):
     for iz in range(2*nz/3,nz):
       t[ix][iz] = 0.2
   t0,t1 = makeBornModel(t)
-  GaussianTaper.apply(t1,t1)
+  GaussianTaper.apply2(t1,t1)
   if constantBackground:
     fill(tb,t0)
 
@@ -1016,7 +1016,7 @@ def getLayered1(s0mul=1.0):
     for iz in range(3*nz/5,nz):
       t[ix][iz] = 0.2
   t0,t1 = makeBornModel(t)
-  GaussianTaper.apply(t1,t1)
+  GaussianTaper.apply2(t1,t1)
   if constantBackground:
     fill(tb,t0)
   s0 = copy(t0)
@@ -1034,7 +1034,7 @@ def getLayered2(s0mul=1.0):
     for iz in range(2*nz/3,nz):
       t[ix][iz] = 0.2
   t0,t1 = makeBornModel(t)
-  GaussianTaper.apply(t1,t1)
+  GaussianTaper.apply2(t1,t1)
   if constantBackground:
     fill(tb,t0)
   s0 = copy(t0)

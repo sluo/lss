@@ -23,6 +23,10 @@ public class BornOperator {
     _s = s;
   }
 
+  public void setAdjoint(boolean adjoint) {
+    _wave.setAdjoint(adjoint);
+  }
+
   public void setSlowness(float[][] s) {
     copy(s,_s);
     _wave.setSlowness(s);
@@ -150,7 +154,10 @@ public class BornOperator {
   private static final float C09 =  0.11937032f*0.01f;
   private static final float C10 = -0.47508613f*0.001f;
   private static final float FF = 400.0f; // fudge factor
-  private void scaleLaplacian(final float[][][] u) {
+  private void scaleLaplacian(final float[][][] u) { // XXX
+    return;
+  }
+  private void xscaleLaplacian(final float[][][] u) {
     final int nx = u[0][0].length;
     final int nz = u[0].length;
     final int nt = u.length;

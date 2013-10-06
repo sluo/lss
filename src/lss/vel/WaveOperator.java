@@ -136,6 +136,10 @@ public class WaveOperator {
     setSlowness(s);
   }
 
+  public void setAdjoint(boolean adjoint) {
+    _adjoint = adjoint;
+  }
+
   public void setSlowness(float[][] s) {
     float scale = (_dt*_dt/(_dx*_dx));
     _s = extendModel(s,_nabsorb);
@@ -171,6 +175,7 @@ public class WaveOperator {
   //////////////////////////////////////////////////////////////////////////
   // private
 
+
   private int _b,_nabsorb; // absorbing boundary
   private int _nx,_nz;
   private float _dx,_dt;
@@ -179,6 +184,9 @@ public class WaveOperator {
   private float[][] _w; // weights for boundary
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
+
+  // Adjoint flag; if true, use for adjoint code during back propagation.
+  private boolean _adjoint = true;
 
   private void apply(
   boolean forward, Source source, Receiver receiver, float[][][] u) {
@@ -212,20 +220,21 @@ public class WaveOperator {
       }
 
       // Step.
-      if (forward) {
+      if (forward) { // forward propagate
         forwardStep(um,ui,up);
         if (source!=null)
           source.add(up,it,_nabsorb);
         forwardAbsorb(um,ui,up);
-      } else {
+      } else if (_adjoint) { // back propagate using adjoint code
         adjointAbsorb(up,ui,um);
         if (source!=null)
           source.add(up,it,_nabsorb);
         adjointStep(up,ui,um);
-        //forwardStep(um,ui,up);
-        //if (source!=null)
-        //  source.add(up,it,_nabsorb);
-        //forwardAbsorb(um,ui,up);
+      } else { // back propagate using forward code
+        forwardStep(um,ui,up);
+        if (source!=null)
+          source.add(up,it,_nabsorb);
+        forwardAbsorb(um,ui,up);
       }
 
       // Set data.

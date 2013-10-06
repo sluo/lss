@@ -6,6 +6,9 @@ from dnp import *
 
 #############################################################################
 
+#sz = Sampling(301,0.012,0.0) # for layered model
+#sx = Sampling(501,0.012,0.0)
+#st = Sampling(2750,0.0015,0.0)
 sz = Sampling(265,0.012,0.0); stride = 3
 sx = Sampling(767,0.012,0.0)
 st = Sampling(5501,0.0010,0.0)
@@ -13,9 +16,10 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [0],[0]
-xs,zs = [nx/2],[0]
+#xs,zs = [nx/2],[0]
+#xs,zs = rampint(1,10,51),fillint(0,51) # for layered
 #xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
-#xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
+xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
 #xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
@@ -25,11 +29,11 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(14,ns) # number of parallel sources
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
-# TODO: Test adjoint with TransformQuadratic
+#############################################################################
 
 def main(args):
   goNonlinearAmplitudeInversionQs()
@@ -49,12 +53,37 @@ def getMarmousiModelAndMask():
     for ix in range(nx):
       m[iz][ix] = 0.0
   ref.apply2(m,m)
-  return s0,s1,m
+  return s0,mul(s1,m),m
+
+def getLayeredModelAndMask():
+  t0,t1 = getLayered2()
+  m = None
+  return t0,t1,m
+
+def getLayered2(s0mul=1.0):
+  constantBackground = True
+  tb = 0.5 # background slowness
+  t = fillfloat(tb,nz,nx)
+  for ix in range(nx):
+    for iz in range(nz/3,2*nz/3):
+      t[ix][iz] = 0.38
+    for iz in range(2*nz/3,nz):
+      t[ix][iz] = 0.2
+  t0,t1 = makeBornModel(t)
+  GaussianTaper.apply2(t1,t1)
+  if constantBackground:
+    fill(tb,t0)
+  s0 = copy(t0)
+  mul(s0mul,s0,s0)
+  s1 = like(t1)
+  #return t,t0,t1,s0,s1
+  return transpose(t0),transpose(t1)
 
 def goNonlinearAmplitudeInversionQs():
-  niter = 2
+  niter = 10
   t0,t1,m = getModelAndMask()
   s0 = mul(0.95,t0) # erroneous background slowness
+  #s0 = mul(1.00,t0)
 
   # Wavefields
   print "allocating"
@@ -75,6 +104,7 @@ def goNonlinearAmplitudeInversionQs():
     rcp[isou] = Receiver(xr,zr,nt)
   bornt.applyForward(src,t1,rco) # observed data
 
+  w = div(1.0,mul(s0,s0)); mul(1.0/max(w)/ns,w,w) # v^2 preconditioning
   s1 = like(t1) # computed reflectivity
   gm,pm = None,None # previous gradient, conjugate gradient
   for iiter in range(niter):
@@ -86,28 +116,39 @@ def goNonlinearAmplitudeInversionQs():
       for isou in range(ns):
         rcr[isou] = Receiver(xr,zr,mul(-1.0,rco[isou].getData()))
     g = like(s1)
+    twiceIntegrate(rcr); # XXX
     born.applyAdjoint(src,rcr,g) # gradient
-    processGradient(g) # roughen
-    mul(m,g,g) # mask
+    roughen(g) # roughen
+    mul(w,g,g) # precondition
+    if m is not None:
+      mul(m,g,g) # mask
     p = conjugateDirection(g,gm,pm) # conjugate gradient
     if niter>1:
-      amf = AmplitudeMisfitFunction(s1,p,src[ns/2],rco[ns/2],born):
+      amf = AmplitudeMisfitFunction(s1,p,src[ns/2],rco[ns/2],born)
       updateModel(amf,s1) # line search
-    pixels(g,cmap=rwb,sperc=100.0,title='g'+str(iiter))
-    pixels(p,cmap=rwb,sperc=100.0,title='g'+str(iiter))
+    pixels(g,cmap=rwb,sperc=100.0,title='g_'+str(iiter))
+    pixels(p,cmap=rwb,sperc=100.0,title='p_'+str(iiter))
+    pixels(s1,cmap=rwb,sperc=100.0,title='s1_'+str(iiter))
     gm,pm = g,p
 
   #pixels(rco[ns/2].getData(),title='rco')
+  pixels(t1,cmap=rwb,sperc=100.0,title='t1')
   pixels(t0,cmap=jet,title='t0')
   pixels(s0,cmap=jet,title='s0')
-  pixels(t1,sperc=99.5,title='t1')
-  pixels(s1,sperc=99.5,title='s1')
+
+def twiceIntegrate(rec):
+  ns = len(rec)
+  for isou in range(ns):
+    d = rec[isou].getData()
+    Util.integrate1(d,d)
+    Util.integrate1(d,d)
+    mul(-1.0,d,d)
 
 def goAmplitudeInversionQs():
-  nouter,ninner,nfinal = 4,2,5 # outer, inner, inner for last outer
+  warp3d = False # use 3D warping
+  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
-  warp3d = False # use 3D warping
   s,r,m = getModelAndMask()
   e = mul(0.95,s) # erroneous background slowness
   #e = mul(0.85,s) # erroneous background slowness
@@ -140,7 +181,8 @@ def goAmplitudeInversionQs():
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
   strainT,strainR,strainS = 0.50,0.20,0.20 if warp3d else -1.0
-  smoothT,smoothR,smoothS = 16.0,4.0,4.0
+  #smoothT,smoothR,smoothS = 16.0,4.0,4.0
+  smoothT,smoothR,smoothS = 32.0,8.0,8.0
   warp = DataWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
 
@@ -148,7 +190,7 @@ def goAmplitudeInversionQs():
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
     born.applyForward(src,rx,rcp)
-    pixels(rx,sperc=99.5,title='r%d'%iouter)
+    pixels(rx,cmap=rwb,sperc=100.0,title='r%d'%iouter)
     pixels(rcp[ns/2].getData(),title='rcp%d'%iouter)
     if nouter>1 and iouter<nouter:
       print 'warping (3d=%r)'%warp3d
@@ -160,7 +202,7 @@ def goAmplitudeInversionQs():
   pixels(rco[ns/2].getData(),title='rco')
   pixels(s,cmap=jet,title='s')
   pixels(e,cmap=jet,title='e')
-  pixels(r,sperc=99.5,title='r')
+  pixels(r,cmap=rwb,sperc=100.0,title='r')
 
 def goInversionQs():
   niter = 2
@@ -203,7 +245,8 @@ def makeBornModel(s):
   #sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
   #sigma1 = 0.5*sigma0 # quarter wavelength
   sigma0 = 1.0/fpeak
-  sigma1 = 0.5*sigma0
+  #sigma1 = 0.5*sigma0
+  sigma1 = 1.0*sigma0
   print 'sigma0=%f'%sigma0
   print 'sigma1=%f'%sigma1
   s0,s1 = like(s),like(s)
@@ -281,6 +324,7 @@ def cleanDir(dir):
 
 def updateModel(misfitFunction,s1):
   print 'searching for step length...'
+  _,t1,_ = getModelAndMask()
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.10*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.20*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.0*max(abs(t1)); tol = 0.20*abs(b-a)
@@ -347,7 +391,7 @@ class xAmplitudeMisfitFunction(MisfitFunction):
 #############################################################################
 # warping and more
 
-def processGradient(g):
+def roughen(g):
   h = copy(g)
   sigma = 0.100
   ref = RecursiveExponentialFilter(sigma/dx)

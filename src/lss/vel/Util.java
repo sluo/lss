@@ -4,6 +4,18 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Util {
 
+  public static void integrate1(final float[][] x, final float[][] y) {
+    final int n1 = x[0].length;
+    final int n2 = x.length;
+    Parallel.loop(n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      y[i2][0] = x[i2][0];
+      for (int i1=1; i1<n1; ++i1) {
+        y[i2][i1] = y[i2][i1-1]+x[i2][i1];
+      }
+    }});
+  }
+
   public static void sdiv(
   final float num, final float[][] x, final float[][] y) {
     Check.argument(num!=0.0f,"num!=0");

@@ -27,6 +27,8 @@ public class BornOperatorS {
   public BornOperatorS(
   float[][] s, double dx, double dt, 
   int nabsorb, SharedFloat4 u, SharedFloat4 a) {
+    Check.argument(s[0].length==u.getN1()-2*nabsorb,"consistent nx");
+    Check.argument(s.length==u.getN2()-2*nabsorb,"consistent nz");
     _born = new BornOperator(s,dx,dt,nabsorb);
     _u = u;
     _a = a;
@@ -34,6 +36,10 @@ public class BornOperatorS {
     _nx = s[0].length;
     _nz = s.length;
     _nabsorb = nabsorb;
+  }
+
+  public void setAdjoint(boolean adjoint) {
+    _born.setAdjoint(adjoint);
   }
 
   public int[] getNxNz() {
