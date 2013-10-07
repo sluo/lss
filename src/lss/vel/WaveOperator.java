@@ -172,6 +172,75 @@ public class WaveOperator {
     apply(false,source,receiver,u);
   }
 
+  private static final float FF = 400.0f; // fudge factor
+  public void applyLaplacian(final float[][][] u) {
+    final int nx = u[0][0].length;
+    final int nz = u[0].length;
+    final int nt = u.length;
+    Check.argument(_nx==nx,"_nx==nx");
+    Check.argument(_nz==nz,"_nz==nz");
+    final int b = _nabsorb-FD_ORDER/2;
+    float[][] ua = new float[nz][nx];
+    float[][] ub;
+    for (int it=0; it<nt; ++it) {
+      final float[][] uif = u[it];
+      final float[][] uaf = ua;
+      Parallel.loop(_iza,_izd,new Parallel.LoopInt() {
+      public void compute(int iz) {
+        float[] uii = uif[iz];
+        float[] uim01 = uif[iz-1 ], uip01 = uif[iz+1 ];
+        float[] uim02 = uif[iz-2 ], uip02 = uif[iz+2 ];
+        float[] uim03 = uif[iz-3 ], uip03 = uif[iz+3 ];
+        float[] uim04 = uif[iz-4 ], uip04 = uif[iz+4 ];
+        float[] uim05 = uif[iz-5 ], uip05 = uif[iz+5 ];
+        float[] uim06 = uif[iz-6 ], uip06 = uif[iz+6 ];
+        float[] uim07 = uif[iz-7 ], uip07 = uif[iz+7 ];
+        float[] uim08 = uif[iz-8 ], uip08 = uif[iz+8 ];
+        float[] uim09 = uif[iz-9 ], uip09 = uif[iz+9 ];
+        float[] uim10 = uif[iz-10], uip10 = uif[iz+10];
+        for (int ix=_ixa; ix<_ixd; ++ix) {
+          float f = FF*_dt*_dt*_dx;
+          float d = _s[iz][ix]*_dx;
+          float r = -f/(d*d);
+          //float q = 0.5f*r;
+          //float a = 0.5461f; // (Jo et. al., 1996)
+          //float b = 1.0f-a;
+          float a = 1.0f;
+          uaf[iz][ix] = (
+            a*r*(
+            C00*(uii[ix])+
+            C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
+            C02*(uim02[ix]+uii[ix-2 ]+uii[ix+2 ]+uip02[ix])+
+            C03*(uim03[ix]+uii[ix-3 ]+uii[ix+3 ]+uip03[ix])+
+            C04*(uim04[ix]+uii[ix-4 ]+uii[ix+4 ]+uip04[ix])+
+            C05*(uim05[ix]+uii[ix-5 ]+uii[ix+5 ]+uip05[ix])+
+            C06*(uim06[ix]+uii[ix-6 ]+uii[ix+6 ]+uip06[ix])+
+            C07*(uim07[ix]+uii[ix-7 ]+uii[ix+7 ]+uip07[ix])+
+            C08*(uim08[ix]+uii[ix-8 ]+uii[ix+8 ]+uip08[ix])+
+            C09*(uim09[ix]+uii[ix-9 ]+uii[ix+9 ]+uip09[ix])+
+            C10*(uim10[ix]+uii[ix-10]+uii[ix+10]+uip10[ix]))
+            //+
+            //b*q*(
+            //C00*(uii[ix])+
+            //C01*(uim01[ix-1 ]+uim01[ix+1 ]+uip01[ix-1 ]+uip01[ix+1 ])+
+            //C02*(uim02[ix-2 ]+uim02[ix+2 ]+uip02[ix-2 ]+uip02[ix+2 ])+
+            //C03*(uim03[ix-3 ]+uim03[ix+3 ]+uip03[ix-3 ]+uip03[ix+3 ])+
+            //C04*(uim04[ix-4 ]+uim04[ix+4 ]+uip04[ix-4 ]+uip04[ix+4 ])+
+            //C05*(uim05[ix-5 ]+uim05[ix+5 ]+uip05[ix-5 ]+uip05[ix+5 ])+
+            //C06*(uim06[ix-6 ]+uim06[ix+6 ]+uip06[ix-6 ]+uip06[ix+6 ])+
+            //C07*(uim07[ix-7 ]+uim07[ix+7 ]+uip07[ix-7 ]+uip07[ix+7 ])+
+            //C08*(uim08[ix-8 ]+uim08[ix+8 ]+uip08[ix-8 ]+uip08[ix+8 ])+
+            //C09*(uim09[ix-9 ]+uim09[ix+9 ]+uip09[ix-9 ]+uip09[ix+9 ])+
+            //C10*(uim10[ix-10]+uim10[ix+10]+uip10[ix-10]+uip10[ix+10]))
+          );
+        }
+      }});
+      ub = u[it]; // rotate
+      u[it] = ua; // arrays
+      ua = ub;
+    }
+  }
+
   //////////////////////////////////////////////////////////////////////////
   // private
 

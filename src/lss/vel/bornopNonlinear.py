@@ -6,46 +6,66 @@ from dnp import *
 
 #############################################################################
 
-#sz = Sampling(301,0.012,0.0) # for layered model
-#sx = Sampling(501,0.012,0.0)
-#st = Sampling(2750,0.0015,0.0)
-sz = Sampling(265,0.012,0.0); stride = 3
-sx = Sampling(767,0.012,0.0)
-st = Sampling(5501,0.0010,0.0)
-nz,nx,nt = sz.count,sx.count,st.count
-dz,dx,dt = sz.delta,sx.delta,st.delta
-fz,fx,ft = sz.first,sx.first,st.first
-#xs,zs = [0],[0]
-#xs,zs = [nx/2],[0]
-#xs,zs = rampint(1,10,51),fillint(0,51) # for layered
-#xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
-xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
-#xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
-xr,zr = rampint(0,1,nx),fillint(0,nx)
-ns,nr = len(xs),len(xr)
-fpeak = 10.0 # Ricker wavelet peak frequency
-nabsorb = 22 # absorbing boundary size
-nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
-np = min(14,ns) # number of parallel sources
-
 pngdatDir = None
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
-
-#############################################################################
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 def main(args):
-  goNonlinearAmplitudeInversionQs()
+  goNonlinearInversionQs()
+  #goNonlinearAmplitudeInversionQs()
   #goAmplitudeInversionQs()
   #goInversionQs()
 
 def getModelAndMask():
-  #return getLayeredModelAndMask()
+  #return setupForMarmousi()
+  return setupForLayered()
+
+def setupForMarmousi():
+  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
+  global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
+  sz = Sampling(265,0.012,0.0)
+  sx = Sampling(767,0.012,0.0)
+  st = Sampling(5501,0.0010,0.0)
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  fz,fx,ft = sz.first,sx.first,st.first
+  #xs,zs = [0],[0]
+  #xs,zs = [nx/2],[0]
+  #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
+  #xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
+  xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
+  #xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
+  xr,zr = rampint(0,1,nx),fillint(0,nx)
+  ns,nr = len(xs),len(xr)
+  fpeak = 10.0 # Ricker wavelet peak frequency
+  nabsorb = 22 # absorbing boundary size
+  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
+  np = min(14,ns) # number of parallel sources
   return getMarmousiModelAndMask()
 
+def setupForLayered():
+  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
+  global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
+  sz = Sampling(301,0.012,0.0) # for layered model
+  sx = Sampling(501,0.012,0.0)
+  st = Sampling(2750,0.0015,0.0)
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  fz,fx,ft = sz.first,sx.first,st.first
+  #xs,zs = [0],[0]
+  xs,zs = [nx/2],[0]
+  #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
+  xr,zr = rampint(0,1,nx),fillint(0,nx)
+  ns,nr = len(xs),len(xr)
+  fpeak = 10.0 # Ricker wavelet peak frequency
+  nabsorb = 22 # absorbing boundary size
+  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
+  np = min(16,ns) # number of parallel sources
+  return getLayeredModelAndMask()
+
 def getMarmousiModelAndMask():
-  s = getMarmousi(stride)
+  s = getMarmousi()
   s0,s1 = makeBornModel(s)
   m = fillfloat(1.0,nx,nz)
   ref = RecursiveExponentialFilter(1.0)
@@ -79,6 +99,83 @@ def getLayered2(s0mul=1.0):
   #return t,t0,t1,s0,s1
   return transpose(t0),transpose(t1)
 
+def goNonlinearInversionQs():
+  niter = 1
+  #s0scale = 0.95
+  s0scale = 1.00
+  amplitudeResidual = False
+
+  # Slowness models
+  t0,t1,m = getModelAndMask()
+  s0 = mul(s0scale,t0) # background slowness for migration
+
+  # Allocate Wavefields.
+  print "allocating"
+  u = SharedFloat4(nxp,nzp,nt,np)
+  a = SharedFloat4(nxp,nzp,nt,np)
+
+  # Wave operators.
+  born = BornOperatorS(t0,dx,dt,nabsorb,u,a) # Born with true slowness
+  wave = WaveOperator(s0,dx,dt,nabsorb) # Wave with erroneous slowness
+  wave.setAdjoint(False) # use correct adjoint?
+
+  # Sources and receivers.
+  src = BornOperatorS.getSourceArray(ns) # sources
+  rco = BornOperatorS.getReceiverArray(ns) # receivers
+  rcp = BornOperatorS.getReceiverArray(ns) # receivers
+  for isou in range(ns):
+    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+    rco[isou] = Receiver(xr,zr,nt)
+    rcp[isou] = Receiver(xr,zr,nt)
+  born.applyForward(src,t1,rco) # observed data
+
+  # Preconditioning by 1/v^2.
+  w = div(1.0,mul(s0,s0)); mul(1.0/max(w)/ns,w,w)
+
+  # Gradient computation.
+  class GradientParallelReduce(Parallel.ReduceInt):
+    def compute(self,isou):
+      ui,ai = u.get(isou),a.get(isou)
+      wave.applyForward(src[isou],ui);
+      #wave.applyLaplacian(b) # 2nd time derivative
+      if amplitudeResidual:
+        rcr = makeAmplitudeResidual(rcp[isou],rco[isou])
+      else:
+        rcr = makeWaveformResidual(rcp[isou],rco[isou])
+      #twiceIntegrate(rcr); # XXX
+      wave.applyAdjoint(Source.ReceiverSource(rcr),ai)
+      gi = applyImagingCondition(ui,ai)
+      #roughen(gi) # roughen
+      #mul(w,gi,gi) # precondition
+      return gg
+    def combine(self,ga,gb):
+      return add(ga,gb)
+
+  # Iterate...
+  s1 = like(t1)
+  gm,pm = None,None
+  for iiter in range(niter):
+    sw = Stopwatch(); sw.start()
+    g = PartialParallel(np).reduce(ns,GradientParallelReduce)
+    p = conjugateDirection(g,gm,pm)
+    report('gradient',sw)
+    if niter>1:
+      amf = AmplitudeMisfitFunction(s1,p,src[ns/2],rco[ns/2],born)
+      updateModel(amf,s1) # line search
+    gm,pm = g,p
+    pixels(gm,cmap=rwb,sperc=100.0,title='g_'+str(iiter))
+    pixels(pm,cmap=rwb,sperc=100.0,title='p_'+str(iiter))
+    pixels(s1,cmap=rwb,sperc=100.0,title='s1_'+str(iiter))
+
+  #pixels(rco[ns/2].getData(),title='rco')
+  pixels(t1,cmap=rwb,sperc=100.0,title='t1')
+  pixels(t0,cmap=jet,title='t0')
+  pixels(s0,cmap=jet,title='s0')
+
+def applyImagingCondition(u,a):
+  # TODO
+  pass
+
 def goNonlinearAmplitudeInversionQs():
   niter = 10
   t0,t1,m = getModelAndMask()
@@ -110,7 +207,7 @@ def goNonlinearAmplitudeInversionQs():
   for iiter in range(niter):
     if iiter>0:
       born.applyForward(src,s1,rcp)
-      rcr = makeAmplitudeResidual(rcp,rco)
+      rcr = makeAmplitudeResiduals(rcp,rco)
     else:
       rcr = BornOperatorS.getReceiverArray(ns)
       for isou in range(ns):
@@ -357,7 +454,7 @@ class AmplitudeMisfitFunction(BrentMinFinder.Function):
     r = self.residual(self.rcp,self.rco)
     return sum(mul(r,r))
   def residual(self,rcp,rco):
-    rcr = makeAmplitudeResidual(rcp,rco)
+    rcr = makeAmplitudeResiduals(rcp,rco)
     return rcr[0].getData()
 
 class MisfitFunction(BrentMinFinder.Function):
@@ -406,7 +503,7 @@ def mask(g,l2=0):
     for i1 in range(n1):
       g[i2][i1] = 0.0
 
-def makeAmplitudeResidual(rcp,rco):
+def makeAmplitudeResiduals(rcp,rco):
   ns = len(rcp)
   rcr = BornOperatorS.getReceiverArray(ns) # residuals
   for isou in range(ns):
@@ -416,6 +513,18 @@ def makeAmplitudeResidual(rcp,rco):
     makeWarpedResidual(dp,do,ra=ra)
     rcr[isou] = Receiver(xr,zr,ra)
   return rcr
+
+def makeAmplitudeResidual(rcp,rco):
+  dp = rcp[isou].getData()
+  do = rco[isou].getData()
+  ra = like(dp) # amplitude residual
+  makeWarpedResidual(dp,do,ra=ra)
+  return Receiver(xr,zr,ra)
+
+def makeWaveformResidual(rcp,rco):
+  dp = rcp[isou].getData()
+  do = rco[isou].getData()
+  return Receiver(xr,zr,sub(dp,do))
 
 def makeWarpedResidual(ds,do,ra=None,rt=None,rc=None,dw=None,v=None):
   if dw is None:

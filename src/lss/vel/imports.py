@@ -30,3 +30,10 @@ from lss.eni import *
 from lss.util import *
 from lss.vel import *
 from lss.vel.Util import *
+
+# Do everything on Swing thread.
+def run(main):
+  class RunMain(Runnable):
+    def run(self):
+      main(sys.argv)
+  SwingUtilities.invokeLater(RunMain())

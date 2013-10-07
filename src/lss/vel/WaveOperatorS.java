@@ -29,6 +29,14 @@ public class WaveOperatorS {
     });
   }
 
+  public void setAdjoint(boolean adjoint) {
+    _wave.setAdjoint(adjoint);
+  }
+
+  public void setSlowness(float[][] s) {
+    _wave.setSlowness(s);
+  }
+
   ////////////////////////////////////////////////////////////////////////////  
   // private
 
