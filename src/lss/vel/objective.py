@@ -12,17 +12,17 @@ ft = -0.5*nt*dt
 st = Sampling(nt,dt,ft)
 
 pngdatDir = None
-pngdatDir = '/Users/sluo/Desktop/pngdat/'
+#pngdatDir = '/Users/sluo/Desktop/pngdat/'
 
-widthPoints = None # slides
-#widthPoints = 240.0 # single column
+#widthPoints = None # slides
+widthPoints = 240.0 # single column
 
 #############################################################################
 
 def main(args):
-  #goAmplitudeAndTraveltime() # amplitude and traveltime misfit (nonlinear)
+  goAmplitudeAndTraveltime() # amplitude and traveltime misfit (nonlinear)
   #goAmplitudeAndScale() # amplitude and index scale misfit (linear?)
-  goAmplitudeAndAmplitude() # amplitude and amplitude misfit (linear?)
+  #goAmplitudeAndAmplitude() # amplitude and amplitude misfit (linear?)
 
 def goAmplitudeAndAmplitude():
 
@@ -274,8 +274,8 @@ def plot(f,s1=None,s2=None,cmap=jet,
   panel = PlotPanel()
   panel.setHLimits(s1.first,s1.last)
   panel.setVLimits(s2.first,s2.last)
-  #panel.setHLabel('Traveltime shift (s)')
-  panel.setHLabel('Traveltime scale')
+  panel.setHLabel('Traveltime shift (s)')
+  #panel.setHLabel('Traveltime shift')
   panel.setVLabel('Amplitude scale')
   cb = panel.addColorBar()
   #cb.setLabel('Normalized misfit')
@@ -325,8 +325,10 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
   panel = PlotPanel()
   panel.setHLabel('Time (s)')
   panel.setVLabel('Amplitude')
-  panel.setHInterval(2.0)
-  grid = False
+  #panel.setHInterval(2.0)
+  panel.setHInterval(1.0)
+  panel.setHLimits(-3.0,3.0)
+  grid = True
   if grid:
     gv = panel.addGrid("H0Vk--")
     gv.setColor(Color.BLACK)
