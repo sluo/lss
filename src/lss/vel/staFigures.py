@@ -28,8 +28,8 @@ widthPoints = None # slides
 #############################################################################
 
 def main(args):
-  plotFwi()
-  #plotLsm()
+  #plotFwi()
+  plotLsm()
   #plotFwiData()
   #plotLsmData() # Born data
   #plotObjectiveFunction()
@@ -188,9 +188,9 @@ def modelDirectArrival(s):
 
 def plotLsmData():
   lsmDir = '/Users/sluo/Dropbox/save/lsm/'
-  #ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
   #ddir,iiter = lsmDir+'marmousi/95p/dres3/','19'
-  ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
+  #ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
   #ddir,iiter = lsmDir+'marmousi/random/25p/plus/dres/','9'
   #ddir,iiter = lsmDir+'marmousi/random/25p/plus/ares/','9'
   t0 = read(ddir+'s0_true.dat')
@@ -370,15 +370,14 @@ def plotLsm():
   p = read(ddir+'p_'+iiter+'.dat'); mul(p,1.0/max(abs(p)),p)
   #mul(s1,0.10/max(abs(s1)),s1) # XXX
   #mul(s1,0.15/max(abs(s1)),s1) # XXX
-  cmap1,cint = rwb,0.1
-  #cmap1,cint = gray,None
-  clip1 = max(abs(t1))
-  #clip1 = 0.05
+  #cmap1,cint,clip1 = rwb,0.1,max(abs(t1))
+  cmap1,cint,clip1 = gray,0.05,0.05
   #clipDiff = 0.0
   clipDiff = 0.04
   plot(t,cmap=jet,cbar='Slowness (s/km)',title='t')
   plot(t0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='t0')
-  plot(t1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',title='t1')
+  plot(t1,cmap=cmap1,cmin=-clip1,cmax=clip1,
+    cint=cint,cbar='Reflectivity',title='t1')
   #plot(sub(t0,s0),cmap=rwb,cmin=-clipDiff,cmax=clipDiff,sperc=100.0,
   #  cint=0.04,cbar='Slowness (s/km)',title='t0-s0')
   if widthPoints:
