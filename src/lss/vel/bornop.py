@@ -6,9 +6,9 @@ from dnp import *
 
 #############################################################################
 
-#sz = Sampling(201,0.016,0.0)
-#sx = Sampling(202,0.016,0.0)
-#st = Sampling(2003,0.0010,0.0)
+sz = Sampling(201,0.016,0.0)
+sx = Sampling(202,0.016,0.0)
+st = Sampling(2003,0.0010,0.0)
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
@@ -17,20 +17,20 @@ from dnp import *
 #sz = Sampling(313,0.004,0.0) # for 30 Hz
 #sx = Sampling(314,0.004,0.0)
 #st = Sampling(3003,0.0004,0.0)
-sz = Sampling(265,0.012,0.0); stride = 3
-sx = Sampling(767,0.012,0.0)
-st = Sampling(5501,0.0010,0.0)
+#sz = Sampling(265,0.012,0.0); stride = 3
+#sx = Sampling(767,0.012,0.0)
+#st = Sampling(5501,0.0010,0.0)
 nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 fz,fx,ft = sz.first,sx.first,st.first
 #xs,zs = [0],[0]
 #xs,zs = [nx/2],[0]
 #xs,zs = [nx/2],[nz/2]
-#xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
+xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
 #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
 #xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
 #xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
-xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
+#xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
 xr,zr = rampint(0,1,nx),fillint(0,nx)
 ns,nr = len(xs),len(xr)
 fpeak = 10.0 # Ricker wavelet peak frequency
@@ -39,7 +39,7 @@ nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 np = min(16,ns) # number of parallel sources
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
@@ -59,8 +59,8 @@ def main(args):
   #goInversionOfMultiplesQs()
 
 def getModelAndMask():
-  #return getLayeredModelAndMask()
-  return getMarmousiModelAndMask()
+  return getLayeredModelAndMask()
+  #return getMarmousiModelAndMask()
 
 def getMarmousiModelAndMask():
   s = getMarmousi(stride)
@@ -241,13 +241,13 @@ class PreconditionOperator(CgSolver.A):
     mul(self.illum,x,y)
 
 def goAmplitudeInversionQs():
-  nouter,ninner,nfinal = 4,2,5 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
   warp3d = False # use 3D warping
   s,r,m = getModelAndMask()
-  e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
+  #e = mul(0.95,s) # erroneous background slowness
+  e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"

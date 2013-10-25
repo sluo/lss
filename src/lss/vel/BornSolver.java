@@ -40,11 +40,7 @@ public class BornSolver {
 
   public void setObservedData(final Receiver[] rco) {
     Check.argument(_rco.length==rco.length,"_rco.length==rco.length");
-    final int ns = rco.length;
-    Parallel.loop(ns,new Parallel.LoopInt() {
-    public void compute(int is) {
-      copy(rco[is].getData(),_rco[is].getData());
-    }});
+    _rco = rco;
   }
 
   public float[][] solve(int niter) {
@@ -70,12 +66,12 @@ public class BornSolver {
   // required parameters
   private final int _nz,_nx;
   private final float[][] _ii; // inverse illumination
-  private final BornOperatorS _born;
-  private final Source[] _src;
-  private final Receiver[] _rco;
-  private final Receiver[] _rcp;
   private final RecursiveExponentialFilter _ref; // roughening filter
+  private final BornOperatorS _born;
   private final QuadraticSolver _qs;
+  private final Source[] _src;
+  private final Receiver[] _rcp;
+  private Receiver[] _rco;
 
   // optional parameters
   private float[][] _m = null; // mask

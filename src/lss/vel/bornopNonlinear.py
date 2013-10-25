@@ -2,19 +2,20 @@
 # Wavefield modeling using BornWaveOperator
 
 from imports import *
-from dnp import *
 
 #############################################################################
 
 pngdatDir = None
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
+STACK = False # stack gradient over offset
+
 def main(args):
-  goNonlinearInversionQs()
+  #goNonlinearInversionQs()
   #goNonlinearAmplitudeInversionQs()
-  #goAmplitudeInversionQs()
+  goAmplitudeInversionQs()
   #goInversionQs()
 
 def getModelAndMask():
@@ -32,10 +33,10 @@ def setupForMarmousi():
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
   #xs,zs = [nx/2],[0]
-  #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
-  #xs,zs = rampint(1,15,52),fillint(0,52) # for marmousi
-  xs,zs = rampint(3,10,77),fillint(0,77) # for marmousi
-  #xs,zs = rampint(3,5,153),fillint(0,153) # for marmousi
+  #xs,zs = rampint(1,15,52),fillint(0,52)
+  xs,zs = rampint(3,10,77),fillint(0,77)
+  #xs,zs = rampint(3,5,153),fillint(0,153)
+  #xs,zs = rampint(1,3,256),fillint(0,256)
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
   fpeak = 10.0 # Ricker wavelet peak frequency
@@ -47,18 +48,23 @@ def setupForMarmousi():
 def setupForLayered():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
   global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
-  sz = Sampling(301,0.012,0.0) # for layered model
-  sx = Sampling(501,0.012,0.0)
-  st = Sampling(2750,0.0015,0.0)
+  #sz = Sampling(301,0.012,0.0) # for layered model
+  #sx = Sampling(501,0.012,0.0)
+  #st = Sampling(2750,0.0015,0.0)
+  sz = Sampling(201,0.016,0.0)
+  sx = Sampling(202,0.016,0.0)
+  st = Sampling(2003,0.0010,0.0)
   nz,nx,nt = sz.count,sx.count,st.count
   dz,dx,dt = sz.delta,sx.delta,st.delta
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
-  xs,zs = [nx/2],[0]
+  #xs,zs = [nx/2],[0]
+  #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
+  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
   #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
-  fpeak = 10.0 # Ricker wavelet peak frequency
+  fpeak = 20.0 # Ricker wavelet peak frequency
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
   np = min(16,ns) # number of parallel sources
@@ -82,6 +88,8 @@ def getLayeredModelAndMask():
 
 def getLayered2(s0mul=1.0):
   constantBackground = True
+
+  """
   tb = 0.5 # background slowness
   t = fillfloat(tb,nz,nx)
   for ix in range(nx):
@@ -89,6 +97,15 @@ def getLayered2(s0mul=1.0):
       t[ix][iz] = 0.38
     for iz in range(2*nz/3,nz):
       t[ix][iz] = 0.2
+  """
+  tb = 0.25 # background slowness
+  t = fillfloat(1.0/1.5,nz,nx)
+  for ix in range(nx):
+    for iz in range(nz/3,2*nz/3):
+      t[ix][iz] = 0.5
+    for iz in range(2*nz/3,nz):
+      t[ix][iz] = 0.2
+
   t0,t1 = makeBornModel(t)
   GaussianTaper.apply2(t1,t1)
   if constantBackground:
@@ -98,6 +115,19 @@ def getLayered2(s0mul=1.0):
   s1 = like(t1)
   #return t,t0,t1,s0,s1
   return transpose(t0),transpose(t1)
+
+def getLayeredModel():
+  """Make slowness (s/km) model."""
+  s = fillfloat(1.0/1.5,nx,nz) # water velocity
+  #s = fillfloat(0.5,nx,nz)
+  for iz in range(nz/3,2*nz/3):
+    for ix in range(nx):
+      s[iz][ix] = 0.50
+  for iz in range(2*nz/3,nz):
+    for ix in range(nx):
+      s[iz][ix] = 0.2
+      #s[iz][ix] = 0.5
+  return transpose(s)
 
 def goNonlinearInversionQs():
   niter = 1
@@ -137,7 +167,7 @@ def goNonlinearInversionQs():
     def compute(self,isou):
       ui,ai = u.get(isou),a.get(isou)
       wave.applyForward(src[isou],ui);
-      #wave.applyLaplacian(b) # 2nd time derivative
+      #wave.applyLaplacian(ui) # 2nd time derivative
       if amplitudeResidual:
         rcr = makeAmplitudeResidual(rcp[isou],rco[isou])
       else:
@@ -147,7 +177,7 @@ def goNonlinearInversionQs():
       gi = applyImagingCondition(ui,ai)
       #roughen(gi) # roughen
       #mul(w,gi,gi) # precondition
-      return gg
+      return gi
     def combine(self,ga,gb):
       return add(ga,gb)
 
@@ -156,7 +186,9 @@ def goNonlinearInversionQs():
   gm,pm = None,None
   for iiter in range(niter):
     sw = Stopwatch(); sw.start()
-    g = PartialParallel(np).reduce(ns,GradientParallelReduce)
+    g = PartialParallel(np).reduce(ns,GradientParallelReduce())
+    if STACK:
+      stack(g)
     p = conjugateDirection(g,gm,pm)
     report('gradient',sw)
     if niter>1:
@@ -173,8 +205,16 @@ def goNonlinearInversionQs():
   pixels(s0,cmap=jet,title='s0')
 
 def applyImagingCondition(u,a):
-  # TODO
-  pass
+  return WaveOperator.collapse(u,a,nabsorb)
+
+def stack(g):
+  gs = zerofloat(nz)
+  for iz in range(nz):
+    for ix in range(nx):
+      gs[iz] += g[iz][iz]
+  for iz in range(nz):
+    for ix in range(nx):
+      g[iz][ix] = gs[iz]
 
 def goNonlinearAmplitudeInversionQs():
   niter = 10
@@ -213,7 +253,7 @@ def goNonlinearAmplitudeInversionQs():
       for isou in range(ns):
         rcr[isou] = Receiver(xr,zr,mul(-1.0,rco[isou].getData()))
     g = like(s1)
-    twiceIntegrate(rcr); # XXX
+    #twiceIntegrate(rcr); # XXX
     born.applyAdjoint(src,rcr,g) # gradient
     roughen(g) # roughen
     mul(w,g,g) # precondition
@@ -234,9 +274,15 @@ def goNonlinearAmplitudeInversionQs():
   pixels(s0,cmap=jet,title='s0')
 
 def twiceIntegrate(rec):
-  ns = len(rec)
-  for isou in range(ns):
-    d = rec[isou].getData()
+  try:
+    ns = len(rec)
+    for isou in range(ns):
+      d = rec[isou].getData()
+      Util.integrate1(d,d)
+      Util.integrate1(d,d)
+      mul(-1.0,d,d)
+  except:
+    d = rec.getData()
     Util.integrate1(d,d)
     Util.integrate1(d,d)
     mul(-1.0,d,d)
@@ -247,8 +293,9 @@ def goAmplitudeInversionQs():
   #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
   s,r,m = getModelAndMask()
-  e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
+  #e = copy(s)
+  #e = mul(0.95,s) # erroneous background slowness
+  e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"
@@ -283,23 +330,26 @@ def goAmplitudeInversionQs():
   warp = DataWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
 
+  rmin,rmax = min(r),max(r)
+  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   w = zerofloat(nt,nr,ns) # warping shifts
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
     born.applyForward(src,rx,rcp)
-    pixels(rx,cmap=rwb,sperc=100.0,title='r%d'%iouter)
-    pixels(rcp[ns/2].getData(),title='rcp%d'%iouter)
+    pixels(rx,cmap=gray,cmin=rmin,cmax=rmax,title='r%d'%iouter)
+    pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
     if nouter>1 and iouter<nouter:
       print 'warping (3d=%r)'%warp3d
       rcw = warp.warp(rcp,rco,w)
       bs.setObservedData(rcw)
-      pixels(rcw[ns/2].getData(),title='rcw%d'%iouter)
-      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
+      #bs = BornSolver(born,src,rcp,rcw,ref,m)
+      pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
+      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
-  pixels(rco[ns/2].getData(),title='rco')
+  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
   pixels(s,cmap=jet,title='s')
   pixels(e,cmap=jet,title='e')
-  pixels(r,cmap=rwb,sperc=100.0,title='r')
+  pixels(r,cmap=gray,cmin=rmin,cmax=rmax,sperc=100.0,title='r')
 
 def goInversionQs():
   niter = 2
@@ -490,7 +540,8 @@ class xAmplitudeMisfitFunction(MisfitFunction):
 
 def roughen(g):
   h = copy(g)
-  sigma = 0.100
+  #sigma = 0.100
+  sigma = 1.0/fpeak
   ref = RecursiveExponentialFilter(sigma/dx)
   ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
   ref.apply(g,h)
@@ -515,15 +566,15 @@ def makeAmplitudeResiduals(rcp,rco):
   return rcr
 
 def makeAmplitudeResidual(rcp,rco):
-  dp = rcp[isou].getData()
-  do = rco[isou].getData()
+  dp = rcp.getData()
+  do = rco.getData()
   ra = like(dp) # amplitude residual
   makeWarpedResidual(dp,do,ra=ra)
   return Receiver(xr,zr,ra)
 
 def makeWaveformResidual(rcp,rco):
-  dp = rcp[isou].getData()
-  do = rco[isou].getData()
+  dp = rcp.getData()
+  do = rco.getData()
   return Receiver(xr,zr,sub(dp,do))
 
 def makeWarpedResidual(ds,do,ra=None,rt=None,rc=None,dw=None,v=None):
@@ -672,15 +723,24 @@ gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
 def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
-  if len(x)==nz:
-    x = transpose(x)
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(1010,740)
+  sp.setSize(1000,650)
+  sp.setFontSizeForSlide(1.0,1.0)
   cb = sp.addColorBar()
-  cb.setWidthMinimum(100)
-  sp.setSize(1010,740)
+  #cb.setWidthMinimum(100)
+  cb.setWidthMinimum(150)
   if title:
-    sp.addTitle(title)
-  pv = sp.addPixels(x)
+    #sp.addTitle(title)
+    pass
+  if len(x)==nz:
+    pv = sp.addPixels(sz,sx,transpose(x))
+    sp.setHLabel("Distance (km)")
+    sp.setVLabel("Depth (km)")
+  elif len(x[0])==nt:
+    pv = sp.addPixels(st,sx,x)
+    sp.setHLabel("Distance (km)")
+    sp.setVLabel("Time (s)")
   pv.setColorModel(cmap)
   if perc<100.0:
     pv.setPercentiles(100.0-perc,perc)

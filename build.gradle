@@ -5,9 +5,9 @@ defaultTasks 'jar'
 sourceCompatibility = 1.7
 
 // show deprecations
-tasks.withType(Compile) { 
-  options.compilerArgs << "-Xlint:deprecation" 
-} 
+//tasks.withType(Compile) { 
+//  options.compilerArgs << "-Xlint:deprecation" 
+//} 
 
 sourceSets {
   main {
