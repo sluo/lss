@@ -27,7 +27,7 @@ public class DataWarping {
     _warp.setShiftSmoothing(smoothT/td,smoothR,smoothS); // shift smoothing
     _warp.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE);
     _warp.setErrorSmoothing(2); // number of smoothings of alignment errors
-    if (strainS<0.0) {
+    if (strainS<=0.0) {
       _warp.setStrainMax(strainT,strainR);
       _3d = false;
     } else {

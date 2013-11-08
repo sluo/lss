@@ -189,7 +189,7 @@ public class BornOperatorS {
     WaveOperator.collapse(b,b,_nabsorb,m);
   }
 
-  public void applyForwardRoughen(
+  public static void applyForwardRoughen(
   RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
     float[][] cx = (rx==ry)?copy(rx):rx;
     ref.apply1(cx,ry);
@@ -197,7 +197,7 @@ public class BornOperatorS {
     sub(cx,ry,ry);
   } 
 
-  public void applyAdjointRoughen(
+  public static void applyAdjointRoughen(
   RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
     float[][] cx = (rx==ry)?copy(rx):rx;
     ref.apply2(cx,ry);

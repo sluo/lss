@@ -18,7 +18,10 @@ from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
 #from lss.dev import *
+from lss.eni import *
 #from lss.fault import *
 #from lss.flat import *
-#from lss.util import *
+from lss.util import *
 from lss.vel import *
+
+from segy import *

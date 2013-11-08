@@ -19,8 +19,8 @@ def main(args):
   #goInversionQs()
 
 def getModelAndMask():
-  #return setupForMarmousi()
-  return setupForLayered()
+  return setupForMarmousi()
+  #return setupForLayered()
 
 def setupForMarmousi():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
@@ -289,13 +289,13 @@ def twiceIntegrate(rec):
 
 def goAmplitudeInversionQs():
   warp3d = False # use 3D warping
-  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
-  #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
   s,r,m = getModelAndMask()
   #e = copy(s)
-  #e = mul(0.95,s) # erroneous background slowness
-  e = mul(0.85,s) # erroneous background slowness
+  e = mul(0.95,s) # erroneous background slowness
+  #e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"
@@ -318,7 +318,8 @@ def goAmplitudeInversionQs():
     rcp[isou] = Receiver(rco[isou])
 
   # BornSolver
-  ref = RecursiveExponentialFilter(0.5/(fpeak*dx))
+  #ref = RecursiveExponentialFilter(0.5/(fpeak*dx*sqrt(2.0)))
+  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
   bs = BornSolver(born,src,rcp,rco,ref,m)
 
   # DataWarping.

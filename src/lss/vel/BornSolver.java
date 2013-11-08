@@ -12,6 +12,22 @@ import edu.mines.jtk.mosaic.*;
 
 public class BornSolver {
 
+  // inverse illumincation preconditioning?
+  public static final boolean ILLUM = false;
+
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco)
+  {
+    this(born,src,rcp,rco,null,null);
+  }
+
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    float[][] m)
+  {
+    this(born,src,rcp,rco,null,m);
+  }
+
   public BornSolver(
     BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
     RecursiveExponentialFilter ref)
@@ -33,8 +49,12 @@ public class BornSolver {
     _rco = rco;
     _ref = ref;
     _m = m;
-    _ii = new float[_nz][_nx];
-    computeInverseIllumination(_ii);
+    if (ILLUM) {
+      _ii = new float[_nz][_nx];
+      computeInverseIllumination(_ii);
+    } else {
+      _ii = fillfloat(1.0f,_nx,_nz);
+    }
     _qs = new QuadraticSolver(new Q());
   }
 
@@ -88,11 +108,15 @@ public class BornSolver {
       ArrayVect2f v2x = (ArrayVect2f)vx;
       float[][] rx = v2x.getData();
       float[][] ry = new float[_nz][_nx];
-      _born.applyAdjointRoughen(_ref,rx,ry);
-      mul(_ii,ry,ry); // inverse illumination
+      if (_ref!=null)
+        _born.applyAdjointRoughen(_ref,rx,ry);
+      if (ILLUM) {
+        mul(_ii,ry,ry); // inverse illumination
+      }
       if (_m!=null)
         mul(_m,ry,ry); // mask if non-null
-      _born.applyForwardRoughen(_ref,ry,rx);
+      if (_ref!=null)
+        _born.applyForwardRoughen(_ref,ry,rx);
     }
     public Vect getB() {
       float[][] rb = new float[_nz][_nx];
