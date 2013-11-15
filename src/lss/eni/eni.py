@@ -11,12 +11,12 @@ subDir = '/data/sluo/eni/dat/subc/'
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
 #savDir = '/home/sluo/Desktop/pngdat2/'
-savDir = '/home/sluo/Desktop/pngdat3/'
+#savDir = '/home/sluo/Desktop/pngdat3/'
 
 ##############################################################################
 
 def main(args):
-  #showFiles(vz=False)
+  #showFiles()
   #readFiles()
   #goBornData()
   #goAcousticData()
@@ -92,7 +92,7 @@ def getWavelet():
   #return makeRickerWavelet() # Ricker wavelet
 
 def goAmplitudeInversionQs():
-  vz = False # 1D velocity?
+  vz = True # 1D velocity?
   warp3d = True # 3D warping?
   nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
@@ -146,20 +146,21 @@ def goAmplitudeInversionQs():
   pixels(rco[ns/2].getData(),title='rco')
   pixels(s,cmap=jet,title='s')
 
-def showFiles(vz=False):
+def showFiles():
   w = readWavelet(); points(w)
   d = getGather(ns/2); pixels(d,perc=99.8); points(d[196])
-  s = getSlowness(vz); pixels(s,cmap=jet,cmin=0.31,cmax=0.67)
-  s0,m = getBackgroundAndMask(vz); pixels(s0,cmap=jet); pixels(m,cmap=gray)
+  s = getSlowness(False); pixels(s,cmap=jet)
+  s0,_ = getBackgroundAndMask(False); pixels(t0,cmap=jet)
+  t0,m = getBackgroundAndMask(True); pixels(s0,cmap=jet); pixels(m,cmap=gray)
+  pixels(sub(s0,t0),sperc=100.0)
 
 def readFiles():
   ra = zerofloat(nz,nx)
   rb = zerofloat(nz,nx)
-  read('/home/sluo/Desktop/eni_save/subc/2iter/r0.dat',ra)
-  #read('/home/sluo/Desktop/eni_save/less_time_delay/525_vz/r5.dat',rb)
-  #read('/home/sluo/Desktop/eni_save/no_ref/5iter/r0.dat',rb)
+  read('/home/sluo/Desktop/save/eni/subc/iter525/r5.dat',ra);
+  read('/home/sluo/Desktop/save/eni/subc/iter005/r0.dat',rb);
   pixels(ra,cmap=gray,sperc=98.0)
-  #pixels(rb,cmap=gray,sperc=98.0)
+  pixels(rb,cmap=gray,sperc=98.0)
   """
   dp = zerofloat(nt,nr,ns)
   read('/home/sluo/Desktop/eni_save/less_time_delay/525_vz/dp.dat',dp)
@@ -543,79 +544,56 @@ def getGather(isou):
 def getVelocity(vz=False):
   v = zerofloat(nz,nx)
   read(subDir+'v.dat',v)
-  if vz: # 1D velocity model
-    v00 = v[0][0]
-    total = zerofloat(nz)
-    count = zerofloat(nz)
-    bottom = zeroint(nx)
-    for ix in range(nx):
-      bz = 0
-      while v[ix][bz]==v00:
-        bz += 1
-      bz += 2 # extra
-      for iz in range(bz,nz):
-        total[iz] += v[ix][iz]
-        count[iz] += 1.0
-      bottom[ix] = bz
-    div(total,count,total)
-    for iz in range(min(bottom)):
-      total[iz] = total[min(bottom)]
-    RecursiveExponentialFilter(4.0).apply(total,total)
-    for ix in range(nx):
-      for iz in range(bottom[ix],nz):
-        v[ix][iz] = total[iz]
-  return transpose(v)
-
-def xgetVelocity(vz=False):
-  v = zerofloat(nz,nx)
-  read(subDir+'v.dat',v)
-  if vz: # 1D velocity model starting from ocean bottom
-    v00 = v[0][0]
-    total = zerofloat(nz)
-    count = zerofloat(nz)
-    bottom = zeroint(nx)
-    for ix in range(nx):
-      bz = 0
-      while v[ix][bz]==v00:
-        bz += 1
-      bz += 2 # extra
-      for iz in range(bz,nz):
-        total[iz-bz] += v[ix][iz]
-        count[iz-bz] += 1.0
-      bottom[ix] = bz
-    div(total,count,total)
-
-    #bbz = 0
-    #while 0.0*total[bbz]==0.0:
-    #  bbz += 1
-    #for iz in range(bbz,nz):
-    #  total[iz] = total[bbz-1]
-    #RecursiveExponentialFilter(8.0).apply(total,total)
-
-    for ix in range(nx):
-      bz = bottom[ix]
-      for iz in range(bz,nz):
-        v[ix][iz] = total[iz-bz]
-        #v[ix][iz] = total[iz-min(bottom)]
-#    for ix in range(nx):
-#      bz = bottom[ix]
-#      for iz in range(bz):
-#        v[ix][iz] = total[0]
-#      for iz in range(bz,nz):
-#        v[ix][iz] = total[iz-bz]
-#    for i in range(20):
-#      #RecursiveExponentialFilter(1.0).apply(v,v)
-#      pass
-#    for ix in range(nx):
-#      bz = bottom[ix]
-#      for iz in range(bz):
-#        v[ix][iz] = v00
-
+  #if vz: # 1D velocity model
+  #  v00 = v[0][0]
+  #  total = zerofloat(nz)
+  #  count = zerofloat(nz)
+  #  bottom = zeroint(nx)
+  #  for ix in range(nx):
+  #    bz = 0
+  #    while v[ix][bz]==v00:
+  #      bz += 1
+  #    bz += 2 # extra
+  #    for iz in range(bz,nz):
+  #      total[iz] += v[ix][iz]
+  #      count[iz] += 1.0
+  #    bottom[ix] = bz
+  #  div(total,count,total)
+  #  for iz in range(min(bottom)):
+  #    total[iz] = total[min(bottom)]
+  #  RecursiveExponentialFilter(4.0).apply(total,total)
+  #  for ix in range(nx):
+  #    for iz in range(bottom[ix],nz):
+  #      v[ix][iz] = total[iz]
   return transpose(v)
 
 def getSlowness(vz=False):
   v = getVelocity(vz)
   div(1000.0,v,v)
+  if vz: # linear slowness model
+    v = transpose(v)
+    v00 = v[0][0]
+    a,b,c = 0.0,0.0,0.0
+    for ix in range(int(0.31*nx),nx): # 0.31 just because
+      x,y,xy,xx,n = 0.0,0.0,0.0,0.0,0.0
+      for iz in range(nz):
+        if v[ix][iz]!=v00:
+          x += iz
+          y += v[ix][iz]
+          xy += iz*v[ix][iz]
+          xx += iz*iz
+          n += 1.0
+      s = (xy-x*y/n)/(xx-x*x/n)
+      b += s
+      a += y/n-s*x/n
+      c += 1.0
+    a = a/c
+    b = b/c
+    for ix in range(nx):
+      for iz in range(nz):
+        if v[ix][iz]!=v00:
+          v[ix][iz] = a+b*iz
+    v = transpose(v)
   return v
 
 def getBackgroundAndMask(vz=False):
