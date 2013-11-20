@@ -19,26 +19,27 @@ savDir = None
 def main(args):
   goInterpolateAndAccumulate()
 
+def points(f,cmin=0.0,cmax=0.0):
+  sp = SimplePlot()
+  if cmin<cmax:
+    sp.setVLimits(cmin,cmax)
+  pv = sp.addPoints(f)
+
 def goInterpolateAndAccumulate():
 
-  si = SincInterp.fromErrorAndFrequency(0.01,0.49)
+  si = SincInterp()
+  #si = SincInterp.fromErrorAndFrequency(0.001,0.499)
 
   u = makeShifts() # shifts
   SimplePlot.asPoints(u)
   s = add(rampfloat(0.0,1.0,nt),u) # shifted coordinates
-
-  #t = zerofloat(nt); si.interpolate(nt,1.0,0.0,u,nt,s,t)
-  ##t = copy(u) # inverse shifted coordinates
-  #sub(rampfloat(0.0,1.0,nt),t,t) # inverse shifted coordinates
-  t = zerofloat(nt); InverseInterpolator(nt,nt).invert(s,t)
-
-
+  t = zerofloat(nt); InverseInterpolator(nt,nt).invert(s,t) # inverse
   SimplePlot.asPoints(t)
 
   f = zerofloat(nt,nt) # input
   for it in range(nt):
     f[it][it] = 1.0
-  #RecursiveGaussianFilter(nt/100.0).apply00(f,f); mul(1.0/max(f),f,f)
+  RecursiveGaussianFilter(nt/50.0).apply00(f,f); mul(1.0/max(f),f,f)
   g = zerofloat(nt,nt) # interpolation
   h = zerofloat(nt,nt) # inverse interpolation
   p = zerofloat(nt,nt) # accumulation
@@ -55,20 +56,24 @@ def goInterpolateAndAccumulate():
       #si.interpolate(nt,1.0,0.0,g[it],nt,t,h[it])
       #si.accumulate(nt,s,g[it],nt,1.0,0.0,p[it])
   Parallel.loop(nt,Loop())
-  pixels(f,cmap=jet,cmin=-0.2,cmax=1.0,title='input')
-  pixels(g,cmap=jet,cmin=-0.2,cmax=1.0,title='interpolation')
-  pixels(h,cmap=jet,cmin=-0.2,cmax=1.0,title='inverse interpolation')
-  pixels(p,cmap=jet,cmin=-0.2,cmax=1.0,title='accumulation')
+  pixels(f,cmap=jet,cmin=-0.2*max(f),cmax=1.0*max(f),title='input')
+  pixels(g,cmap=jet,cmin=-0.2*max(g),cmax=1.0*max(g),title='interpolate')
+  pixels(h,cmap=jet,cmin=-0.2*max(h),cmax=1.0*max(h),title='inverse')
+  pixels(p,cmap=jet,cmin=-0.2*max(p),cmax=1.0*max(p),title='accumulate')
 
-  pixels(sub(g,h),cmap=jet,cmin=-0.2,cmax=1.0,title='aaaaaa')
+  # Compare to identity matrix.
+  #r = zerofloat(nt,nt)
+  #for it in range(nt):
+  #  r[it][it] = 1.0
+  #pixels(sub(r,mmul(g,h)),cmap=jet,cmin=-1.0,cmax=1.0,
+  #  title='(identity) - (interpolation) x (inverse)')
+  #pixels(sub(r,mmul(g,p)),cmap=jet,cmin=-1.0,cmax=1.0,
+  #  title='(identity) - (interpolation) x (accumulation)')
 
-  r = zerofloat(nt,nt)
-  for it in range(nt):
-    r[it][it] = 1.0
-  pixels(sub(r,mmul(g,h)),cmap=jet,cmin=-1.0,cmax=1.0,
-    title='(identity) - (interpolation) x (inverse)')
-  pixels(sub(r,mmul(g,p)),cmap=jet,cmin=-1.0,cmax=1.0,
-    title='(identity) - (interpolation) x (accumulation)')
+  # Compare inverse interpolation and accumulation.
+  d = sub(mmul(g,h),mmul(g,p))
+  pixels(d,cmap=jet,cmin=-1.0*max(abs(d)),cmax=1.0*max(abs(d)),
+    title='(interpolate) x (inverse) - (interpolate) x (accumulate)')
 
   # Dot-product test
   random = Random(0123)
@@ -119,8 +124,8 @@ def applyShifts(u,f,g=None):
 
 def makeShifts():
   u = zerofloat(nt)
-  nhp = 1.0 # number of half periods
-  umax = 5.0 # max shift
+  nhp = 2.0 # number of half periods
+  umax = 10.0 # max shift
   for it in range(nt):
     k = nhp*it/(nt-1)
     u[it] = umax*sin(k*FLT_PI)
