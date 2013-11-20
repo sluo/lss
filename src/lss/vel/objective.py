@@ -346,6 +346,7 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
     #max2 = 1.1*max(abs(x2))
     point2 = panel.addPoints(s,x2)
     point2.setLineColor(Color.RED)
+    #point2.setLineColor(Color.GRAY)
     #point2.setLineStyle(PointsView.Line.DASH)
     point2.setLineWidth(lineWidth)
     #panel.setVLimits(-max(max1,max2),max(max1,max2))

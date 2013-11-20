@@ -6,7 +6,7 @@ from imports import *
 #############################################################################
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
@@ -19,8 +19,8 @@ def main(args):
   #goInversionQs()
 
 def getModelAndMask():
-  return setupForMarmousi()
-  #return setupForLayered()
+  #return setupForMarmousi()
+  return setupForLayered()
 
 def setupForMarmousi():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
@@ -43,6 +43,7 @@ def setupForMarmousi():
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
   np = min(14,ns) # number of parallel sources
+  print 'ns=%d'%ns
   return getMarmousiModelAndMask()
 
 def setupForLayered():
@@ -58,9 +59,9 @@ def setupForLayered():
   dz,dx,dt = sz.delta,sx.delta,st.delta
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
-  #xs,zs = [nx/2],[0]
+  xs,zs = [nx/2],[0]
   #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+  #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
   #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
@@ -68,6 +69,7 @@ def setupForLayered():
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
   np = min(16,ns) # number of parallel sources
+  print 'ns=%d'%ns
   return getLayeredModelAndMask()
 
 def getMarmousiModelAndMask():
@@ -290,12 +292,11 @@ def twiceIntegrate(rec):
 def goAmplitudeInversionQs():
   warp3d = False # use 3D warping
   #nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
-  nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
-  #nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
-  s,r,m = getModelAndMask()
-  #e = copy(s)
-  e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
+  #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
+  s,r,m = getModelAndMask(); e = copy(s)
+  #e = mul(0.95,s) # erroneous background slowness
+  e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"
