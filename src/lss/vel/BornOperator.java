@@ -8,8 +8,20 @@ import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
+/**
+ * Acoustic constant-density Born modeling operator.
+ * @author Simon Luo, Colorado SChool
+ * @version 2013.11.20
+ */
 public class BornOperator {
 
+  /**
+   * Constructs a Born modeling operator.
+   * @param s slowness model.
+   * @param dx spatial sampling interval.
+   * @param dt time sampling interval.
+   * @param nabsorb width in samples of absorbing boundary.
+   */
   public BornOperator(
   float[][] s, double dx, double dt, int nabsorb) {
     _wave = new WaveOperator(s,dx,dt,nabsorb);
@@ -39,34 +51,75 @@ public class BornOperator {
   ////////////////////////////////////////////////////////////////////////////
   // forward
 
+
+  /**
+   * Applies the forward operator after computing the background wavefield.
+   * @param source input source for computing background wavefield.
+   * @param b input array for storing background wavefield.
+   * @param rx input reflectivity image.
+   * @param receiver output receiver.
+   */
   public void applyForward(
   Source source, float[][][] b, float[][] rx, Receiver receiver) {
     applyForward(source,b,rx,receiver,null);
   }
 
+  /**
+   * Applies the forward operator after computing the background wavefield.
+   * @param source input source for computing background wavefield.
+   * @param b input array for storing background wavefield.
+   * @param rx input reflectivity image.
+   * @param u output wavefield.
+   */
   public void applyForward(
   Source source, float[][][] b, float[][] rx, float[][][] u) {
     applyForward(source,b,rx,null,u);
   }
 
+  /**
+   * Applies the forward operator after computing the background wavefield.
+   * @param source input source for computing background wavefield.
+   * @param b input array for storing background wavefield.
+   * @param rx input reflectivity image.
+   * @param receiver output receiver.
+   * @param u output wavefield.
+   */
   public void applyForward(
   Source source, float[][][] b, float[][] rx,
   Receiver receiver, float[][][] u) {
-    _wave.applyForward(source,b);
-    scaleLaplacian(b); // equivalent to negative 2nd time derivative
+    computeBackgroundWavefield(source,b);
     applyForward(b,rx,receiver,u);
   }
 
+  /**
+   * Applies the forward operator using precomputed background wavefield.
+   * @param b input array containing precomputed background wavefield.
+   * @param rx input reflectivity image.
+   * @param receiver output receiver.
+   */
   public void applyForward(
   float[][][] b, float[][] rx, Receiver receiver) {
     applyForward(b,rx,receiver,null);
   }
 
+  /**
+   * Applies the forward operator using precomputed background wavefield.
+   * @param b input array containing precomputed background wavefield.
+   * @param rx input reflectivity image.
+   * @param u output wavefield.
+   */
   public void applyForward(
   float[][][] b, float[][] rx, float[][][] u) {
     applyForward(b,rx,null,u);
   }
 
+  /**
+   * Applies the forward operator using precomputed background wavefield.
+   * @param b input array containing precomputed background wavefield.
+   * @param rx input reflectivity image.
+   * @param receiver output receiver.
+   * @param u output wavefield.
+   */
   public void applyForward(
   float[][][] b, float[][] rx, Receiver receiver, float[][][] u) {
     Check.argument(b[0][0].length-rx[0].length==2*_nabsorb,"consistent nx");
@@ -83,14 +136,28 @@ public class BornOperator {
   ////////////////////////////////////////////////////////////////////////////
   // adjoint
 
+  /**
+   * Applies the adjoint operator after computing the background wavefield.
+   * @param source input source for computing background wavefield.
+   * @param b input array for storing background wavefield.
+   * @param a input array for storing adjoint wavefield.
+   * @param receiver input receiver.
+   * @param ry output reflectivity image.
+   */
   public void applyAdjoint(
   Source source, float[][][] b,
   float[][][] a, Receiver receiver, float[][] ry) {
-    _wave.applyForward(source,b);
-    scaleLaplacian(b); // equivalent to negative 2nd time derivative
+    computeBackgroundWavefield(source,b);
     applyAdjoint(b,a,receiver,ry);
   }
 
+  /**
+   * Applies the adjoint operator after computing the background wavefield.
+   * @param b input array containing precomputed background wavefield.
+   * @param a input array for storing adjoint wavefield.
+   * @param receiver input receiver containing data to be migrated.
+   * @param ry output reflectivity image.
+   */
   public void applyAdjoint(
   float[][][] b, float[][][] a, Receiver receiver, float[][] ry) {
     Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
@@ -102,13 +169,32 @@ public class BornOperator {
   ////////////////////////////////////////////////////////////////////////////
   // hessian
 
+  /**
+   * Applies the Hessian operator after computing the background wavefield.
+   * @param source input source for computing background wavefield.
+   * @param receiver input receiver containing data to be migrated.
+   * @param b input array for storing background wavefield.
+   * @param a input array for storing adjoint wavefield.
+   * @param rx input reflectivity image.
+   * @param ry output reflectivity image.
+   */
   public void applyHessian(
   Source source, Receiver receiver, float[][][] b, float[][][] a,
   float[][] rx, float[][] ry) {
-    applyForward(source,b,rx,receiver);
-    applyAdjoint(b,a,receiver,ry);
+    computeBackgroundWavefield(source,b);
+    applyHessian(receiver,b,a,rx,ry);
+    //applyForward(source,b,rx,receiver);
+    //applyAdjoint(b,a,receiver,ry);
   }
 
+  /**
+   * Applies the Hessian operator using precomputed background wavefield.
+   * @param receiver input receiver containing data to be migrated.
+   * @param b input array for storing background wavefield.
+   * @param a input array for storing adjoint wavefield.
+   * @param rx input reflectivity image.
+   * @param ry output reflectivity image.
+   */
   public void applyHessian(
   Receiver receiver, float[][][] b, float[][][] a,
   float[][] rx, float[][] ry) {
@@ -140,6 +226,11 @@ public class BornOperator {
   private int _nx,_nz,_nxp,_nzp;
   private float[][] _s; // background slowness
 
+  private void computeBackgroundWavefield(Source source, float[][][] b) {
+    _wave.applyForward(source,b);
+    //scaleLaplacian(b); // equivalent to negative 2nd time derivative
+  }
+
   // 20th order stencil coefficients from Farhad.
   private static final int FD_ORDER = 20;
   private static final float C00 = -0.32148051f*10.0f*2.0f;
@@ -154,10 +245,7 @@ public class BornOperator {
   private static final float C09 =  0.11937032f*0.01f;
   private static final float C10 = -0.47508613f*0.001f;
   private static final float FF = 400.0f; // fudge factor
-  private void scaleLaplacian(final float[][][] u) { // XXX
-    return;
-  }
-  private void xscaleLaplacian(final float[][][] u) {
+  private void scaleLaplacian(final float[][][] u) {
     final int nx = u[0][0].length;
     final int nz = u[0].length;
     final int nt = u.length;

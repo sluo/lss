@@ -61,9 +61,9 @@ def setupForLayered():
   dz,dx,dt = sz.delta,sx.delta,st.delta
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
-  xs,zs = [nx/2],[0]
+  #xs,zs = [nx/2],[0]
   #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-  #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
   #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
@@ -78,60 +78,42 @@ def getMarmousiModelAndMask():
   s = getMarmousi()
   s0,s1 = makeBornModel(s)
   m = fillfloat(1.0,nx,nz)
-  ref = RecursiveExponentialFilter(1.0)
   for iz in range(13):
     for ix in range(nx):
       m[iz][ix] = 0.0
-  ref.apply2(m,m)
-  return s0,mul(s1,m),m
+  RecursiveExponentialFilter(1.0).apply2(m,m)
+  return s,s0,mul(s1,m),m
 
 def getLayeredModelAndMask():
-  t0,t1 = getLayered2()
-  m = None
-  return t0,t1,m
-
-def getLayered2(s0mul=1.0):
-  constantBackground = True
-
-  """
-  tb = 0.5 # background slowness
-  t = fillfloat(tb,nz,nx)
-  for ix in range(nx):
-    for iz in range(nz/3,2*nz/3):
-      t[ix][iz] = 0.38
-    for iz in range(2*nz/3,nz):
-      t[ix][iz] = 0.2
-  """
+  constantBackground = False
   tb = 0.25 # background slowness
-  t = fillfloat(1.0/1.5,nz,nx)
-  for ix in range(nx):
-    for iz in range(nz/3,2*nz/3):
-      t[ix][iz] = 0.5
-    for iz in range(2*nz/3,nz):
-      t[ix][iz] = 0.2
-
+  t = getLayered2()
   t0,t1 = makeBornModel(t)
-  GaussianTaper.apply2(t1,t1)
+  GaussianTaper.apply1(t1,t1)
   if constantBackground:
     fill(tb,t0)
-  s0 = copy(t0)
-  mul(s0mul,s0,s0)
-  s1 = like(t1)
-  #return t,t0,t1,s0,s1
-  return transpose(t0),transpose(t1)
+  m = fillfloat(1.0,nx,nz)
+  for iz in range(nz/3-6):
+    for ix in range(nx):
+      m[iz][ix] = 0.0
+  RecursiveExponentialFilter(1.0).apply2(m,m)
+  #return t,t0,t1,m
+  return t,t0,t1,None
 
-def getLayeredModel():
-  """Make slowness (s/km) model."""
-  s = fillfloat(1.0/1.5,nx,nz) # water velocity
-  #s = fillfloat(0.5,nx,nz)
-  for iz in range(nz/3,2*nz/3):
-    for ix in range(nx):
-      s[iz][ix] = 0.50
-  for iz in range(2*nz/3,nz):
-    for ix in range(nx):
-      s[iz][ix] = 0.2
-      #s[iz][ix] = 0.5
-  return transpose(s)
+def getLayered2(s0mul=1.0):
+  #t = fillfloat(1.0/1.5,nz,nx)
+  #for ix in range(nx):
+  #  for iz in range(nz/3,2*nz/3):
+  #    t[ix][iz] = 0.5
+  #  for iz in range(2*nz/3,nz):
+  #    t[ix][iz] = 0.2
+  t = fillfloat(0.35,nz,nx)
+  for ix in range(nx):
+    for iz in range(nz/3,2*nz/3):
+      t[ix][iz] = 0.3
+    for iz in range(2*nz/3,nz):
+      t[ix][iz] = 0.2
+  return transpose(t)
 
 def goNonlinearInversionQs():
   niter = 1
@@ -140,7 +122,7 @@ def goNonlinearInversionQs():
   amplitudeResidual = False
 
   # Slowness models
-  t0,t1,m = getModelAndMask()
+  _,t0,t1,m = getModelAndMask()
   s0 = mul(s0scale,t0) # background slowness for migration
 
   # Allocate Wavefields.
@@ -222,7 +204,7 @@ def stack(g):
 
 def goNonlinearAmplitudeInversionQs():
   niter = 10
-  t0,t1,m = getModelAndMask()
+  _,t0,t1,m = getModelAndMask()
   s0 = mul(0.95,t0) # erroneous background slowness
   #s0 = mul(1.00,t0)
 
@@ -292,13 +274,14 @@ def twiceIntegrate(rec):
     mul(-1.0,d,d)
 
 def goAmplitudeInversionQs():
+  useAcoustic = True # use WaveOperator for observed data
   warp3d = False # use 3D warping
   #nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
   nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
-  s,r,m = getModelAndMask(); e = copy(s)
+  t,s,r,m = getModelAndMask(); e = copy(s)
   #e = mul(0.95,s) # erroneous background slowness
-  e = mul(0.85,s) # erroneous background slowness
+  #e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"
@@ -307,16 +290,32 @@ def goAmplitudeInversionQs():
 
   # BornOperator
   born = BornOperatorS(e,dx,dt,nabsorb,u,a) # erroneous slowness
-  bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
 
   # Sources and receivers
   src = BornOperatorS.getSourceArray(ns) # sources
   rco = BornOperatorS.getReceiverArray(ns) # receivers
   rcp = BornOperatorS.getReceiverArray(ns) # receivers
   for isou in range(ns):
-    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
     rco[isou] = Receiver(xr,zr,nt)
-  bornt.applyForward(src,r,rco) # observed data
+  if useAcoustic:
+    v = fillfloat(t[0][0],nx,nz)
+    sro = BornOperatorS.getSourceArray(ns) # source for observed data
+    rct = BornOperatorS.getReceiverArray(ns) # temp receivers
+    for isou in range(ns):
+      sro[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+      src[isou] = Source.WaveletSource(xs[isou],zs[isou],rotatedRicker())
+      rct[isou] = Receiver(xr,zr,nt)
+    wavet = WaveOperatorS(t,dx,dt,nabsorb,u,a) # true slowness
+    wavev = WaveOperatorS(v,dx,dt,nabsorb,u,a) # for direct arrival
+    wavet.applyForward(sro,rco) # observed data
+    wavev.applyForward(sro,rct) # direct arrival
+    for isou in range(ns):
+      sub(rco[isou].getData(),rct[isou].getData(),rco[isou].getData())
+  else:
+    for isou in range(ns):
+      src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+    bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
+    bornt.applyForward(src,r,rco) # observed data
   for isou in range(ns):
     rcp[isou] = Receiver(rco[isou])
 
@@ -340,13 +339,13 @@ def goAmplitudeInversionQs():
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
     born.applyForward(src,rx,rcp)
-    pixels(rx,cmap=gray,cmin=rmin,cmax=rmax,title='r%d'%iouter)
+    #pixels(rx,cmap=gray,cmin=rmin,cmax=rmax,title='r%d'%iouter)
+    pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
     pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
     if nouter>1 and iouter<nouter:
       print 'warping (3d=%r)'%warp3d
       rcw = warp.warp(rcp,rco,w)
       bs.setObservedData(rcw)
-      #bs = BornSolver(born,src,rcp,rcw,ref,m)
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
       pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
@@ -355,10 +354,43 @@ def goAmplitudeInversionQs():
   pixels(e,cmap=jet,title='e')
   pixels(r,cmap=gray,cmin=rmin,cmax=rmax,sperc=100.0,title='r')
 
+def rotatedRicker():
+  """Phase-rotated and twice-differentiated Ricker wavelet."""
+  def ricker(t):
+    x = FLT_PI*fpeak*(t-1.5/fpeak)
+    xx = x*x
+    return (1.0-2.0*xx)*exp(-xx);
+  w = zerofloat(nt)
+  for it in range(nt):
+    t = it*dt
+    w[it] = ricker(t)
+  w = rotateAndDifferentiate(w)
+  mul(1.0/max(abs(w)),w,w)
+  #points(w)
+  return w
+def rotateAndDifferentiate(rx):
+  fft = Fft(rx)
+  sf = fft.getFrequencySampling1()
+  nf = sf.count
+  cy = fft.applyForward(rx) # forward FFT
+  p = 0.25*FLT_PI # phase rotation angle
+  t = zerofloat(2*nf)
+  for i in range(nf):
+    w = sf.getValue(i)
+    #t[2*i  ] = cos(p) # phase rotation
+    #t[2*i+1] = sin(p) # phase rotation
+    #t[2*i  ] = w*w # negative 2nd time derivative
+    #t[2*i+1] = 0.0 # negative 2nd time derivative
+    t[2*i  ] = w*w*cos(p) # phase rotation and negative 2nd time derivative
+    t[2*i+1] = w*w*sin(p) # phase rotation and negative 2nd time derivative
+  cmul(t,cy,cy)
+  ry = fft.applyInverse(cy) # inverse FFT
+  return ry
+
 def goInversionQs():
   niter = 2
   #s,r = makeBornModel(getMarmousi(stride))
-  s,r,m = getModelAndMask()
+  _,s,r,m = getModelAndMask()
   e = mul(0.95,s) # erroneous background slowness
 
   src = BornOperatorS.getSourceArray(ns) # sources
@@ -395,9 +427,10 @@ def makeBornModel(s):
   """
   #sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
   #sigma1 = 0.5*sigma0 # quarter wavelength
-  sigma0 = 1.0/fpeak
-  #sigma1 = 0.5*sigma0
-  sigma1 = 1.0*sigma0
+  #sigma0 = 1.0/fpeak
+  #sigma1 = 1.0*sigma0
+  sigma0 = 4.00/fpeak
+  sigma1 = 0.25*sigma0
   print 'sigma0=%f'%sigma0
   print 'sigma1=%f'%sigma1
   s0,s1 = like(s),like(s)
@@ -475,7 +508,7 @@ def cleanDir(dir):
 
 def updateModel(misfitFunction,s1):
   print 'searching for step length...'
-  _,t1,_ = getModelAndMask()
+  _,_,t1,_ = getModelAndMask()
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.10*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.20*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.0*max(abs(t1)); tol = 0.20*abs(b-a)
@@ -730,12 +763,12 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(1010,740)
   sp.setSize(1000,650)
-  sp.setFontSizeForSlide(1.0,1.0)
+  #sp.setFontSizeForSlide(1.0,1.0)
   cb = sp.addColorBar()
   #cb.setWidthMinimum(100)
   cb.setWidthMinimum(150)
   if title:
-    #sp.addTitle(title)
+    sp.addTitle(title)
     pass
   if len(x)==nz:
     pv = sp.addPixels(sz,sx,transpose(x))

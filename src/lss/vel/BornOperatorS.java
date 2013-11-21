@@ -11,7 +11,12 @@ import lss.vel.BornOperator;
 import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
-
+/**
+ * Acoustic constant-density Born modeling operator, parallel over sources.
+ * @see lss.vel.BornOperator
+ * @author Simon Luo, Colorado SChool
+ * @version 2013.11.20
+ */
 public class BornOperatorS {
 
   public static Source[] getSourceArray(int n) {

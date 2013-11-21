@@ -10,7 +10,7 @@ subDir = '/data/sluo/eni/dat/subc/'
 
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
-#savDir = '/home/sluo/Desktop/pngdat2/'
+savDir = '/home/sluo/Desktop/pngdat2/'
 #savDir = '/home/sluo/Desktop/pngdat3/'
 
 ##############################################################################
@@ -22,8 +22,14 @@ def main(args):
   #goAcousticData()
   #resimulateData()
   #compareWavelets()
-  #estimateWavelet(toFile=False)
+  #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
+  #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
   goAmplitudeInversionQs()
+
+def getWavelet():
+  #return readWavelet()
+  return estimateWavelet(rotate=0.50*FLT_PI,d2=True)
+  #return makeRickerWavelet() # Ricker wavelet
 
 def setGlobals():
   global sx,sz,st#,ss,sr
@@ -86,16 +92,11 @@ def getSourceAndReceiver():
     rcp[isou] = Receiver(kxr,kzr,len(e[0]))
   return src,rcp,rco
 
-def getWavelet():
-  return readWavelet()
-  #return estimateWavelet()
-  #return makeRickerWavelet() # Ricker wavelet
-
 def goAmplitudeInversionQs():
   vz = True # 1D velocity?
   warp3d = True # 3D warping?
-  nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
-  #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
+  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   print 'vz=%r'%vz
   print 'warp3d=%r'%warp3d
   print 'nouter=%r'%nouter
@@ -157,8 +158,10 @@ def showFiles():
 def readFiles():
   ra = zerofloat(nz,nx)
   rb = zerofloat(nz,nx)
-  read('/home/sluo/Desktop/save/eni/subc/iter525/r5.dat',ra);
-  read('/home/sluo/Desktop/save/eni/subc/iter005/r0.dat',rb);
+  #read('/home/sluo/Desktop/save/eni/subc/iter525/r5.dat',ra);
+  #read('/home/sluo/Desktop/save/eni/subc/iter005/r0.dat',rb);
+  read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',ra);
+  read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',rb);
   pixels(ra,cmap=gray,sperc=98.0)
   pixels(rb,cmap=gray,sperc=98.0)
   """
@@ -194,13 +197,15 @@ def readWavelet():
   #points(w)
   return w
 
-def estimateWavelet(toFile=False,rotate=0.25*FLT_PI):
+def estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False):
   print 'estimating wavelet'
+  print '  rotate=%f'%rotate
+  print '  d2=%r'%d2
   w = estimateZeroPhaseWavelet()
   #w = estimateMinimumPhaseWavelet()
 
   # Phase rotation and bandpass filter.
-  w = Frequency(nt).rotatePhase(w,rotate)
+  w = Frequency(nt).rotateAndDifferentiate(w,rotate,d2)
   bandpass(w,w,10.0,fmax)
 
 #  # Scale.
@@ -280,7 +285,7 @@ def estimateWaterBottomWavelet():
   mul(s,w,w)
   if showPlots:
     points(w)
-  w = Frequency(nt).rotatePhase(w,0.25*FLT_PI)
+  w = Frequency(nt).rotateAndDifferentiate(w,0.25*FLT_PI,d2=False)
   if showPlots:
     points(w)
 
@@ -385,7 +390,7 @@ def makeRickerWavelet():
   for it in range(nt):
     t = ft+it*dt
     w[it] = ricker(t)
-  w = Frequency(nt).rotatePhase(w,0.25*FLT_PI)
+  w = Frequency(nt).rotateAndDifferentiate(w,0.25*FLT_PI,d2=False)
   mul(1.0/max(w),w,w)
   return w
 
@@ -433,7 +438,7 @@ class Frequency:
     cz = cexp(cz)
     rz = self.fft.applyInverse(cz)
     return copy(self.nt,rz)
-  def rotatePhase(self,rx,p=0.25*FLT_PI):
+  def rotateAndDifferentiate(self,rx,p=0.25*FLT_PI,d2=False):
     self.set(rx)
     sf = self.fft.getFrequencySampling1()
     nf = sf.count
@@ -441,10 +446,8 @@ class Frequency:
     t = zerofloat(2*nf)
     for i in range(nf):
       w = sf.getValue(i)
-      #t[2*i  ] = w*w*cos(p) # phase rotation and negative 2nd time derivative
-      #t[2*i+1] = w*w*sin(p) # phase rotation and negative 2nd time derivative
-      t[2*i  ] = cos(p) # phase rotation only
-      t[2*i+1] = sin(p) # phase rotation only
+      t[2*i  ] = w*w*cos(p) if d2 else cos(p)
+      t[2*i+1] = w*w*sin(p) if d2 else sin(p)
     cmul(t,cy,cy)
     ry = self.fft.applyInverse(cy) # inverse FFT
     return copy(self.nt,ry)

@@ -12,7 +12,7 @@ public interface Source {
 
   static abstract class PointSource implements Source {
     public PointSource(int xs, int zs, float dt, float fpeak) {
-      _tdelay = 1.0f/fpeak;
+      _tdelay = 1.5f/fpeak;
       _fpeak = fpeak;
       _dt = dt;
       _xs = xs;

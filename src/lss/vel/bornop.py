@@ -8,7 +8,7 @@ from dnp import *
 
 sz = Sampling(201,0.016,0.0)
 sx = Sampling(202,0.016,0.0)
-st = Sampling(2003,0.0010,0.0)
+st = Sampling(4003,0.0010,0.0)
 #sz = Sampling(401,0.0025,0.0) # for 40 Hz
 #sx = Sampling(402,0.0025,0.0)
 #st = Sampling(5003,0.0001,0.0)
@@ -46,14 +46,14 @@ pngdatDir = None
 # TODO: Test adjoint with TransformQuadratic
 
 def main(args):
-  #goAcousticData()
-  #goBornData()
+  goAcousticData()
+  goBornData()
   #makeSource()
   #adjointTest()
   #adjointTestMultiSource()
   #adjointTestMultiSourceParallel()
   #goAmplitudeInversion()
-  goAmplitudeInversionQs()
+  #goAmplitudeInversionQs()
   #goInversionCg()
   #goInversionQs()
   #goInversionOfMultiplesQs()
@@ -489,9 +489,8 @@ class QuadraticTransform(Quadratic):
       mul(self.mask,rx,ry)
 
 def goAcousticData():
-  #s = getLayeredModel()
-  s = getMarmousi(stride)
-  s,_ = makeBornModel(s)
+  s = getLayeredModel()
+  #s = getMarmousi(stride)
   awo = WaveOperator(s,dx,dt,nabsorb)
   source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
   receiver = Receiver(xr,zr,nt)
@@ -500,33 +499,28 @@ def goAcousticData():
   awo.applyForward(source,receiver,u)
   print sw.time()
   d = receiver.getData()
-  for it in range(1300): # mute direct arrival
+  for it in range(1400): # mute direct arrival
     for ir in range(nr):
       d[ir][it] = 0.0
   points(d[nr/2])
   pixels(d,cmap=gray,sperc=99.9,title="data")
-  #pixels(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
-  #pixels(s,cmap=jet,title="slowness (s/km)")
+  pixels(s,cmap=jet,title="slowness (s/km)")
 
 def goBornData():
-  #s = getLayeredModel()
-  s = getMarmousi(stride)
+  s = getLayeredModel()
+  #s = getMarmousi(stride)
   s0,s1 = makeBornModel(s)
-  #zero(s1)
-  #for ix in range(nx):
-  #  s1[nz/3][ix] = 1.00
-  bwo = BornWaveOperator(
+  bwo = BornOperator(
     s,dx,dt,nabsorb)
   receiver = Receiver(xr,zr,nt)
   u = zerofloat(nxp,nzp,nt)
-  source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
+  #source = Source.RickerSource(xs[0],zs[0],dt,fpeak)
   #source = Source.Gaussian4Source(xs[0],zs[0],dt,fpeak)
-  #source = makeSource()
+  source = makeSource()
   sw = Stopwatch(); sw.start()
   bwo.applyForward(source,u,s1,receiver)
   print sw.time()
   d = receiver.getData()
-  #pixels(d,cmap=gray,cmin=-0.35,cmax=0.35,title="data")
   points(d[nr/2])
   pixels(d,cmap=gray,sperc=99.9,title="data")
   pixels(s0,cmap=jet,title="background slowness (s/km)")
@@ -542,8 +536,10 @@ def makeSource():
   for it in range(nt):
     t = ft+it*dt
     w[it] = ricker(t)
+  maxw = max(abs(w))
   #points(w)
   w = rotateAndDifferentiate(w)
+  #mul(maxw/max(abs(w)),w,w)
   points(w)
   return Source.WaveletSource(xs[0],zs[0],w)
 def rotateAndDifferentiate(rx):
@@ -555,15 +551,11 @@ def rotateAndDifferentiate(rx):
   t = zerofloat(2*nf)
   for i in range(nf):
     w = sf.getValue(i)
-    t[2*i  ] = cos(p) # phase rotation
-    t[2*i+1] = sin(p) # phase rotation
+    #t[2*i  ] = cos(p) # phase rotation
+    #t[2*i+1] = sin(p) # phase rotation
+    t[2*i  ] = w*w*cos(p) # phase rotation and negative 2nd time derivative
+    t[2*i+1] = w*w*sin(p) # phase rotation and negative 2nd time derivative
   cmul(t,cy,cy)
-  #t = zerofloat(2*nf)
-  #for i in range(nf):
-  #  w = sf.getValue(i)
-  #  t[2*i  ] = w*w # negative 2nd time derivative
-  #  #t[2*i+1] = w   # 1st time derivative
-  #cmul(t,cy,cy)
   ry = fft.applyInverse(cy) # inverse FFT
   return ry
 
@@ -707,8 +699,8 @@ def dot(u,a):
 
 def getLayeredModel():
   """Make slowness (s/km) model."""
-  s = fillfloat(1.0/1.5,nx,nz) # water velocity
-  #s = fillfloat(0.5,nx,nz)
+  #s = fillfloat(1.0/1.5,nx,nz) # water velocity
+  s = fillfloat(0.5,nx,nz)
   for iz in range(nz/3,2*nz/3):
     for ix in range(nx):
       s[iz][ix] = 0.50

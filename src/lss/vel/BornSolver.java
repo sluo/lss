@@ -108,15 +108,18 @@ public class BornSolver {
       ArrayVect2f v2x = (ArrayVect2f)vx;
       float[][] rx = v2x.getData();
       float[][] ry = new float[_nz][_nx];
-      if (_ref!=null)
+      if (_ref!=null) {
         _born.applyAdjointRoughen(_ref,rx,ry);
+      }
       if (ILLUM) {
         mul(_ii,ry,ry); // inverse illumination
       }
-      if (_m!=null)
+      if (_m!=null) {
         mul(_m,ry,ry); // mask if non-null
-      if (_ref!=null)
+      }
+      if (_ref!=null) {
         _born.applyForwardRoughen(_ref,ry,rx);
+      }
     }
     public Vect getB() {
       float[][] rb = new float[_nz][_nx];
@@ -132,8 +135,7 @@ public class BornSolver {
         Check.argument(_bornt==null,"bornt==null");
         _born.applyAdjoint(_src,_rco,rb);
       }
-      mul(-1.0f,rb,rb); // need negative gradient (?)
-      SimplePlot.asPixels(transpose(rb));
+      mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
       return vb;
     }
   }
