@@ -5,12 +5,14 @@ from imports import *
 
 #############################################################################
 
-pngdatDir = None
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+savDir = None
+#savDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 STACK = False # stack gradient over offset
+
+#############################################################################
 
 def main(args):
   #goNonlinearInversionQs()
@@ -331,10 +333,10 @@ def goAmplitudeInversionQs():
   smoothT,smoothR,smoothS = 32.0,8.0,8.0
   warp = DataWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
+  w = zerofloat(nt,nr,ns) # warping shifts
 
   rmin,rmax = min(r),max(r)
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
-  w = zerofloat(nt,nr,ns) # warping shifts
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
     born.applyForward(src,rx,rcp)
@@ -752,9 +754,9 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
     pv.setClips(-clip,clip)
   if cmin<cmax:
     pv.setClips(cmin,cmax)
-  if title and pngdatDir:
-    sp.paintToPng(360,3.33,pngdatDir+title+'.png')
-    write(pngdatDir+title+'.dat',x)
+  if title and savDir:
+    sp.paintToPng(360,3.33,savDir+title+'.png')
+    write(savDir+title+'.dat',x)
 
 def points(x):
   SimplePlot.asPoints(x)
@@ -765,9 +767,9 @@ import sys,time
 class RunMain(Runnable):
   def run(self):
     start = time.time()
-    if pngdatDir is not None:
-      print 'cleaning '+pngdatDir.split('/')[-2]
-      cleanDir(pngdatDir)
+    if savDir is not None:
+      print 'cleaning '+savDir.split('/')[-2]
+      cleanDir(savDir)
     main(sys.argv)
     s = time.time()-start
     h = int(s/3600); s -= h*3600
