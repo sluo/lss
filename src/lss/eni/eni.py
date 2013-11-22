@@ -10,21 +10,21 @@ subDir = '/data/sluo/eni/dat/subc/'
 
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
-savDir = '/home/sluo/Desktop/pngdat2/'
+#savDir = '/home/sluo/Desktop/pngdat2/'
 #savDir = '/home/sluo/Desktop/pngdat3/'
 
 ##############################################################################
 
 def main(args):
   #showFiles()
-  #readFiles()
+  readFiles()
   #goBornData()
   #goAcousticData()
   #resimulateData()
   #compareWavelets()
   #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
-  goAmplitudeInversionQs()
+  #goAmplitudeInversionQs()
 
 def getWavelet():
   #return readWavelet()
@@ -160,7 +160,8 @@ def readFiles():
   rb = zerofloat(nz,nx)
   #read('/home/sluo/Desktop/save/eni/subc/iter525/r5.dat',ra);
   #read('/home/sluo/Desktop/save/eni/subc/iter005/r0.dat',rb);
-  read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',ra);
+  #read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',ra);
+  read('/home/sluo/Desktop/save/eni/subc/n/iter005vz/r0.dat',ra);
   read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',rb);
   pixels(ra,cmap=gray,sperc=98.0)
   pixels(rb,cmap=gray,sperc=98.0)

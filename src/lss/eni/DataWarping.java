@@ -35,7 +35,7 @@ public class DataWarping {
       _3d = true;
     }
     _td = td;
-    _sigmaRms = 0.5*maxShift/(td*dt);
+    _sigmaRms = 1.0*maxShift/(td*dt);
   }
 
   public Receiver[] warp(Receiver[] rp, Receiver[] ro) {
@@ -95,7 +95,7 @@ public class DataWarping {
   private void findShifts(
     final float[][][] rp, final float[][][] ro, final float[][][] u)
   {
-    //rmsFilter(rp,ro); // FIXME
+    rmsFilter(rp,ro);
     addRandomNoise(10.0f,rp,ro);
     if (_3d) {
       _warp.findShifts(rp,ro,u);
@@ -117,10 +117,9 @@ public class DataWarping {
     float xrms = rms(x);
     float yrms = rms(y);
     float arms = 0.5f*(xrms+yrms); // average rms of signal
-    java.util.Random random = new java.util.Random(012345);
+    java.util.Random random = new java.util.Random(12345);
     float[][][] s = sub(randfloat(random,n1,n2,n3),0.5f);
     new RecursiveGaussianFilter(1.0).apply000(s,s); // bandlimited noise
-    //float srms = sqrt(sum(mul(s,s))/n1/n2/n3); // rms of noise
     float srms = rms(s); // rms of noise
     mul(arms/(srms*snr),s,s);
     add(s,x,x);
@@ -130,9 +129,12 @@ public class DataWarping {
   private void rmsFilter(float[][][] x, float[][][] y) {
     plot(x[0],"x before");
     plot(y[0],"y before");
+
     equalize(x,y);
-    float[][][] xx = mul(x,x);
-    float[][][] yy = mul(y,y);
+    float[][][] xx = abs(x);
+    float[][][] yy = abs(y);
+
+    /*
     RecursiveGaussianFilter rgf = new RecursiveGaussianFilter(_sigmaRms);
     if (_3d) {
       rgf.apply000(xx,xx);
@@ -143,25 +145,52 @@ public class DataWarping {
       rgf.apply0XX(yy,yy);
       rgf.applyX0X(yy,yy);
     }
+    */
+    RecursiveExponentialFilter ref = new RecursiveExponentialFilter(_sigmaRms);
+    ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE);
+    if (_3d) {
+      ref.apply(xx,xx);
+      ref.apply(xx,xx);
+    } else {
+      ref.apply2(xx,xx);
+      ref.apply1(xx,xx);
+      ref.apply2(yy,yy);
+      ref.apply1(yy,yy);
+    }
+
+    plot(xx[0],"xx smoothed");
+    plot(yy[0],"yy smoothed");
+
+    // numerator = 2*xx*yy
     float[][][] num = mul(2.0f,xx);
     mul(yy,num,num);
-    float[][][] den = mul(yy,yy);
-    add(mul(xx,xx),yy,yy);
-    add(1.0e06f,den,den);
-    div(num,den,num);
+    plot(num[0],"num");
+
+    // denominator = xx^2+yy^2
+    mul(xx,xx,xx);
+    mul(yy,yy,yy);
+    add(xx,yy,xx); // den = xx^2+yy^2
+    add(1.0E-3f*max(xx),xx,xx);
+    plot(xx[0],"den");
+
+    // scale = numerator/denominator
+    div(num,xx,num);
+    //pow(num,0.50f,num); // increase small values
+    mul(1.0f/max(num),num,num); // normalized
     mul(num,x,x);
     mul(num,y,y);
     equalize(x,y);
-    plot(num[0],"numerator");
+
+    plot(num[0],"scale");
     plot(x[0],"x after");
     plot(y[0],"y after");
   }
 
   private static void plot(float[][] x, String title) {
-    edu.mines.jtk.mosaic.SimplePlot sp =
-      edu.mines.jtk.mosaic.SimplePlot.asPixels(x);
-    sp.setTitle(title);
-    sp.addColorBar();
+    //edu.mines.jtk.mosaic.SimplePlot sp =
+    //  edu.mines.jtk.mosaic.SimplePlot.asPixels(x);
+    //sp.setTitle(title);
+    //sp.addColorBar();
   }
 
   private static void equalize(float[][][] x, float[][][] y) {

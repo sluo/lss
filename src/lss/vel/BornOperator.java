@@ -124,9 +124,7 @@ public class BornOperator {
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
     _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
-    if (ts!=null) {
-      applyForwardShifts(ts,receiver);
-    }
+    applyForwardShifts(ts,receiver);
   }
 
   public void applyForward(
@@ -206,9 +204,7 @@ public class BornOperator {
   {
     Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
     Check.argument(b[0].length-ry.length==2*_nabsorb,"consistent nz");
-    if (ts!=null) {
-      applyAdjointShifts(ts,receiver);
-    }
+    applyAdjointShifts(ts,receiver);
     _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
     WaveOperator.collapse(b,a,_nabsorb,ry);
   }
@@ -295,12 +291,14 @@ public class BornOperator {
   // shifts
 
   private static void applyForwardShifts(float[][] ts, Receiver receiver) {
+    if (ts==null) return;
     float[][] d = receiver.getData();
     float[][] e = applyShifts(ts,d,false);
     copy(e,d);
   }
 
   private static void applyAdjointShifts(float[][] ts, Receiver receiver) {
+    if (ts==null) return;
     float[][] d = receiver.getData();
     float[][] e = applyShifts(ts,d,true);
     copy(e,d);
@@ -323,7 +321,6 @@ public class BornOperator {
         si.interpolate(nt,1.0,0.0,df[ir],nt,p,ef[ir]);
       } else {
         si.accumulate(nt,p,df[ir],nt,1.0,0.0,ef[ir]);
-        //si.accumulate(nt,p,df[ir],nt,1.0,0.0,df[ir]); // XXX
       }
     }});
     return ef;

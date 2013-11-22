@@ -6,15 +6,14 @@ from imports import *
 #############################################################################
 
 savDir = None
-#savDir = os.getenv('HOME')+'/Desktop/pngdat/'
+savDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat3/'
-
-STACK = False # stack gradient over offset
 
 #############################################################################
 
 def main(args):
+  #getModelAndMask()
   #goNonlinearInversionQs() # inversion using line search
   #goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
   #goInversionQs()
@@ -22,12 +21,13 @@ def main(args):
   goNewAmplitudeInversionQs() # shift predicted data instead
 
 def getModelAndMask():
-  #return setupForMarmousi()
-  return setupForLayered()
+  return setupForMarmousi()
+  #return setupForLayered()
 
 def setupForMarmousi():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
   global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
+  global sigma0,sigma1
   sz = Sampling(265,0.012,0.0)
   sx = Sampling(767,0.012,0.0)
   st = Sampling(5501,0.0010,0.0)
@@ -45,13 +45,16 @@ def setupForMarmousi():
   fpeak = 10.0 # Ricker wavelet peak frequency
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
-  np = min(14,ns) # number of parallel sources
+  np = min(16,ns) # number of parallel sources
+  sigma0 = 1.0/fpeak
+  sigma1 = 1.0/fpeak
   print 'ns=%d'%ns
   return getMarmousiModelAndMask()
 
 def setupForLayered():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
   global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
+  global sigma0,sigma1
   #sz = Sampling(301,0.012,0.0) # for layered model
   #sx = Sampling(501,0.012,0.0)
   #st = Sampling(2750,0.0015,0.0)
@@ -62,9 +65,9 @@ def setupForLayered():
   dz,dx,dt = sz.delta,sx.delta,st.delta
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
-  xs,zs = [nx/2],[0]
+  #xs,zs = [nx/2],[0]
   #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-  #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
   #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
@@ -72,18 +75,40 @@ def setupForLayered():
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
   np = min(16,ns) # number of parallel sources
+  sigma0 = 4.0/fpeak
+  sigma1 = 1.0/fpeak
   print 'ns=%d'%ns
   return getLayeredModelAndMask()
 
 def getMarmousiModelAndMask():
   s = getMarmousi()
   s0,s1 = makeBornModel(s)
+
+  # Water-layer mask.
   m = fillfloat(1.0,nx,nz)
   for iz in range(13):
     for ix in range(nx):
       m[iz][ix] = 0.0
   RecursiveExponentialFilter(1.0).apply2(m,m)
-  return s,s0,mul(s1,m),m
+
+  # Preconditioning by v^2.
+  p = div(1.0,s)
+  mul(p,p,p)
+  sigma = 1.0 # half-width in km
+  niter = 8 # number of times to apply filter
+  sigma = sigma/(sqrt(niter)*dx)
+  ref = RecursiveExponentialFilter(sigma)
+  ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
+  for i in range(niter):
+    ref.apply(p,p)
+  mul(1.0/max(p),p,p)
+  mul(m,p,p)
+
+  #pixels(s,cmap=jet)
+  #pixels(s0,cmap=jet)
+  #pixels(s1,sperc=100.0)
+  #pixels(p,cmap=gray)
+  return s,s0,mul(s1,m),p
 
 def getLayeredModelAndMask():
   constantBackground = True
@@ -146,7 +171,7 @@ def goNonlinearInversionQs():
     rcp[isou] = Receiver(xr,zr,nt)
   born.applyForward(src,t1,rco) # observed data
 
-  # Preconditioning by 1/v^2.
+  # Preconditioning by v^2.
   w = div(1.0,mul(s0,s0)); mul(1.0/max(w)/ns,w,w)
 
   # Gradient computation.
@@ -174,8 +199,6 @@ def goNonlinearInversionQs():
   for iiter in range(niter):
     sw = Stopwatch(); sw.start()
     g = PartialParallel(np).reduce(ns,GradientParallelReduce())
-    if STACK:
-      stack(g)
     p = conjugateDirection(g,gm,pm)
     report('gradient',sw)
     if niter>1:
@@ -193,15 +216,6 @@ def goNonlinearInversionQs():
 
 def applyImagingCondition(u,a):
   return WaveOperator.collapse(u,a,nabsorb)
-
-def stack(g):
-  gs = zerofloat(nz)
-  for iz in range(nz):
-    for ix in range(nx):
-      gs[iz] += g[iz][iz]
-  for iz in range(nz):
-    for ix in range(nx):
-      g[iz][ix] = gs[iz]
 
 def goNonlinearAmplitudeInversionQs():
   niter = 10
@@ -278,15 +292,16 @@ def getInputs():
   useAcoustic = False # use WaveOperator for observed data
   warp3d = False # use 3D warping
   t,s,r,m = getModelAndMask(); e = copy(s)
-  #e = mul(0.95,s) # erroneous background slowness
-  e = mul(0.85,s) # erroneous background slowness
+  e = mul(0.95,s) # erroneous background slowness
+  #e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields.
-  print "allocating"
+  print "allocating..."
   u = SharedFloat4(nxp,nzp,nt,np)
   a = SharedFloat4(nxp,nzp,nt,np)
 
   # Sources and receivers.
+  print "computing observed data..."
   src = BornOperatorS.getSourceArray(ns) # sources
   rco = BornOperatorS.getReceiverArray(ns) # receivers
   rcp = BornOperatorS.getReceiverArray(ns) # receivers
@@ -337,7 +352,7 @@ def getInputs():
   return born,bs,src,rcp,rco,warp
 
 def goAmplitudeInversionQs():
-  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
   """""" 
   born,bs,src,rcp,rco,warp = getInputs()
@@ -345,18 +360,20 @@ def goAmplitudeInversionQs():
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
-    born.applyForward(src,rx,rcp)
     pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
-    pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
-    if nouter>1 and iouter<nouter:
+    if nouter>0 and iouter<nouter:
+      born.applyForward(src,rx,rcp)
       print 'warping'
       rcw = warp.warp(rcp,rco,w)
       bs.setObservedData(rcw)
+      pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
       pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
+  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
 
 def goNewAmplitudeInversionQs():
-  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 1,2,0 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
   """""" 
   born,bs,src,rcp,rco,warp = getInputs()
@@ -364,15 +381,16 @@ def goNewAmplitudeInversionQs():
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
-    born.applyForward(src,rx,rcp)
     pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
-    pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
-    if nouter>1 and iouter<nouter:
+    if nouter>0 and iouter<nouter:
+      born.applyForward(src,rx,rcp)
       print 'warping'
       rcw = warp.warp(rco,rcp,w)
       bs.setTimeShifts(w)
+      pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
       pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
+  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
 
 def rotatedRicker():
   """Phase-rotated and twice-differentiated Ricker wavelet."""
@@ -445,12 +463,6 @@ def makeBornModel(s):
   sigma0: smoothing for background model
   sigma1: smoothing for perturbation
   """
-  #sigma0 = 0.5*nx*nz/sum(s)/fpeak # half wavelength
-  #sigma1 = 0.5*sigma0 # quarter wavelength
-  #sigma0 = 1.0/fpeak
-  #sigma1 = 1.0*sigma0
-  sigma0 = 4.00/fpeak
-  sigma1 = 0.25*sigma0
   print 'sigma0=%f'%sigma0
   print 'sigma1=%f'%sigma1
   s0,s1 = like(s),like(s)
@@ -463,7 +475,8 @@ def makeBornModel(s):
   ref1.apply(s,t)
   sub(s,t,s1)
   r = sub(mul(s,s),mul(t,t))
-  GaussianTaper.apply1(0.25,r,r)
+  if nx!=767:
+    GaussianTaper.apply1(0.25,r,r)
   return s0,r
 
 def like(x):
