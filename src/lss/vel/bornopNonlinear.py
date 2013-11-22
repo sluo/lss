@@ -18,7 +18,8 @@ def main(args):
   #goNonlinearInversionQs() # inversion using line search
   #goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
   #goInversionQs()
-  goAmplitudeInversionQs() # amplitude inversion without line search
+  #goAmplitudeInversionQs() # amplitude inversion without line search
+  goNewAmplitudeInversionQs() # shift predicted data instead
 
 def getModelAndMask():
   #return setupForMarmousi()
@@ -61,9 +62,9 @@ def setupForLayered():
   dz,dx,dt = sz.delta,sx.delta,st.delta
   fz,fx,ft = sz.first,sx.first,st.first
   #xs,zs = [0],[0]
-  #xs,zs = [nx/2],[0]
+  xs,zs = [nx/2],[0]
   #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
+  #xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
   #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
   xr,zr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(xs),len(xr)
@@ -273,7 +274,6 @@ def twiceIntegrate(rec):
     Util.integrate1(d,d)
     mul(-1.0,d,d)
 
-
 def getInputs():
   useAcoustic = False # use WaveOperator for observed data
   warp3d = False # use 3D warping
@@ -281,14 +281,12 @@ def getInputs():
   #e = mul(0.95,s) # erroneous background slowness
   e = mul(0.85,s) # erroneous background slowness
 
-  # Wavefields
+  # Wavefields.
   print "allocating"
   u = SharedFloat4(nxp,nzp,nt,np)
   a = SharedFloat4(nxp,nzp,nt,np)
 
-  # BornOperator
-  born = BornOperatorS(e,dx,dt,nabsorb,u,a) # erroneous slowness
-
+  # Sources and receivers.
   src = BornOperatorS.getSourceArray(ns) # sources
   rco = BornOperatorS.getReceiverArray(ns) # receivers
   rcp = BornOperatorS.getReceiverArray(ns) # receivers
@@ -317,7 +315,12 @@ def getInputs():
   #for isou in range(ns):
   #  rcp[isou] = Receiver(rco[isou])
 
-  # DataWarping.
+  # Born modeling and solver.
+  born = BornOperatorS(e,dx,dt,nabsorb,u,a)
+  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
+  bs = BornSolver(born,src,rcp,rco,ref,m) # solver
+
+  # Warping.
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
   strainT,strainR,strainS = 0.50,0.20,0.20 if warp3d else -1.0
@@ -331,32 +334,45 @@ def getInputs():
   pixels(s,cmap=jet,title='s')
   pixels(e,cmap=jet,title='e')
   pixels(r,cmap=gray,sperc=100.0,title='r')
-  pixels(m,cmap=gray,title='m')
-  return born,src,rcp,rco,warp
+  return born,bs,src,rcp,rco,warp
 
 def goAmplitudeInversionQs():
   nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
   """""" 
-  born,src,rcp,rco,warp = getInputs()
-  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
-  bs = BornSolver(born,src,rcp,rco,ref,m) # solver
+  born,bs,src,rcp,rco,warp = getInputs()
   w = zerofloat(nt,nr,ns) # warping shifts
-  rmin,rmax = min(r),max(r)
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
     rx = bs.solve(nfinal if iouter==nouter else ninner);
     born.applyForward(src,rx,rcp)
-    #pixels(rx,cmap=gray,cmin=rmin,cmax=rmax,title='r%d'%iouter)
     pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
     pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
     if nouter>1 and iouter<nouter:
-      print 'warping (3d=%r)'%warp3d
+      print 'warping'
       rcw = warp.warp(rcp,rco,w)
       bs.setObservedData(rcw)
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
       pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
+def goNewAmplitudeInversionQs():
+  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
+  """""" 
+  born,bs,src,rcp,rco,warp = getInputs()
+  w = zerofloat(nt,nr,ns) # warping shifts
+  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
+  for iouter in range(nouter+1):
+    rx = bs.solve(nfinal if iouter==nouter else ninner);
+    born.applyForward(src,rx,rcp)
+    pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
+    pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
+    if nouter>1 and iouter<nouter:
+      print 'warping'
+      rcw = warp.warp(rco,rcp,w)
+      bs.setTimeShifts(w)
+      pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
+      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
 def rotatedRicker():
   """Phase-rotated and twice-differentiated Ricker wavelet."""

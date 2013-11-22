@@ -27,7 +27,7 @@ public class BornSolver {
    */
   public BornSolver(
     BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
-    RecursiveExponentialFilter ref, float[][] mp, float[][] ts)
+    RecursiveExponentialFilter ref, float[][] mp, float[][][] ts)
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
     int[] nxz = born.getNxNz();
@@ -56,14 +56,17 @@ public class BornSolver {
     this(born,src,rcp,rco,ref,m,null);
   }
 
-  public void setObservedData(final Receiver[] rco) {
-    Check.argument(_rco.length==rco.length,"_rco.length==rco.length");
-    _rco = rco;
-  }
-
   public float[][] solve(int niter) {
     ArrayVect2f v2y = (ArrayVect2f)_qs.solve(niter,null);
     return v2y.getData();
+  }
+
+  public void setObservedData(Receiver[] rco) {
+    _rco = rco;
+  }
+
+  public void setTimeShifts(float[][][] ts) {
+    _ts = ts;
   }
 
   public void setTrueReflectivity(float[][] r) {
@@ -93,8 +96,8 @@ public class BornSolver {
 
   // optional parameters
   private float[][] _mp = null; // model preconditioner
-  private float[][] _ts = null; // time shifts
   private float[][] _r = null; // true reflectivity
+  private float[][][] _ts = null; // time shifts
   private BornOperatorS _bornt = null; // Born operator with true slowness
 
   private class Q implements Quadratic {

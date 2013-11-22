@@ -69,7 +69,7 @@ public class BornOperatorS {
    * @param receiver output receivers.
    */
   public void applyForward(
-    final Source[] source, final float[][] rx, final float[][] ts,
+    final Source[] source, final float[][] rx, final float[][][] ts,
     final Receiver[] receiver)
   {
     Check.argument(rx[0].length==_nx,"consistent nx");
@@ -80,7 +80,11 @@ public class BornOperatorS {
     parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int isou) {
         float[][][] u = _u.get(isou);
-        _born.applyForward(source[isou],u,rx,ts,receiver[isou]);
+        if (ts==null) {
+          _born.applyForward(source[isou],u,rx,receiver[isou]);
+        } else {
+          _born.applyForward(source[isou],u,rx,ts[isou],receiver[isou]);
+        }
       }
     });
   }
@@ -100,7 +104,7 @@ public class BornOperatorS {
    * @param ry output reflectivity image.
    */
   public void applyAdjoint(
-    final Source[] source, final Receiver[] receiver, final float[][] ts,
+    final Source[] source, final Receiver[] receiver, final float[][][] ts,
     final float[][] ry)
   {
     Check.argument(ry[0].length==_nx,"consistent nx");
@@ -115,7 +119,11 @@ public class BornOperatorS {
         float[][][] u = _u.get(isou);
         float[][][] a = _a.get(isou);
         float[][] rt = new float[nz][nx];
-        _born.applyAdjoint(source[isou],u,a,receiver[isou],ts,rt);
+        if (ts==null) {
+          _born.applyAdjoint(source[isou],u,a,receiver[isou],rt);
+        } else {
+          _born.applyAdjoint(source[isou],u,a,receiver[isou],ts[isou],rt);
+        }
         return rt;
       }
       public float[][] combine(float[][] ra, float[][] rb) {
@@ -142,7 +150,7 @@ public class BornOperatorS {
    */
   public void applyHessian(
     final Source[] source, final Receiver[] receiver,
-    final float[][] rx, final float[][] ts,
+    final float[][] rx, final float[][][] ts,
     final float[][] ry)
   {
     Check.argument(rx[0].length==_nx,"consistent nx");
@@ -159,7 +167,11 @@ public class BornOperatorS {
         float[][] rt = new float[nz][nx];
         float[][][] u = _u.get(isou);
         float[][][] a = _a.get(isou);
-        _born.applyHessian(source[isou],receiver[isou],u,a,rx,ts,rt);
+        if (ts==null) {
+          _born.applyHessian(source[isou],receiver[isou],u,a,rx,rt);
+        } else {
+          _born.applyHessian(source[isou],receiver[isou],u,a,rx,ts[isou],rt);
+        }
         return rt;
       }
       public float[][] combine(float[][] ra, float[][] rb) {
