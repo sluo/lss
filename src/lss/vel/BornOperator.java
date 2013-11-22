@@ -9,7 +9,8 @@ import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
 /**
- * Acoustic constant-density Born modeling operator.
+ * Acoustic constant-density Born modeling
+ * with an optional time-shift operator.
  * @author Simon Luo, Colorado SChool
  * @version 2013.11.20
  */
@@ -22,8 +23,7 @@ public class BornOperator {
    * @param dt time sampling interval.
    * @param nabsorb width in samples of absorbing boundary.
    */
-  public BornOperator(
-  float[][] s, double dx, double dt, int nabsorb) {
+  public BornOperator(float[][] s, double dx, double dt, int nabsorb) {
     _wave = new WaveOperator(s,dx,dt,nabsorb);
     _nx = s[0].length;
     _nz = s.length;
@@ -51,77 +51,70 @@ public class BornOperator {
   ////////////////////////////////////////////////////////////////////////////
   // forward
 
-
   /**
-   * Applies the forward operator after computing the background wavefield.
+   * Applies the forward operator after computing background wavefield.
    * @param source input source for computing background wavefield.
    * @param b input array for storing background wavefield.
    * @param rx input reflectivity image.
-   * @param receiver output receiver.
-   */
-  public void applyForward(
-  Source source, float[][][] b, float[][] rx, Receiver receiver) {
-    applyForward(source,b,rx,receiver,null);
-  }
-
-  /**
-   * Applies the forward operator after computing the background wavefield.
-   * @param source input source for computing background wavefield.
-   * @param b input array for storing background wavefield.
-   * @param rx input reflectivity image.
-   * @param u output wavefield.
-   */
-  public void applyForward(
-  Source source, float[][][] b, float[][] rx, float[][][] u) {
-    applyForward(source,b,rx,null,u);
-  }
-
-  /**
-   * Applies the forward operator after computing the background wavefield.
-   * @param source input source for computing background wavefield.
-   * @param b input array for storing background wavefield.
-   * @param rx input reflectivity image.
+   * @param ts input time shifts.
    * @param receiver output receiver.
    * @param u output wavefield.
    */
   public void applyForward(
-  Source source, float[][][] b, float[][] rx,
-  Receiver receiver, float[][][] u) {
+    Source source, float[][][] b, float[][] rx, float[][] ts,
+    Receiver receiver, float[][][] u)
+  {
     computeBackgroundWavefield(source,b);
-    applyForward(b,rx,receiver,u);
+    applyForward(b,rx,ts,receiver,u);
   }
 
-  /**
-   * Applies the forward operator using precomputed background wavefield.
-   * @param b input array containing precomputed background wavefield.
-   * @param rx input reflectivity image.
-   * @param receiver output receiver.
-   */
   public void applyForward(
-  float[][][] b, float[][] rx, Receiver receiver) {
-    applyForward(b,rx,receiver,null);
+    Source source, float[][][] b, float[][] rx, float[][] ts,
+    Receiver receiver)
+  {
+    applyForward(source,b,rx,ts,receiver,null);
+  }
+
+  public void applyForward(
+    Source source, float[][][] b, float[][] rx, float[][] ts,
+    float[][][] u)
+  {
+    applyForward(source,b,rx,ts,null,u);
+  }
+
+  public void applyForward(
+    Source source, float[][][] b, float[][] rx,
+    Receiver receiver, float[][][] u)
+  {
+    applyForward(source,b,rx,null,receiver,u);
+  }
+
+  public void applyForward(
+    Source source, float[][][] b, float[][] rx,
+    Receiver receiver)
+  {
+    applyForward(source,b,rx,null,receiver,null);
+  }
+
+  public void applyForward(
+    Source source, float[][][] b, float[][] rx,
+    float[][][] u)
+  {
+    applyForward(source,b,rx,null,null,u);
   }
 
   /**
    * Applies the forward operator using precomputed background wavefield.
    * @param b input array containing precomputed background wavefield.
    * @param rx input reflectivity image.
+   * @param ts input time shifts.
+   * @param receiver output receiver.
    * @param u output wavefield.
    */
   public void applyForward(
-  float[][][] b, float[][] rx, float[][][] u) {
-    applyForward(b,rx,null,u);
-  }
-
-  /**
-   * Applies the forward operator using precomputed background wavefield.
-   * @param b input array containing precomputed background wavefield.
-   * @param rx input reflectivity image.
-   * @param receiver output receiver.
-   * @param u output wavefield.
-   */
-  public void applyForward(
-  float[][][] b, float[][] rx, Receiver receiver, float[][][] u) {
+    float[][][] b, float[][] rx, float[][] ts,
+    Receiver receiver, float[][][] u)
+  {
     Check.argument(b[0][0].length-rx[0].length==2*_nabsorb,"consistent nx");
     Check.argument(b[0].length-rx.length==2*_nabsorb,"consistent nz");
     if (u!=null) {
@@ -131,6 +124,44 @@ public class BornOperator {
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
     _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
+    if (ts!=null) {
+      applyForwardShifts(ts,receiver);
+    }
+  }
+
+  public void applyForward(
+    float[][][] b, float[][] rx, float[][] ts,
+    Receiver receiver)
+  {
+    applyForward(b,rx,ts,receiver,null);
+  }
+
+  public void applyForward(
+    float[][][] b, float[][] rx, float[][] ts,
+    float[][][] u)
+  {
+    applyForward(b,rx,ts,null,u);
+  }
+
+  public void applyForward(
+    float[][][] b, float[][] rx,
+    Receiver receiver, float[][][] u)
+  {
+    applyForward(b,rx,null,receiver,u);
+  }
+
+  public void applyForward(
+    float[][][] b, float[][] rx,
+    Receiver receiver)
+  {
+    applyForward(b,rx,null,receiver,null);
+  }
+
+  public void applyForward(
+    float[][][] b, float[][] rx,
+    float[][][] u)
+  {
+    applyForward(b,rx,null,null,u);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -141,14 +172,24 @@ public class BornOperator {
    * @param source input source for computing background wavefield.
    * @param b input array for storing background wavefield.
    * @param a input array for storing adjoint wavefield.
-   * @param receiver input receiver.
+   * @param receiver input receiver containing data to be migrated.
+   * @param ts input time shifts.
    * @param ry output reflectivity image.
    */
   public void applyAdjoint(
-  Source source, float[][][] b,
-  float[][][] a, Receiver receiver, float[][] ry) {
+    Source source, float[][][] b, float[][][] a,
+    Receiver receiver, float[][] ts,
+    float[][] ry)
+  {
     computeBackgroundWavefield(source,b);
-    applyAdjoint(b,a,receiver,ry);
+    applyAdjoint(b,a,receiver,ts,ry);
+  }
+
+  public void applyAdjoint(
+    Source source, float[][][] b,
+    float[][][] a, Receiver receiver, float[][] ry)
+  {
+    applyAdjoint(source,b,a,receiver,null,ry);
   }
 
   /**
@@ -156,14 +197,27 @@ public class BornOperator {
    * @param b input array containing precomputed background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param receiver input receiver containing data to be migrated.
+   * @param ts input time shifts.
    * @param ry output reflectivity image.
    */
   public void applyAdjoint(
-  float[][][] b, float[][][] a, Receiver receiver, float[][] ry) {
+    float[][][] b, float[][][] a, Receiver receiver, float[][] ts,
+    float[][] ry)
+  {
     Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
     Check.argument(b[0].length-ry.length==2*_nabsorb,"consistent nz");
+    if (ts!=null) {
+      applyAdjointShifts(ts,receiver);
+    }
     _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
     WaveOperator.collapse(b,a,_nabsorb,ry);
+  }
+
+  public void applyAdjoint(
+    float[][][] b, float[][][] a, Receiver receiver,
+    float[][] ry)
+  {
+    applyAdjoint(b,a,receiver,null,ry);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -176,15 +230,24 @@ public class BornOperator {
    * @param b input array for storing background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param rx input reflectivity image.
+   * @param ts input time shifts.
    * @param ry output reflectivity image.
    */
   public void applyHessian(
-  Source source, Receiver receiver, float[][][] b, float[][][] a,
-  float[][] rx, float[][] ry) {
+    Source source, Receiver receiver, float[][][] b,
+    float[][][] a, float[][] rx, float[][] ts,
+    float[][] ry)
+  {
     computeBackgroundWavefield(source,b);
-    applyHessian(receiver,b,a,rx,ry);
-    //applyForward(source,b,rx,receiver);
-    //applyAdjoint(b,a,receiver,ry);
+    applyHessian(receiver,b,a,rx,ts,ry);
+  }
+
+  public void applyHessian(
+    Source source, Receiver receiver, float[][][] b,
+    float[][][] a, float[][] rx,
+    float[][] ry)
+  {
+    applyHessian(source,receiver,b,a,rx,null,ry);
   }
 
   /**
@@ -193,20 +256,31 @@ public class BornOperator {
    * @param b input array for storing background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param rx input reflectivity image.
+   * @param ts time shifts.
    * @param ry output reflectivity image.
    */
   public void applyHessian(
-  Receiver receiver, float[][][] b, float[][][] a,
-  float[][] rx, float[][] ry) {
-    applyForward(b,rx,receiver);
-    applyAdjoint(b,a,receiver,ry);
+    Receiver receiver, float[][][] b, float[][][] a,
+    float[][] rx, float[][] ts,
+    float[][] ry)
+  {
+    applyForward(b,rx,ts,receiver);
+    applyAdjoint(b,a,receiver,ts,ry);
+  }
+
+  public void applyHessian(
+    Receiver receiver, float[][][] b, float[][][] a, float[][] rx,
+    float[][] ry)
+  {
+    applyHessian(receiver,b,a,rx,null,ry);
   }
 
   ////////////////////////////////////////////////////////////////////////////
   // illumination map
 
   public void applyForIllumination(
-  Source source, float[][][] b, float[][] m) {
+    Source source, float[][][] b, float[][] m)
+  {
     int nx = b[0][0].length;
     int nz = b[0].length;
     int nt = b.length;
@@ -215,6 +289,44 @@ public class BornOperator {
     _wave.applyForward(source,b);
     WaveOperator.collapse(b,b,_nabsorb,m);
     mul(1.0f/nx/nz/nt,m,m);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // shifts
+
+  private static void applyForwardShifts(float[][] ts, Receiver receiver) {
+    float[][] d = receiver.getData();
+    float[][] e = applyShifts(ts,d,false);
+    copy(e,d);
+  }
+
+  private static void applyAdjointShifts(float[][] ts, Receiver receiver) {
+    float[][] d = receiver.getData();
+    float[][] e = applyShifts(ts,d,true);
+    copy(e,d);
+  }
+
+  private static float[][] applyShifts(
+    float[][] w, float[][] d, final boolean adjoint)
+  {
+    final int nt = w[0].length;
+    final int nr = w.length;
+    final float[] rf = rampfloat(0.0f,1.0f,nt);
+    final float[][] wf = w;
+    final float[][] df = d;
+    final float[][] ef = new float[nr][nt]; // shifted
+    final SincInterp si = new SincInterp();
+    Parallel.loop(nr,new Parallel.LoopInt() {
+    public void compute(int ir) {
+      float[] p = add(rf,wf[ir]);
+      if (!adjoint) {
+        si.interpolate(nt,1.0,0.0,df[ir],nt,p,ef[ir]);
+      } else {
+        si.accumulate(nt,p,df[ir],nt,1.0,0.0,ef[ir]);
+        //si.accumulate(nt,p,df[ir],nt,1.0,0.0,df[ir]); // XXX
+      }
+    }});
+    return ef;
   }
 
   //////////////////////////////////////////////////////////////////////////

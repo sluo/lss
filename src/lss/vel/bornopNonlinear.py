@@ -15,10 +15,10 @@ STACK = False # stack gradient over offset
 #############################################################################
 
 def main(args):
-  #goNonlinearInversionQs()
-  #goNonlinearAmplitudeInversionQs()
-  goAmplitudeInversionQs()
+  #goNonlinearInversionQs() # inversion using line search
+  #goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
   #goInversionQs()
+  goAmplitudeInversionQs() # amplitude inversion without line search
 
 def getModelAndMask():
   #return setupForMarmousi()
@@ -85,7 +85,7 @@ def getMarmousiModelAndMask():
   return s,s0,mul(s1,m),m
 
 def getLayeredModelAndMask():
-  constantBackground = False
+  constantBackground = True
   tb = 0.25 # background slowness
   t = getLayered2()
   t0,t1 = makeBornModel(t)
@@ -101,18 +101,18 @@ def getLayeredModelAndMask():
   return t,t0,t1,None
 
 def getLayered2(s0mul=1.0):
-  #t = fillfloat(1.0/1.5,nz,nx)
-  #for ix in range(nx):
-  #  for iz in range(nz/3,2*nz/3):
-  #    t[ix][iz] = 0.5
-  #  for iz in range(2*nz/3,nz):
-  #    t[ix][iz] = 0.2
-  t = fillfloat(0.35,nz,nx)
+  t = fillfloat(1.0/1.5,nz,nx)
   for ix in range(nx):
     for iz in range(nz/3,2*nz/3):
-      t[ix][iz] = 0.3
+      t[ix][iz] = 0.5
     for iz in range(2*nz/3,nz):
       t[ix][iz] = 0.2
+  #t = fillfloat(0.35,nz,nx)
+  #for ix in range(nx):
+  #  for iz in range(nz/3,2*nz/3):
+  #    t[ix][iz] = 0.3
+  #  for iz in range(2*nz/3,nz):
+  #    t[ix][iz] = 0.2
   return transpose(t)
 
 def goNonlinearInversionQs():
@@ -273,15 +273,13 @@ def twiceIntegrate(rec):
     Util.integrate1(d,d)
     mul(-1.0,d,d)
 
-def goAmplitudeInversionQs():
-  useAcoustic = True # use WaveOperator for observed data
+
+def getInputs():
+  useAcoustic = False # use WaveOperator for observed data
   warp3d = False # use 3D warping
-  #nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
-  #nouter,ninner,nfinal = 5,2,10 # outer, inner, inner for last outer
-  nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
   t,s,r,m = getModelAndMask(); e = copy(s)
   #e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
+  e = mul(0.85,s) # erroneous background slowness
 
   # Wavefields
   print "allocating"
@@ -291,12 +289,12 @@ def goAmplitudeInversionQs():
   # BornOperator
   born = BornOperatorS(e,dx,dt,nabsorb,u,a) # erroneous slowness
 
-  # Sources and receivers
   src = BornOperatorS.getSourceArray(ns) # sources
   rco = BornOperatorS.getReceiverArray(ns) # receivers
   rcp = BornOperatorS.getReceiverArray(ns) # receivers
   for isou in range(ns):
     rco[isou] = Receiver(xr,zr,nt)
+    rcp[isou] = Receiver(xr,zr,nt)
   if useAcoustic:
     v = fillfloat(t[0][0],nx,nz)
     sro = BornOperatorS.getSourceArray(ns) # source for observed data
@@ -316,13 +314,8 @@ def goAmplitudeInversionQs():
       src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
     bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
     bornt.applyForward(src,r,rco) # observed data
-  for isou in range(ns):
-    rcp[isou] = Receiver(rco[isou])
-
-  # BornSolver
-  #ref = RecursiveExponentialFilter(0.5/(fpeak*dx*sqrt(2.0)))
-  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
-  bs = BornSolver(born,src,rcp,rco,ref,m)
+  #for isou in range(ns):
+  #  rcp[isou] = Receiver(rco[isou])
 
   # DataWarping.
   td = 4 # time decimation
@@ -334,6 +327,21 @@ def goAmplitudeInversionQs():
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
   w = zerofloat(nt,nr,ns) # warping shifts
 
+  pixels(t,cmap=jet,title='t')
+  pixels(s,cmap=jet,title='s')
+  pixels(e,cmap=jet,title='e')
+  pixels(r,cmap=gray,sperc=100.0,title='r')
+  pixels(m,cmap=gray,title='m')
+  return born,src,rcp,rco,warp
+
+def goAmplitudeInversionQs():
+  nouter,ninner,nfinal = 4,2,2 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
+  """""" 
+  born,src,rcp,rco,warp = getInputs()
+  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
+  bs = BornSolver(born,src,rcp,rco,ref,m) # solver
+  w = zerofloat(nt,nr,ns) # warping shifts
   rmin,rmax = min(r),max(r)
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
@@ -349,10 +357,6 @@ def goAmplitudeInversionQs():
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
       pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
 
-  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
-  pixels(s,cmap=jet,title='s')
-  pixels(e,cmap=jet,title='e')
-  pixels(r,cmap=gray,cmin=rmin,cmax=rmax,sperc=100.0,title='r')
 
 def rotatedRicker():
   """Phase-rotated and twice-differentiated Ricker wavelet."""

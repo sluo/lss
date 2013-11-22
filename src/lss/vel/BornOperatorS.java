@@ -12,7 +12,8 @@ import edu.mines.jtk.interp.*;
 import edu.mines.jtk.mosaic.*;
 
 /**
- * Acoustic constant-density Born modeling operator, parallel over sources.
+ * Acoustic constant-density Born modeling with an optional 
+ * time-shift operator, parallelized over sources.
  * @see lss.vel.BornOperator
  * @author Simon Luo, Colorado SChool
  * @version 2013.11.20
@@ -60,8 +61,17 @@ public class BornOperatorS {
     _born.setSlowness(s);
   }
 
+  /**
+   * Applies the forward operator.
+   * @param source input sources for computing background wavefields. 
+   * @param rx input reflectivity image.
+   * @param ts input time shifts.
+   * @param receiver output receivers.
+   */
   public void applyForward(
-  final Source[] source, final float[][] rx, final Receiver[] receiver) {
+    final Source[] source, final float[][] rx, final float[][] ts,
+    final Receiver[] receiver)
+  {
     Check.argument(rx[0].length==_nx,"consistent nx");
     Check.argument(rx.length==_nz,"consistent nz");
     final int ns = source.length;
@@ -70,13 +80,29 @@ public class BornOperatorS {
     parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int isou) {
         float[][][] u = _u.get(isou);
-        _born.applyForward(source[isou],u,rx,receiver[isou]);
+        _born.applyForward(source[isou],u,rx,ts,receiver[isou]);
       }
     });
   }
 
+  public void applyForward(
+    Source[] source, float[][] rx,
+    Receiver[] receiver)
+  {
+    applyForward(source,rx,null,receiver);
+  }
+
+  /**
+   * Applies the adjoint operator.
+   * @param source input sources for computing background wavefields. 
+   * @param receiver input receivers containing data to be migrated.
+   * @param ts input time shifts.
+   * @param ry output reflectivity image.
+   */
   public void applyAdjoint(
-  final Source[] source, final Receiver[] receiver, final float[][] ry) {
+    final Source[] source, final Receiver[] receiver, final float[][] ts,
+    final float[][] ry)
+  {
     Check.argument(ry[0].length==_nx,"consistent nx");
     Check.argument(ry.length==_nz,"consistent nz");
     final int ns = source.length;
@@ -89,7 +115,7 @@ public class BornOperatorS {
         float[][][] u = _u.get(isou);
         float[][][] a = _a.get(isou);
         float[][] rt = new float[nz][nx];
-        _born.applyAdjoint(source[isou],u,a,receiver[isou],rt);
+        _born.applyAdjoint(source[isou],u,a,receiver[isou],ts,rt);
         return rt;
       }
       public float[][] combine(float[][] ra, float[][] rb) {
@@ -99,9 +125,25 @@ public class BornOperatorS {
     copy(rz,ry);
   }
 
+  public void applyAdjoint(
+    Source[] source, Receiver[] receiver,
+    float[][] ry)
+  {
+    applyAdjoint(source,receiver,null,ry);
+  }
+
+  /**
+   * Applies the Hessian operator.
+   * @param source input sources for computing background wavefields. 
+   * @param receiver input receivers containing data to be migrated.
+   * @param rx input reflectivity image.
+   * @param ts input time shifts.
+   * @param ry output reflectivity image.
+   */
   public void applyHessian(
     final Source[] source, final Receiver[] receiver,
-    final float[][] rx, final float[][] ry)
+    final float[][] rx, final float[][] ts,
+    final float[][] ry)
   {
     Check.argument(rx[0].length==_nx,"consistent nx");
     Check.argument(rx.length==_nz,"consistent nz");
@@ -117,7 +159,7 @@ public class BornOperatorS {
         float[][] rt = new float[nz][nx];
         float[][][] u = _u.get(isou);
         float[][][] a = _a.get(isou);
-        _born.applyHessian(source[isou],receiver[isou],u,a,rx,rt);
+        _born.applyHessian(source[isou],receiver[isou],u,a,rx,ts,rt);
         return rt;
       }
       public float[][] combine(float[][] ra, float[][] rb) {
@@ -125,6 +167,13 @@ public class BornOperatorS {
       }
     });
     copy(rz,ry);
+  }
+
+  public void applyHessian(
+    Source[] source, Receiver[] receiver, float[][] rx,
+    float[][] ry)
+  {
+    applyHessian(source,receiver,rx,null,ry);
   }
 
   // Mostly for adjoint test.
@@ -192,22 +241,6 @@ public class BornOperatorS {
     Source simultaneousSource = new Source.SimultaneousSource(source);
     _born.getWaveOperator().applyForward(simultaneousSource,b);
     WaveOperator.collapse(b,b,_nabsorb,m);
-  }
-
-  public static void applyForwardRoughen(
-  RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
-    float[][] cx = (rx==ry)?copy(rx):rx;
-    ref.apply1(cx,ry);
-    ref.apply2(ry,ry);
-    sub(cx,ry,ry);
-  } 
-
-  public static void applyAdjointRoughen(
-  RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
-    float[][] cx = (rx==ry)?copy(rx):rx;
-    ref.apply2(cx,ry);
-    ref.apply1(ry,ry);
-    sub(cx,ry,ry);
   }
 
   ////////////////////////////////////////////////////////////////////////////  

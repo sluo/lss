@@ -12,32 +12,22 @@ import edu.mines.jtk.mosaic.*;
 
 public class BornSolver {
 
-  // inverse illumincation preconditioning?
+  // inverse illumination preconditioning?
   public static final boolean ILLUM = false;
 
-  public BornSolver(
-    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco)
-  {
-    this(born,src,rcp,rco,null,null);
-  }
-
-  public BornSolver(
-    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
-    float[][] m)
-  {
-    this(born,src,rcp,rco,null,m);
-  }
-
+  /**
+   * Constructs a solver.
+   * @param born Born modeling operator.
+   * @param src sources.
+   * @param rcp receivers for predicted data.
+   * @param rco receivers containing observed data.
+   * @param ref roughening filter.
+   * @param mp model preconditioning, e.g., water-layer mask.
+   * @param ts time shifts.
+   */
   public BornSolver(
     BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
-    RecursiveExponentialFilter ref)
-  {
-    this(born,src,rcp,rco,ref,null);
-  }
-
-  public BornSolver(
-    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
-    RecursiveExponentialFilter ref, float[][] m)
+    RecursiveExponentialFilter ref, float[][] mp, float[][] ts)
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
     int[] nxz = born.getNxNz();
@@ -48,7 +38,8 @@ public class BornSolver {
     _rcp = rcp;
     _rco = rco;
     _ref = ref;
-    _m = m;
+    _mp = mp;
+    _ts = ts;
     if (ILLUM) {
       _ii = new float[_nz][_nx];
       computeInverseIllumination(_ii);
@@ -56,6 +47,13 @@ public class BornSolver {
       _ii = fillfloat(1.0f,_nx,_nz);
     }
     _qs = new QuadraticSolver(new Q());
+  }
+
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    RecursiveExponentialFilter ref, float[][] m)
+  {
+    this(born,src,rcp,rco,ref,m,null);
   }
 
   public void setObservedData(final Receiver[] rco) {
@@ -73,7 +71,7 @@ public class BornSolver {
   }
 
   public void setMask(float[][] m) {
-    _m = m;
+    _mp = m;
   }
 
   public void setTrueBornOperator(BornOperatorS bornt) {
@@ -94,7 +92,8 @@ public class BornSolver {
   private Receiver[] _rco;
 
   // optional parameters
-  private float[][] _m = null; // mask
+  private float[][] _mp = null; // model preconditioner
+  private float[][] _ts = null; // time shifts
   private float[][] _r = null; // true reflectivity
   private BornOperatorS _bornt = null; // Born operator with true slowness
 
@@ -102,23 +101,23 @@ public class BornSolver {
     public void multiplyHessian(Vect vx) {
       ArrayVect2f v2x = (ArrayVect2f)vx;
       float[][] rx = v2x.getData();
-      _born.applyHessian(_src,_rcp,rx,rx);
+      _born.applyHessian(_src,_rcp,rx,_ts,rx);
     }
     public void inverseHessian(Vect vx) {
       ArrayVect2f v2x = (ArrayVect2f)vx;
       float[][] rx = v2x.getData();
       float[][] ry = new float[_nz][_nx];
       if (_ref!=null) {
-        _born.applyAdjointRoughen(_ref,rx,ry);
+        applyAdjointRoughen(_ref,rx,ry);
       }
       if (ILLUM) {
         mul(_ii,ry,ry); // inverse illumination
       }
-      if (_m!=null) {
-        mul(_m,ry,ry); // mask if non-null
+      if (_mp!=null) {
+        mul(_mp,ry,ry); // mask if non-null
       }
       if (_ref!=null) {
-        _born.applyForwardRoughen(_ref,ry,rx);
+        applyForwardRoughen(_ref,ry,rx);
       }
     }
     public Vect getB() {
@@ -126,19 +125,36 @@ public class BornSolver {
       ArrayVect2f vb = new ArrayVect2f(rb,1.0);
       if (_r!=null) {
         if (_bornt!=null) {
-          _bornt.applyForward(_src,_r,_rcp);
-          _born.applyAdjoint(_src,_rcp,rb);
+          _bornt.applyForward(_src,_r,_ts,_rcp);
+          _born.applyAdjoint(_src,_rcp,_ts,rb);
         } else {
-          _born.applyHessian(_src,_rco,_r,rb);
+          _born.applyHessian(_src,_rco,_r,_ts,rb);
         }
       } else {
         Check.argument(_bornt==null,"bornt==null");
-        _born.applyAdjoint(_src,_rco,rb);
+        _born.applyAdjoint(_src,_rco,_ts,rb);
       }
       mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
       return vb;
     }
   }
+
+  private static void applyForwardRoughen(
+  RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
+    float[][] cx = (rx==ry)?copy(rx):rx;
+    ref.apply1(cx,ry);
+    ref.apply2(ry,ry);
+    sub(cx,ry,ry);
+  } 
+
+  private static void applyAdjointRoughen(
+  RecursiveExponentialFilter ref, float[][] rx, float[][] ry) {
+    float[][] cx = (rx==ry)?copy(rx):rx;
+    ref.apply2(cx,ry);
+    ref.apply1(ry,ry);
+    sub(cx,ry,ry);
+  }
+
 
   private void computeInverseIllumination(float[][] ii) {
     System.out.println("computing illumination");
