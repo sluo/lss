@@ -1,10 +1,10 @@
-package lss.eni;
+package lss.mig;
 
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
-import lss.vel.Receiver;
+import lss.mod.Receiver;
 
 public class DataWarping {
 

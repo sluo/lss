@@ -1,6 +1,5 @@
-import os
-import sys
-import jarray
+import os,sys,jarray,time
+from jarray import zeros
 
 from java.awt import *
 from java.io import *
@@ -18,10 +17,6 @@ from edu.mines.jtk.opt import *
 from edu.mines.jtk.sgl import *
 from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
-
-#from tp import *
-#from dnp import *
-#from util import *
 
 #from lss.dev import *
 from lss.eni import *

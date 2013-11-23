@@ -1,19 +1,20 @@
-package lss.vel;
+package lss.mig;
 
 import edu.mines.jtk.opt.*;
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
+import lss.mod.*;
 import lss.util.SharedFloat4;
 
-// TESTING
-import edu.mines.jtk.mosaic.*;
-
+/**
+ * Linearized waveform inversion, with the option to
+ * include time-shifts within the forward modeling operator.
+ * @author Simon Luo, Colorado School of Mines
+ * @version 2013.11.22
+ */
 public class BornSolver {
-
-  // inverse illumination preconditioning?
-  public static final boolean ILLUM = false;
 
   /**
    * Constructs a solver.
@@ -40,12 +41,6 @@ public class BornSolver {
     _ref = ref;
     _mp = mp;
     _ts = ts;
-    if (ILLUM) {
-      _ii = new float[_nz][_nx];
-      computeInverseIllumination(_ii);
-    } else {
-      _ii = fillfloat(1.0f,_nx,_nz);
-    }
     _qs = new QuadraticSolver(new Q());
   }
 
@@ -86,7 +81,6 @@ public class BornSolver {
 
   // required parameters
   private final int _nz,_nx;
-  private final float[][] _ii; // inverse illumination
   private final RecursiveExponentialFilter _ref; // roughening filter
   private final BornOperatorS _born;
   private final QuadraticSolver _qs;
@@ -113,11 +107,8 @@ public class BornSolver {
       if (_ref!=null) {
         applyAdjointRoughen(_ref,rx,ry);
       }
-      if (ILLUM) {
-        mul(_ii,ry,ry); // inverse illumination
-      }
       if (_mp!=null) {
-        mul(_mp,ry,ry); // mask if non-null
+        mul(_mp,ry,ry); // model precondition (mask) if non-null
       }
       if (_ref!=null) {
         applyForwardRoughen(_ref,ry,rx);
@@ -128,15 +119,12 @@ public class BornSolver {
       ArrayVect2f vb = new ArrayVect2f(rb,1.0);
       if (_r!=null) {
         if (_bornt!=null) {
-          _bornt.applyForward(_src,_r,_ts,_rcp);
-          _born.applyAdjoint(_src,_rcp,_ts,rb);
+          _bornt.applyForward(_src,_r,_rco);
         } else {
-          _born.applyHessian(_src,_rco,_r,_ts,rb);
+          _born.applyForward(_src,_r,_rco);
         }
-      } else {
-        Check.argument(_bornt==null,"bornt==null");
-        _born.applyAdjoint(_src,_rco,_ts,rb);
       }
+      _born.applyAdjoint(_src,_rco,_ts,rb);
       mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
       return vb;
     }
@@ -157,7 +145,6 @@ public class BornSolver {
     ref.apply1(ry,ry);
     sub(cx,ry,ry);
   }
-
 
   private void computeInverseIllumination(float[][] ii) {
     System.out.println("computing illumination");

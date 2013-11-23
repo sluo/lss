@@ -1,6 +1,6 @@
 package lss.vel;
 import edu.mines.jtk.util.*;
-import static edu.mines.jtk.util.ArrayMath.*;
+//import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Util {
 
@@ -38,9 +38,9 @@ public class Util {
     }});
   }
 
-  public static float[][][][] zeros(int n1, int n2, int n3, int n4) {
-    return new float[n4][n3][n2][n1];
-  }
+  //public static float[][][][] zerofloat(int n1, int n2, int n3, int n4) {
+  //  return new float[n4][n3][n2][n1];
+  //}
 
   public static float[] like(float[] f) {
     return new float[f.length];

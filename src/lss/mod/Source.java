@@ -1,4 +1,4 @@
-package lss.vel;
+package lss.mod;
 
 import edu.mines.jtk.util.Parallel;
 import static edu.mines.jtk.util.ArrayMath.*;

@@ -1,4 +1,4 @@
-package lss.vel;
+package lss.mod;
 
 import edu.mines.jtk.util.Check;
 import static edu.mines.jtk.util.ArrayMath.*;
@@ -76,6 +76,10 @@ public class Receiver {
 
   public int getNr() {
     return _nr;
+  }
+
+  public Receiver clone() {
+    return new Receiver(copy(_xr),copy(_zr),copy(_data));
   }
 
   private int _nr,_nt;

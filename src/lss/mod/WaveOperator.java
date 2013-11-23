@@ -1,4 +1,4 @@
-package lss.vel;
+package lss.mod;
 
 import java.util.Random;
 import edu.mines.jtk.dsp.*;

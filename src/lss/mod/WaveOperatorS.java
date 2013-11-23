@@ -1,6 +1,7 @@
-package lss.vel;
+package lss.mod;
 
 import edu.mines.jtk.util.Parallel;
+
 import lss.util.*;
 
 public class WaveOperatorS {

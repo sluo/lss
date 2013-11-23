@@ -1,4 +1,4 @@
-package lss.vel;
+package lss.util;
 
 import edu.mines.jtk.dsp.RecursiveGaussianFilter;
 import static edu.mines.jtk.util.ArrayMath.*;

@@ -1,17 +1,17 @@
-package lss.vel;
+package lss.mod;
 
 import edu.mines.jtk.dsp.*;
+import edu.mines.jtk.interp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
-// testing
-import edu.mines.jtk.interp.*;
-import edu.mines.jtk.mosaic.*;
-
 /**
- * Acoustic constant-density Born modeling
- * with an optional time-shift operator.
- * @author Simon Luo, Colorado SChool
+ * Born modeling with an optional time-shift operator.
+ * Note that, to obtain Born modeled data that matches data computed
+ * by finite-differencing of the acoustic wave equation, the source
+ * function for Born modeling must be phase-rotated by 0.5*PI,
+ * twice-differentiated, and negated.
+ * @author Simon Luo, Colorado School of Mines
  * @version 2013.11.20
  */
 public class BornOperator {
@@ -124,7 +124,7 @@ public class BornOperator {
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
     _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
-    applyForwardShifts(ts,receiver);
+    applyForwardShifts(ts,receiver,receiver);
   }
 
   public void applyForward(
@@ -204,8 +204,9 @@ public class BornOperator {
   {
     Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
     Check.argument(b[0].length-ry.length==2*_nabsorb,"consistent nz");
-    applyAdjointShifts(ts,receiver);
-    _wave.applyAdjoint(new Source.ReceiverSource(receiver),a);
+    Receiver rc = receiver.clone();
+    applyAdjointShifts(ts,receiver,rc);
+    _wave.applyAdjoint(new Source.ReceiverSource(rc),a);
     WaveOperator.collapse(b,a,_nabsorb,ry);
   }
 
@@ -289,19 +290,23 @@ public class BornOperator {
 
   ////////////////////////////////////////////////////////////////////////////
   // shifts
-
-  private static void applyForwardShifts(float[][] ts, Receiver receiver) {
+  //
+  private static void applyForwardShifts(
+    float[][] ts, Receiver rcx, Receiver rcy)
+  {
     if (ts==null) return;
-    float[][] d = receiver.getData();
+    float[][] d = rcx.getData();
     float[][] e = applyShifts(ts,d,false);
-    copy(e,d);
+    rcy.setData(e);
   }
 
-  private static void applyAdjointShifts(float[][] ts, Receiver receiver) {
+  private static void applyAdjointShifts(
+    float[][] ts, Receiver rcx, Receiver rcy)
+  {
     if (ts==null) return;
-    float[][] d = receiver.getData();
+    float[][] d = rcx.getData();
     float[][] e = applyShifts(ts,d,true);
-    copy(e,d);
+    rcy.setData(e);
   }
 
   private static float[][] applyShifts(
@@ -443,7 +448,6 @@ public class BornOperator {
       copy(v[b],v[iz]);
       copy(v[nz+b-1],v[jz]);
     }
-    //SimplePlot.asPixels(v).addColorBar();
     return v;
   }
 
