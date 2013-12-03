@@ -5,7 +5,7 @@ import edu.mines.jtk.mosaic.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
-import dnp.*;
+import lss.opt.*;
 
 /**
  * Estimates shift vectors to flatten features in 2D and 3D images.

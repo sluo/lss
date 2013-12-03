@@ -4,12 +4,10 @@ This program and accompanying materials are made available under the terms of
 the Common Public License - v1.0, which accompanies this distribution, and is 
 available at http://www.eclipse.org/legal/cpl-v10.html
 ****************************************************************************/
-package lss.flat;
+package lss.opt;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import edu.mines.jtk.util.*;
-
-import dnp.Vec;
 
 // TODO: thread over n4 instead of n3?
 

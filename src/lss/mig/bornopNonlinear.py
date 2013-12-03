@@ -13,6 +13,7 @@ savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #############################################################################
 
 def main(args):
+  #readFiles()
   #getModelAndMask()
   #goNonlinearInversionQs() # inversion using line search
   #goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
@@ -20,9 +21,58 @@ def main(args):
   #goAmplitudeInversionQs() # amplitude inversion without line search
   goNewAmplitudeInversionQs() # shift predicted data instead
 
-def getModelAndMask():
-  return setupForMarmousi()
-  #return setupForLayered()
+  #compareData()
+  #test()
+
+def compareData():
+  born,bs,src,rcp,rco,warp = getInputs()
+  rf = zerofloat(nx,nz)
+  #read('/home/sluo/Desktop/new/rand/0-0-10/r0.dat',rf)
+  read('/home/sluo/Desktop/pngdat3/r0.dat',rf)
+  _,_,_,m,_ = getMarmousiModelAndMask()
+  mul(m,rf,rf)
+  print "computing predicted data..."
+  born.applyForward(src,rf,rcp)
+  pixels(rcp[ns/2].getData(),sperc=99.9,title='rcp')
+  pixels(rco[ns/2].getData(),sperc=99.9,title='rco')
+
+def test():
+  """ Amplitude inversion using shifts computed from lsm.py result."""
+  niter = 10
+  born,bs,src,rcp,rco,warp = getInputs()
+
+  # Time shifts
+  rf = zerofloat(nz,nx)
+  read('/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/s1_19.dat',rf)
+  rf = transpose(rf)
+  print "computing predicted data..."
+  born.applyForward(src,rf,rcp)
+  w = zerofloat(nt,nr,ns) # warping shifts
+  print 'warping...'
+  rcw = warp.warp(rco,rcp,w)
+  bs.setTimeShifts(w)
+
+  # Solve
+  rx = bs.solve(niter)
+  pixels(rx,cmap=gray,sperc=100.0,title='r0')
+
+  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
+  pixels(w[ns-1],cmap=rwb,sperc=100.0,title='w0')
+  pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp0')
+  pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw0')
+  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
+
+def readFiles():
+  setupForMarmousi()
+  #ra = zerofloat(nz,nx)
+  ra = zerofloat(nx,nz)
+  rb = zerofloat(nx,nz)
+  #read('/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/s1_19.dat',ra)
+  #read('/home/sluo/Desktop/pngdat3/r0.dat',rb); rb = transpose(rb)
+  read('/home/sluo/Desktop/new/rand/0-0-10/r0.dat',ra)
+  read('/home/sluo/Desktop/new/rand/0-0-10-A-256/r0.dat',rb)
+  pixels(ra,sperc=99.9)
+  pixels(rb,sperc=99.9)
 
 def setupForMarmousi():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
@@ -37,7 +87,8 @@ def setupForMarmousi():
   #xs,zs = [0],[0]
   #xs,zs = [nx/2],[0]
   #xs,zs = rampint(1,15,52),fillint(0,52)
-  xs,zs = rampint(3,10,77),fillint(0,77)
+  #xs,zs = rampint(3,10,77),fillint(0,77)
+  xs,zs = rampint(3,8,96),fillint(0,96)
   #xs,zs = rampint(3,5,153),fillint(0,153)
   #xs,zs = rampint(1,3,256),fillint(0,256)
   xr,zr = rampint(0,1,nx),fillint(0,nx)
@@ -45,7 +96,7 @@ def setupForMarmousi():
   fpeak = 10.0 # Ricker wavelet peak frequency
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
-  np = min(16,ns) # number of parallel sources
+  np = min(8,ns) # number of parallel sources
   sigma0 = 1.0/fpeak
   sigma1 = 1.0/fpeak
   print 'ns=%d'%ns
@@ -86,7 +137,7 @@ def getMarmousiModelAndMask():
 
   # Water-layer mask.
   m = fillfloat(1.0,nx,nz)
-  for iz in range(13):
+  for iz in range(14):
     for ix in range(nx):
       m[iz][ix] = 0.0
   RecursiveExponentialFilter(1.0).apply2(m,m)
@@ -108,7 +159,7 @@ def getMarmousiModelAndMask():
   #pixels(s0,cmap=jet)
   #pixels(s1,sperc=100.0)
   #pixels(p,cmap=gray)
-  return s,s0,mul(s1,m),p
+  return s,s0,mul(s1,m),m,p
 
 def getLayeredModelAndMask():
   constantBackground = True
@@ -124,7 +175,7 @@ def getLayeredModelAndMask():
       m[iz][ix] = 0.0
   RecursiveExponentialFilter(1.0).apply2(m,m)
   #return t,t0,t1,m
-  return t,t0,t1,None
+  return t,t0,t1,None,None
 
 def getLayered2(s0mul=1.0):
   t = fillfloat(1.0/1.5,nz,nx)
@@ -142,15 +193,47 @@ def getLayered2(s0mul=1.0):
   return transpose(t)
 
 #############################################################################
-# inversion without line search
+# Inversion without line search
+
+def addRandomError(s,emax=0.010,m=None):
+  random = Random(0)
+  r = sub(randfloat(random,nz,nx),0.5); r = transpose(r)
+  RecursiveGaussianFilter(62.5).apply00(r,r)
+  mul(emax/max(abs(r)),r,r)
+  if m is not None:
+    mul(m,r,r)
+  return add(s,r)
+
+def addGaussianError(s,emax=0.010,m=None):
+  g = zerofloat(nx,nz)
+  g[nz/2][nx/2] = 1.0
+  RecursiveGaussianFilter(nz/5.0).apply00(g,g)
+  mul(emax/max(g),g,g)
+  if m is not None:
+    mul(m,g,g)
+  return add(s,g)
+
+def getModelAndMask():
+  t,s,r,m,p = setupForMarmousi()
+  #t,s,r,m,p = setupForLayered()
+  e = mul(0.95,s) # erroneous background slowness
+  #e = mul(0.85,s) # erroneous background slowness
+  #e = addGaussianError(s,emax=0.025,m=m)
+  #e = addRandomError(s,emax=0.025,m=m)
+  #e = addRandomError(s,emax=0.050,m=m)
+  pixels(t,cmap=jet,title='t')
+  pixels(s,cmap=jet,title='s')
+  pixels(e,cmap=jet,title='e')
+  pixels(m,cmap=gray,title='m')
+  pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
+  pixels(r,cmap=gray,sperc=100.0,title='r')
+  return t,s,e,r,p
 
 def getInputs():
   useAcoustic = False # use WaveOperator for observed data
   warp3d = False # use 3D warping
   print 'warp3d=%r'%warp3d
-  t,s,r,m = getModelAndMask(); e = copy(s)
-  e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
+  t,s,e,r,m = getModelAndMask()
 
   # Wavefields.
   print "allocating..."
@@ -193,28 +276,26 @@ def getInputs():
   # Warping.
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
-  strainT,strainR,strainS = 0.50,0.20,0.20 if warp3d else -1.0
+  strainT,strainR,strainS = 0.50,0.20,1.00 if warp3d else -1.0
   #smoothT,smoothR,smoothS = 16.0,4.0,4.0
   smoothT,smoothR,smoothS = 32.0,8.0,8.0
   warp = DataWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
   w = zerofloat(nt,nr,ns) # warping shifts
 
-  pixels(t,cmap=jet,title='t')
-  pixels(s,cmap=jet,title='s')
-  pixels(e,cmap=jet,title='e')
-  pixels(r,cmap=gray,sperc=100.0,title='r')
   return born,bs,src,rcp,rco,warp
 
 def goAmplitudeInversionQs():
   nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
+  zeroReflectivity = True # zero reflectivity after each outer iteration
   """""" 
   born,bs,src,rcp,rco,warp = getInputs()
+  rx = zerofloat(nx,nz) # reflectivity image
   w = zerofloat(nt,nr,ns) # warping shifts
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
-    rx = bs.solve(nfinal if iouter==nouter else ninner);
+    bs.solve(nfinal if iouter==nouter else ninner,rx);
     pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
     if nouter>0 and iouter<nouter:
       born.applyForward(src,rx,rcp)
@@ -223,34 +304,51 @@ def goAmplitudeInversionQs():
       bs.setObservedData(rcw)
       pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
       pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
-      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
+      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='w%d'%iouter)
+    if zeroReflectivity:
+      zero(rx)
   pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
 
 def goNewAmplitudeInversionQs():
-  #nouter,ninner,nfinal = 2,1,2 # outer, inner, inner for last outer
-  nouter,ninner,nfinal = 6,3,5 # outer, inner, inner for last outer
-  #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
+  #nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
+  nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
+  saveReflectivity = False # save reflectivity between outer iterations
+  shiftsFromFile = True # compute shifts from reflectivity from file
   """""" 
+  print 'nouter=%d'%nouter
+  print 'ninner=%d'%ninner
+  print 'nfinal=%d'%nfinal
+  print 'saveReflectivity=%r'%saveReflectivity
+  print 'shiftsFromFile=%r'%shiftsFromFile
   born,bs,src,rcp,rco,warp = getInputs()
-  print 'X:',sum(rco[ns-1].getData())
   w = zerofloat(nt,nr,ns) # warping shifts
+  if shiftsFromFile:
+    rf = zerofloat(nx,nz)
+    read('/home/sluo/Desktop/new/const/0-0-10-96s-2/r0.dat',rf)
+    _,_,_,m,_ = getMarmousiModelAndMask()
+    mul(m,rf,rf)
+    print "computing predicted data..."
+    born.applyForward(src,rf,rcp)
+    print "warping..."
+    warp.warp(rco,rcp,w)
+    bs.setTimeShifts(w)
+  rx = zerofloat(nx,nz) # reflectivity image
   dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
   for iouter in range(nouter+1):
-    print 'A:',sum(rco[ns-1].getData())
-    rx = bs.solve(nfinal if iouter==nouter else ninner);
+    bs.solve(nfinal if iouter==nouter else ninner,rx);
     pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
-    print 'B:',sum(rco[ns-1].getData())
     if nouter>0 and iouter<nouter:
-      born.applyForward(src,rx,rcp)
-      print 'warping'
-      print 'C:',sum(rco[ns-1].getData())
-      rcw = warp.warp(rco,rcp,w)
-      print 'D:',sum(rco[ns-1].getData())
-      bs.setTimeShifts(w)
-      pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
-      pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
-      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
-  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
+      print "computing predicted data..."
+      born.applyForward(src,rx,rcp) # simulate predicted data
+      print 'warping...'
+      rcw = warp.warp(rco,rcp,w) # estimate new time shifts
+      bs.setTimeShifts(w) # set new time shifts
+      pixels(rcp[ns/2].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
+      pixels(rcw[ns/2].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
+      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iouter)
+    if not saveReflectivity:
+      zero(rx)
+  pixels(rco[ns/2].getData(),cmin=dmin,cmax=dmax,title='rco')
 
 def rotatedRicker():
   """Phase-rotated and twice-differentiated Ricker wavelet."""
@@ -288,7 +386,7 @@ def rotateAndDifferentiate(rx):
 def goInversionQs():
   niter = 2
   #s,r = makeBornModel(getMarmousi(stride))
-  _,s,r,m = getModelAndMask()
+  _,s,_,r,m = getModelAndMask()
   e = mul(0.95,s) # erroneous background slowness
 
   src = BornOperatorS.getSourceArray(ns) # sources
@@ -319,7 +417,7 @@ def goInversionQs():
   pixels(rx,sperc=99.5,title="r%d"%niter)
 
 #############################################################################
-# nonlinear inversion using line search
+# Nonlinear inversion using line search
 
 def goNonlinearInversionQs():
   niter = 1
@@ -328,7 +426,7 @@ def goNonlinearInversionQs():
   amplitudeResidual = False
 
   # Slowness models
-  _,t0,t1,m = getModelAndMask()
+  _,t0,_,t1,m = getModelAndMask()
   s0 = mul(s0scale,t0) # background slowness for migration
 
   # Allocate Wavefields.
@@ -399,7 +497,7 @@ def applyImagingCondition(u,a):
 
 def goNonlinearAmplitudeInversionQs():
   niter = 10
-  _,t0,t1,m = getModelAndMask()
+  _,t0,_,t1,m = getModelAndMask()
   s0 = mul(0.95,t0) # erroneous background slowness
   #s0 = mul(1.00,t0)
 
@@ -469,11 +567,11 @@ def twiceIntegrate(rec):
     mul(-1.0,d,d)
 
 #############################################################################
-# line search
+# Line search
 
 def updateModel(misfitFunction,s1):
   print 'searching for step length...'
-  _,_,t1,_ = getModelAndMask()
+  _,_,_,t1,_ = getModelAndMask()
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.10*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.1*max(abs(t1)); tol = 0.20*abs(b-a)
   #a,b = -1.0*max(abs(t1)),0.0*max(abs(t1)); tol = 0.20*abs(b-a)
@@ -538,7 +636,7 @@ class xAmplitudeMisfitFunction(MisfitFunction):
     return ra
 
 #############################################################################
-# warping and more
+# Warping and more
 
 def roughen(g):
   h = copy(g)
@@ -558,7 +656,7 @@ def mask(g,l2=0):
 
 def makeAmplitudeResiduals(rcp,rco):
   ns = len(rcp)
-  rcr = BornOperatorS.getReceiverArray(ns) # residuals
+  rcr = zeros(ns,Receiver) # residuals
   for isou in range(ns):
     dp = rcp[isou].getData()
     do = rco[isou].getData()
@@ -799,7 +897,7 @@ def cleanDir(dir):
     os.remove(f)
 
 #############################################################################
-# plotting
+# Plots
 
 gray = ColorMap.GRAY
 jet = ColorMap.JET
@@ -823,6 +921,8 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
     pv = sp.addPixels(st,sx,x)
     sp.setHLabel("Distance (km)")
     sp.setVLabel("Time (s)")
+  else:
+    pv = sp.addPixels(x)
   pv.setColorModel(cmap)
   if perc<100.0:
     pv.setPercentiles(100.0-perc,perc)

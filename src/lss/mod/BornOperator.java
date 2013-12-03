@@ -290,11 +290,12 @@ public class BornOperator {
 
   ////////////////////////////////////////////////////////////////////////////
   // shifts
-  //
+
   private static void applyForwardShifts(
     float[][] ts, Receiver rcx, Receiver rcy)
   {
     if (ts==null) return;
+    //System.out.println("applying forward shifts...");
     float[][] d = rcx.getData();
     float[][] e = applyShifts(ts,d,false);
     rcy.setData(e);
@@ -304,6 +305,7 @@ public class BornOperator {
     float[][] ts, Receiver rcx, Receiver rcy)
   {
     if (ts==null) return;
+    //System.out.println("applying adjoint shifts...");
     float[][] d = rcx.getData();
     float[][] e = applyShifts(ts,d,true);
     rcy.setData(e);

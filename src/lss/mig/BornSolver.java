@@ -6,6 +6,7 @@ import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 import lss.mod.*;
+import lss.opt.*;
 import lss.util.SharedFloat4;
 
 /**
@@ -27,7 +28,8 @@ public class BornSolver {
    * @param ts time shifts.
    */
   public BornSolver(
-    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    BornOperatorS born,
+    Source[] src, Receiver[] rcp, Receiver[] rco,
     RecursiveExponentialFilter ref, float[][] mp, float[][][] ts)
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
@@ -41,27 +43,49 @@ public class BornSolver {
     _ref = ref;
     _mp = mp;
     _ts = ts;
-    _qs = new QuadraticSolver(new Q());
   }
 
   public BornSolver(
-    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
-    RecursiveExponentialFilter ref, float[][] m)
+    BornOperatorS born,
+    Source[] src, Receiver[] rcp, Receiver[] rco,
+    RecursiveExponentialFilter ref, float[][] mp)
   {
-    this(born,src,rcp,rco,ref,m,null);
+    this(born,src,rcp,rco,ref,mp,null);
+  }
+
+  /**
+   * Solves for the reflectivity image.
+   * @param niter number of CG iterations to perform.
+   * @param rx input/output reflectivity image.
+   */
+  public void solve(int niter, float[][] rx) {
+    CgSolver cg = new CgSolver(0.0,niter);
+    VecArrayFloat2 vx = new VecArrayFloat2(rx);
+    VecArrayFloat2 vb = new VecArrayFloat2(makeB());
+    CgSolver.A ma = new A();
+    CgSolver.A mm = new M();
+    cg.solve(ma,mm,vb,vx);
   }
 
   public float[][] solve(int niter) {
-    ArrayVect2f v2y = (ArrayVect2f)_qs.solve(niter,null);
-    return v2y.getData();
+    float[][] rx = new float[_nz][_nx];
+    solve(niter,rx);
+    return rx;
   }
 
-  public void setObservedData(Receiver[] rco) {
-    _rco = rco;
+  // Old method using QuadraticSolver.
+  public float[][] xsolve(int niter) {
+    QuadraticSolver qs = new QuadraticSolver(new Q());
+    ArrayVect2f v2y = (ArrayVect2f)qs.solve(niter,null);
+    return v2y.getData();
   }
 
   public void setTimeShifts(float[][][] ts) {
     _ts = ts;
+  }
+
+  public void setObservedData(Receiver[] rco) {
+    _rco = rco;
   }
 
   public void setTrueReflectivity(float[][] r) {
@@ -83,7 +107,6 @@ public class BornSolver {
   private final int _nz,_nx;
   private final RecursiveExponentialFilter _ref; // roughening filter
   private final BornOperatorS _born;
-  private final QuadraticSolver _qs;
   private final Source[] _src;
   private final Receiver[] _rcp;
   private Receiver[] _rco;
@@ -94,40 +117,38 @@ public class BornSolver {
   private float[][][] _ts = null; // time shifts
   private BornOperatorS _bornt = null; // Born operator with true slowness
 
-  private class Q implements Quadratic {
-    public void multiplyHessian(Vect vx) {
-      ArrayVect2f v2x = (ArrayVect2f)vx;
-      float[][] rx = v2x.getData();
-      _born.applyHessian(_src,_rcp,rx,_ts,rx);
+  // LHS Hessian operator.
+  private void applyA(float[][] rx, float[][] ry) {
+    //System.out.println("Applying LHS...");
+    _born.applyHessian(_src,_rcp,rx,_ts,ry);
+  }
+
+  // Approximate inverse Hessian or preconditioner.
+  private void applyM(float[][] rx, float[][] ry) {
+    float[][] rz = new float[_nz][_nx];
+    if (_ref!=null) {
+      applyAdjointRoughen(_ref,rx,rz);
     }
-    public void inverseHessian(Vect vx) {
-      ArrayVect2f v2x = (ArrayVect2f)vx;
-      float[][] rx = v2x.getData();
-      float[][] ry = new float[_nz][_nx];
-      if (_ref!=null) {
-        applyAdjointRoughen(_ref,rx,ry);
-      }
-      if (_mp!=null) {
-        mul(_mp,ry,ry); // model precondition (mask) if non-null
-      }
-      if (_ref!=null) {
-        applyForwardRoughen(_ref,ry,rx);
+    if (_mp!=null) {
+      mul(_mp,rz,rz); // model precondition (mask) if non-null
+    }
+    if (_ref!=null) {
+      applyForwardRoughen(_ref,rz,ry);
+    }
+  }
+
+  // RHS vector.
+  private float[][] makeB() {
+    float[][] rb = new float[_nz][_nx];
+    if (_r!=null) {
+      if (_bornt!=null) {
+        _bornt.applyForward(_src,_r,_rco);
+      } else {
+        _born.applyForward(_src,_r,_rco);
       }
     }
-    public Vect getB() {
-      float[][] rb = new float[_nz][_nx];
-      ArrayVect2f vb = new ArrayVect2f(rb,1.0);
-      if (_r!=null) {
-        if (_bornt!=null) {
-          _bornt.applyForward(_src,_r,_rco);
-        } else {
-          _born.applyForward(_src,_r,_rco);
-        }
-      }
-      _born.applyAdjoint(_src,_rco,_ts,rb);
-      mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
-      return vb;
-    }
+    _born.applyAdjoint(_src,_rco,_ts,rb);
+    return rb;
   }
 
   private static void applyForwardRoughen(
@@ -153,5 +174,43 @@ public class BornSolver {
     add(1.0e-8f*max(ii),ii,ii); // stabilized
     div(1.0f,ii,ii); // inverted
     mul(1.0f/max(ii),ii,ii); // normalized
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // QuadraticSolver
+
+  private class Q implements Quadratic {
+    public void multiplyHessian(Vect vx) {
+      float[][] rx = ((ArrayVect2f)vx).getData();
+      applyA(rx,rx);
+    }
+    public void inverseHessian(Vect vx) {
+      float[][] rx = ((ArrayVect2f)vx).getData();
+      applyM(rx,rx);
+    }
+    public Vect getB() {
+      float[][] rb = makeB();
+      mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
+      return new ArrayVect2f(rb,1.0);
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // CgSolver
+
+  private class A implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][] rx = ((VecArrayFloat2)vx).getArray();
+      float[][] ry = ((VecArrayFloat2)vy).getArray();
+      applyA(rx,ry);
+    }
+  }
+
+  private class M implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][] rx = ((VecArrayFloat2)vx).getArray();
+      float[][] ry = ((VecArrayFloat2)vy).getArray();
+      applyM(rx,ry);
+    }
   }
 }

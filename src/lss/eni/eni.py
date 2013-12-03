@@ -17,14 +17,15 @@ savDir = None
 
 def main(args):
   #showFiles()
-  readFiles()
+  #readFiles()
   #goBornData()
   #goAcousticData()
   #resimulateData()
   #compareWavelets()
   #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
-  #goAmplitudeInversionQs()
+  #goAmplitudeInversionO() # shift observed data
+  goAmplitudeInversionP() # shift predicted data
 
 def getWavelet():
   #return readWavelet()
@@ -52,10 +53,11 @@ def setGlobals():
     sx = Sampling(3201,0.00625,0.0) # distance
     sz = Sampling(181,0.00625,0.0) # depth
     st = Sampling(3751,0.0004,0.0) # time
-    npmax = 8 # max number of parallel shots
+    #npmax = 8 # max number of parallel shots
+    npmax = 6 # max number of parallel shots
   #stride = 1
   stride = 2
-  #stride = 500
+  #stride = 1000
   ns,ds,fs = int((ss.count+stride-1)/stride),ss.delta,ss.first
   nr,dr,fr = sr.count,sr.delta,sr.first
   nt,dt,ft = st.count,st.delta,st.first
@@ -92,16 +94,11 @@ def getSourceAndReceiver():
     rcp[isou] = Receiver(kxr,kzr,len(e[0]))
   return src,rcp,rco
 
-def goAmplitudeInversionQs():
+def getInputs():
   vz = True # 1D velocity?
   warp3d = True # 3D warping?
-  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
-  nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   print 'vz=%r'%vz
   print 'warp3d=%r'%warp3d
-  print 'nouter=%r'%nouter
-  print 'ninner=%r'%ninner
-  print 'nfinal=%r'%nfinal
 
   # BornSolver
   print "allocating..."
@@ -118,34 +115,89 @@ def goAmplitudeInversionQs():
   # DataWarping
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
-  strainT,strainR,strainS = 0.20,0.20,0.50*stride if warp3d else -1.0
+  strainT,strainR,strainS = 0.20,0.20,0.50*stride
+  if strainS>1.0 or not warp3d:
+    strainS = -1.0
   smoothT,smoothR,smoothS = 32.0,4.0,4.0
   warping = DataWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
-  u = zerofloat(nt,nr,ns) # warping shifts
+  print 'strainT=%f'%strainT
+  print 'strainR=%f'%strainR
+  print 'strainS=%f'%strainS
 
+  pixels(s,cmap=jet,title='s')
+  pixels(m,cmap=gray,title='m')
+  return born,bs,src,rcp,rco,warping
+
+def goAmplitudeInversionO():
+  """Shift observed data."""
+  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
+  zeroReflectivity = True # zero reflectivity between outer iterations
+  born,bs,src,rcp,rco,warping = getInputs()
+  print 'nouter=%r'%nouter
+  print 'ninner=%r'%ninner
+  print 'nfinal=%r'%nfinal
+  r = zerofloat(nx,nz) # reflectivity
+  w = zerofloat(nt,nr,ns) # warping shifts
   for iouter in range(nouter+1):
     sw = Stopwatch(); sw.start()
-    r = bs.solve(nfinal if iouter==nouter else ninner);
-    pixels(r,cmap=gray,title='r%d'%iouter)
+    bs.solve(nfinal if iouter==nouter else ninner,r)
+    pixels(r,cmap=gray,sperc=100.0,title='r%d'%iouter)
     if iouter<nouter and nouter>0:
+      print "computing predicted data..."
       born.applyForward(src,r,rcp)
       print 'warping (3d=%r)'%warp3d
-      rcw = warping.warp(rcp,rco,u)
+      rcw = warping.warp(rcp,rco,w)
       bs.setObservedData(rcw)
       pixels(rcp[ns/2].getData(),title='rcp%d'%iouter)
       pixels(rcw[ns/2].getData(),title='rcw%d'%iouter)
-      pixels(u[ns/2],cmap=rwb,sperc=100.0,title='shifts%d'%iouter)
+      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iouter)
       if iouter==(nouter-1) and savDir is not None:
         dp = zerofloat(nt,nr,ns)
         for isou in range(ns):
           copy(rcp[isou].getData(),dp[isou])
         write(savDir+'dp.dat',dp)
-        write(savDir+'u.dat',u)
+        write(savDir+'w.dat',w)
+    if zeroReflectivity:
+      zero(r)
     sw.stop(); print 'outer: %.1f minutes'%(sw.time()/60.0)
-
   pixels(rco[ns/2].getData(),title='rco')
-  pixels(s,cmap=jet,title='s')
+
+def goAmplitudeInversionP():
+  """Shift predicted data."""
+  nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
+  zeroReflectivity = True # zero reflectivity between outer iterations
+  born,bs,src,rcp,rco,warping = getInputs()
+  print 'nouter=%r'%nouter
+  print 'ninner=%r'%ninner
+  print 'nfinal=%r'%nfinal
+  r = zerofloat(nx,nz) # reflectivity
+  w = zerofloat(nt,nr,ns) # warping shifts
+  for iouter in range(nouter+1):
+    sw = Stopwatch(); sw.start()
+    bs.solve(nfinal if iouter==nouter else ninner,r);
+    pixels(r,cmap=gray,sperc=100.0,title='r%d'%iouter)
+    if iouter<nouter and nouter>0:
+      print "computing predicted data..."
+      born.applyForward(src,r,rcp) # simulate predicted data
+      print 'warping...'
+      rcw = warping.warp(rco,rcp,w) # estimate new time shifts
+      bs.setTimeShifts(w) # set new time shifts
+      pixels(rcp[ns/2].getData(),title='rcp%d'%iouter)
+      pixels(rcw[ns/2].getData(),title='rcw%d'%iouter)
+      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iouter)
+      if iouter==(nouter-1) and savDir is not None:
+        dp = zerofloat(nt,nr,ns)
+        for isou in range(ns):
+          copy(rcp[isou].getData(),dp[isou])
+        write(savDir+'dp.dat',dp)
+        write(savDir+'w.dat',w)
+    if zeroReflectivity:
+      zero(r)
+    sw.stop(); print 'outer: %.1f minutes'%(sw.time()/60.0)
+  pixels(rco[ns/2].getData(),title='rco')
 
 def showFiles():
   w = readWavelet(); points(w)

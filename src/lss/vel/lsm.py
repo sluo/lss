@@ -22,13 +22,13 @@ sfile = None
 #sfile = '/home/sluo/Desktop/save/lsm/marmousi/95p/ares2/s1_4.dat'
 
 def main(args):
-  setupForLayered()
-  #setupForMarmousi()
+  #setupForLayered()
+  setupForMarmousi()
 
   #initialize()
   #compareData()
   #showData()
-  WaveformInversion()
+  #WaveformInversion()
   #AmplitudeInversion()
   #plotFiles()
 

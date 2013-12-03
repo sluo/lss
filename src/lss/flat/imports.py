@@ -22,3 +22,4 @@ from util import *
 
 from lss.flat import *
 from lss.util import *
+from lss.opt import *
