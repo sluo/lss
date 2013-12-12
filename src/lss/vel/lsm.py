@@ -7,7 +7,7 @@ from warp import *
 #############################################################################
 
 pngdatDir = None
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
@@ -29,7 +29,7 @@ def main(args):
   #compareData()
   #showData()
   #WaveformInversion()
-  #AmplitudeInversion()
+  AmplitudeInversion()
   #plotFiles()
 
   #plotWarpings()
@@ -48,21 +48,21 @@ def setupForMarmousi():
   nz,nx,nt = sz.count,sx.count,st.count
   dz,dx,dt = sz.delta,sx.delta,st.delta
   #kxs,kzs = [0],[0]
-  kxs,kzs = [nx/2],[0]
+  #kxs,kzs = [nx/2],[0]
   #kxs,kzs = [nx-1],[0]
   #kxs,kzs = rampint(6,58,14),fillint(0,14)
   #kxs,kzs = rampint(3,33,24),fillint(0,24)
   #kxs,kzs = rampint(1,15,52),fillint(0,52)
-  #kxs,kzs = rampint(3,10,77),fillint(0,77)
+  kxs,kzs = rampint(3,10,77),fillint(0,77)
   #kxs,kzs = rampint(3,5,153),fillint(0,153)
   kxr,kzr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(kxs),len(kxr)
   #tt,t0,t1,s0,s1 = getMarmousi() # no error in background slowness s0
-  #tt,t0,t1,s0,s1 = getMarmousi(econst=-0.05) # constant error in s0
+  tt,t0,t1,s0,s1 = getMarmousi(econst=-0.05) # constant error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(egauss=0.25) # gaussian error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(erand=0.25) # random error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(erand=-0.25) # random error in s0
-  tt,t0,t1,s0,s1 = getMarmousi(erand=0.10) # random error in s0
+  #tt,t0,t1,s0,s1 = getMarmousi(erand=0.10) # random error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(erand=-0.10) # random error in s0
   plots(tt,t0,t1,s0,s1)
   if sfile is not None:
@@ -70,10 +70,10 @@ def setupForMarmousi():
   psou = min(14,ns)
   #psou = min(8,ns)
   fpeak = 10.0
-  niter = 20
+  niter = 10
   sw = Stopwatch(); sw.start()
-  u = zeros(nz,nx,nt,psou)
-  a = zeros(nz,nx,nt,psou)
+  u = zerofloat4(nz,nx,nt,psou)
+  a = zerofloat4(nz,nx,nt,psou)
   report('allocate',sw)
 
 def setupForLayered():
@@ -104,8 +104,8 @@ def setupForLayered():
   fpeak = 10.0
   niter = 1
   sw = Stopwatch(); sw.start()
-  u = zeros(nz,nx,nt,psou)
-  a = zeros(nz,nx,nt,psou)
+  u = zerofloat4(nz,nx,nt,psou)
+  a = zerofloat4(nz,nx,nt,psou)
   report('allocate',sw)
 
 def plots(tt,t0,t1,s0,s1):
@@ -131,8 +131,8 @@ def initialize():
   #_t,_t0,_t1,_s0,_s1 = getMarmousi(sigma=0.1)
   _t,_t0,_t1,_s0,_s1 = getMarmousi(sigma=0.1,s0mul=0.95)
   sw = Stopwatch(); sw.start()
-  _u = zeros(nz,nx,nt,psou)
-  _a = zeros(nz,nx,nt,psou)
+  _u = zerofloat4(nz,nx,nt,psou)
+  _a = zerofloat4(nz,nx,nt,psou)
   report('allocate',sw)
   s0min,s0max = min(_t0),max(_t0)
   #s0min,s0max = min(min(_s0),min(_t0)),max(max(_s0),max(_t0))

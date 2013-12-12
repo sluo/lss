@@ -17,7 +17,7 @@ savDir = None
 
 def main(args):
   #showFiles()
-  #readFiles()
+  readFiles()
   #goBornData()
   #goAcousticData()
   #resimulateData()
@@ -25,7 +25,7 @@ def main(args):
   #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
   #goAmplitudeInversionO() # shift observed data
-  goAmplitudeInversionP() # shift predicted data
+  #goAmplitudeInversionP() # shift predicted data
 
 def getWavelet():
   #return readWavelet()
@@ -166,7 +166,8 @@ def goAmplitudeInversionO():
 
 def goAmplitudeInversionP():
   """Shift predicted data."""
-  nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  nouter,ninner,nfinal = 5,1,5 # outer, inner, final after last outer
+  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   zeroReflectivity = True # zero reflectivity between outer iterations
   born,bs,src,rcp,rco,warping = getInputs()
@@ -210,13 +211,13 @@ def showFiles():
 def readFiles():
   ra = zerofloat(nz,nx)
   rb = zerofloat(nz,nx)
-  #read('/home/sluo/Desktop/save/eni/subc/iter525/r5.dat',ra);
-  #read('/home/sluo/Desktop/save/eni/subc/iter005/r0.dat',rb);
-  #read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',ra);
-  read('/home/sluo/Desktop/save/eni/subc/n/iter005vz/r0.dat',ra);
-  read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',rb);
+  #rc = zerofloat(nz,nx)
+  read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',ra);
+  read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',rb);
+  #read('/home/sluo/Desktop/save/eni/subc/n/iter515vz/r5.dat',rc);
   pixels(ra,cmap=gray,sperc=98.0)
   pixels(rb,cmap=gray,sperc=98.0)
+  #pixels(rc,cmap=gray,sperc=98.0)
   """
   dp = zerofloat(nt,nr,ns)
   read('/home/sluo/Desktop/eni_save/less_time_delay/525_vz/dp.dat',dp)
