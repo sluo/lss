@@ -6,9 +6,9 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 import lss.mod.Receiver;
 
-public class DataWarping {
+public class ImageWarping {
 
-  public DataWarping(
+  public ImageWarping(
     double strainT, double strainR, double strainS,
     double smoothT, double smoothR, double smoothS,
     double maxShift, double dt)
@@ -16,7 +16,7 @@ public class DataWarping {
     this(strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,1);
   }
 
-  public DataWarping(
+  public ImageWarping(
     double strainT, double strainR, double strainS,
     double smoothT, double smoothR, double smoothS,
     double maxShift, double dt, int td)

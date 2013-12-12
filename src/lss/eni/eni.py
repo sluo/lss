@@ -112,14 +112,14 @@ def getInputs():
   born = BornOperatorS(s,dx,dt,nabsorb,u,a)
   bs = BornSolver(born,src,rcp,rco,ref,m)
 
-  # DataWarping
+  # ImageWarping
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
   strainT,strainR,strainS = 0.20,0.20,0.50*stride
   if strainS>1.0 or not warp3d:
     strainS = -1.0
   smoothT,smoothR,smoothS = 32.0,4.0,4.0
-  warping = DataWarping(
+  warping = ImageWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
   print 'strainT=%f'%strainT
   print 'strainR=%f'%strainR

@@ -10,10 +10,9 @@ import lss.opt.*;
 import lss.util.SharedFloat4;
 
 /**
- * Linearized waveform inversion, with the option to
- * include time-shifts within the forward modeling operator.
+ * Solver to migrate each shot individually.
  * @author Simon Luo, Colorado School of Mines
- * @version 2013.11.22
+ * @version 2013.12.02
  */
 public class BornSolver {
 
@@ -34,6 +33,7 @@ public class BornSolver {
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
     int[] nxz = born.getNxNz();
+    _ns = src.length;
     _nx = nxz[0];
     _nz = nxz[1];
     _born = born;
@@ -60,10 +60,12 @@ public class BornSolver {
    */
   public void solve(int niter, float[][] rx) {
     CgSolver cg = new CgSolver(0.0,niter);
+    float[][] rb = new float[_nz][_nx];
+    makeB(rb);
     VecArrayFloat2 vx = new VecArrayFloat2(rx);
-    VecArrayFloat2 vb = new VecArrayFloat2(makeB());
-    CgSolver.A ma = new A();
-    CgSolver.A mm = new M();
+    VecArrayFloat2 vb = new VecArrayFloat2(rb);
+    CgSolver.A ma = new A2();
+    CgSolver.A mm = new M2();
     cg.solve(ma,mm,vb,vx);
   }
 
@@ -71,6 +73,23 @@ public class BornSolver {
     float[][] rx = new float[_nz][_nx];
     solve(niter,rx);
     return rx;
+  }
+
+  /**
+   * Solves for the reflectivity images for each shot individually.
+   * @param niter number of CG iterations to perform.
+   * @param rx input/output reflectivity image.
+   */
+  public void solve(int niter, float[][][] rx) {
+    Check.argument(rx.length==_ns,"rx.length==_ns");
+    CgSolver cg = new CgSolver(0.0,niter);
+    float[][][] rb = new float[_ns][_nz][_nx];
+    makeB(rb);
+    VecArrayFloat3 vx = new VecArrayFloat3(rx);
+    VecArrayFloat3 vb = new VecArrayFloat3(rb);
+    CgSolver.A ma = new A3();
+    CgSolver.A mm = new M3();
+    cg.solve(ma,mm,vb,vx);
   }
 
   // Old method using QuadraticSolver.
@@ -104,7 +123,7 @@ public class BornSolver {
   // private
 
   // required parameters
-  private final int _nz,_nx;
+  private final int _ns,_nz,_nx;
   private final RecursiveExponentialFilter _ref; // roughening filter
   private final BornOperatorS _born;
   private final Source[] _src;
@@ -123,7 +142,12 @@ public class BornSolver {
     _born.applyHessian(_src,_rcp,rx,_ts,ry);
   }
 
-  // Approximate inverse Hessian or preconditioner.
+  // LHS Hessian operator for each shot individually.
+  private void applyA(float[][][] rx, float[][][] ry) {
+    _born.applyHessian(_src,_rcp,rx,_ts,ry);
+  }
+
+  // Preconditioner.
   private void applyM(float[][] rx, float[][] ry) {
     float[][] rz = new float[_nz][_nx];
     if (_ref!=null) {
@@ -137,9 +161,28 @@ public class BornSolver {
     }
   }
 
+  // Preconditioner for each shot individually.
+  private void applyM(final float[][][] rx, final float[][][] ry) {
+    final int ns = rx.length;
+    Parallel.loop(ns,new Parallel.LoopInt() {
+    public void compute(int isou) {
+      float[][] rxi = rx[isou];
+      float[][] ryi = ry[isou];
+      float[][] rzi = new float[_nz][_nx];
+      if (_ref!=null) {
+        applyAdjointRoughen(_ref,rxi,rzi);
+      }
+      if (_mp!=null) {
+        mul(_mp,rzi,rzi); // model precondition (mask) if non-null
+      }
+      if (_ref!=null) {
+        applyForwardRoughen(_ref,rzi,ryi);
+      }
+    }});
+  }
+
   // RHS vector.
-  private float[][] makeB() {
-    float[][] rb = new float[_nz][_nx];
+  private void makeB(float[][] rb) {
     if (_r!=null) {
       if (_bornt!=null) {
         _bornt.applyForward(_src,_r,_rco);
@@ -148,7 +191,18 @@ public class BornSolver {
       }
     }
     _born.applyAdjoint(_src,_rco,_ts,rb);
-    return rb;
+  }
+
+  // RHS vector for each shot individually.
+  private void makeB(float[][][] rb) {
+    if (_r!=null) {
+      if (_bornt!=null) {
+        _bornt.applyForward(_src,_r,_rco);
+      } else {
+        _born.applyForward(_src,_r,_rco);
+      }
+    }
+    _born.applyAdjoint(_src,_rco,_ts,rb);
   }
 
   private static void applyForwardRoughen(
@@ -177,6 +231,41 @@ public class BornSolver {
   }
 
   ////////////////////////////////////////////////////////////////////////////
+  // CgSolver
+
+  private class A2 implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][] rx = ((VecArrayFloat2)vx).getArray();
+      float[][] ry = ((VecArrayFloat2)vy).getArray();
+      applyA(rx,ry);
+    }
+  }
+
+  private class M2 implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][] rx = ((VecArrayFloat2)vx).getArray();
+      float[][] ry = ((VecArrayFloat2)vy).getArray();
+      applyM(rx,ry);
+    }
+  }
+
+  private class A3 implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][][] rx = ((VecArrayFloat3)vx).getArray();
+      float[][][] ry = ((VecArrayFloat3)vy).getArray();
+      applyA(rx,ry);
+    }
+  }
+
+  private class M3 implements CgSolver.A {
+    public void apply(Vec vx, Vec vy) {
+      float[][][] rx = ((VecArrayFloat3)vx).getArray();
+      float[][][] ry = ((VecArrayFloat3)vy).getArray();
+      applyM(rx,ry);
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
   // QuadraticSolver
 
   private class Q implements Quadratic {
@@ -189,28 +278,10 @@ public class BornSolver {
       applyM(rx,rx);
     }
     public Vect getB() {
-      float[][] rb = makeB();
+      float[][] rb = new float[_nz][_nx];
+      makeB(rb);
       mul(-1.0f,rb,rb); // Harlan's B defined as negative of RHS of Ax=b.
       return new ArrayVect2f(rb,1.0);
-    }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////
-  // CgSolver
-
-  private class A implements CgSolver.A {
-    public void apply(Vec vx, Vec vy) {
-      float[][] rx = ((VecArrayFloat2)vx).getArray();
-      float[][] ry = ((VecArrayFloat2)vy).getArray();
-      applyA(rx,ry);
-    }
-  }
-
-  private class M implements CgSolver.A {
-    public void apply(Vec vx, Vec vy) {
-      float[][] rx = ((VecArrayFloat2)vx).getArray();
-      float[][] ry = ((VecArrayFloat2)vy).getArray();
-      applyM(rx,ry);
     }
   }
 }

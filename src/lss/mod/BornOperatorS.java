@@ -140,6 +140,46 @@ public class BornOperatorS {
   }
 
   /**
+   * Applies the adjoint operator for each shot individually.
+   * @param source input sources for computing background wavefields. 
+   * @param receiver input receivers containing data to be migrated.
+   * @param ts input time shifts.
+   * @param ry output reflectivity images.
+   */
+  public void applyAdjoint(
+    final Source[] source, final Receiver[] receiver, final float[][][] ts,
+    final float[][][] ry)
+  {
+    Check.argument(ry[0][0].length==_nx,"consistent nx");
+    Check.argument(ry[0].length==_nz,"consistent nz");
+    final int ns = source.length;
+    final int nx = ry[0][0].length;
+    final int nz = ry[0].length;
+    final int np = _a.getN4(); // number of parallel shots
+    PartialParallel parallel = new PartialParallel(np);
+    parallel.loop(ns,new Parallel.LoopInt() {
+      public void compute(int isou) {
+        float[][] ryi = ry[isou];
+        float[][][] u = _u.get(isou);
+        float[][][] a = _a.get(isou);
+        float[][] rt = new float[nz][nx];
+        if (ts==null) {
+          _born.applyAdjoint(source[isou],u,a,receiver[isou],ryi);
+        } else {
+          _born.applyAdjoint(source[isou],u,a,receiver[isou],ts[isou],ryi);
+        }
+      }
+    });
+  }
+
+  public void applyAdjoint(
+    Source[] source, Receiver[] receiver,
+    float[][][] ry)
+  {
+    applyAdjoint(source,receiver,null,ry);
+  }
+
+  /**
    * Applies the Hessian operator.
    * @param source input sources for computing background wavefields. 
    * @param receiver input receivers containing data to be migrated.
@@ -183,6 +223,49 @@ public class BornOperatorS {
   public void applyHessian(
     Source[] source, Receiver[] receiver, float[][] rx,
     float[][] ry)
+  {
+    applyHessian(source,receiver,rx,null,ry);
+  }
+
+  /**
+   * Applies the Hessian operator for each shot individually.
+   * @param source input sources for computing background wavefields. 
+   * @param receiver input receivers containing data to be migrated.
+   * @param rx input reflectivity images.
+   * @param ry output reflectivity images.
+   */
+  public void applyHessian(
+    final Source[] source, final Receiver[] receiver,
+    final float[][][] rx, final float[][][] ts,
+    final float[][][] ry)
+  {
+    Check.argument(rx[0][0].length==_nx,"consistent nx");
+    Check.argument(rx[0].length==_nz,"consistent nz");
+    Check.argument(ry[0][0].length==_nx,"consistent nx");
+    Check.argument(ry[0].length==_nz,"consistent nz");
+    final int ns = receiver.length;
+    final int nx = ry[0][0].length;
+    final int nz = ry[0].length;
+    final int np = _a.getN4(); // number of parallel shots
+    PartialParallel parallel = new PartialParallel(np);
+    parallel.loop(ns,new Parallel.LoopInt() {
+      public void compute(int isou) {
+        float[][] rxi = rx[isou];
+        float[][] ryi = ry[isou];
+        float[][][] u = _u.get(isou);
+        float[][][] a = _a.get(isou);
+        if (ts==null) {
+          _born.applyHessian(source[isou],receiver[isou],u,a,rxi,ryi);
+        } else {
+          _born.applyHessian(source[isou],receiver[isou],u,a,rxi,ts[isou],ryi);
+        }
+      }
+    });
+  }
+
+  public void applyHessian(
+    final Source[] source, final Receiver[] receiver, final float[][][] rx,
+    final float[][][] ry)
   {
     applyHessian(source,receiver,rx,null,ry);
   }

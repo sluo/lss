@@ -224,7 +224,8 @@ def getModelAndMask():
   pixels(t,cmap=jet,title='t')
   pixels(s,cmap=jet,title='s')
   pixels(e,cmap=jet,title='e')
-  pixels(m,cmap=gray,title='m')
+  if m is not None:
+    pixels(m,cmap=gray,title='m')
   pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
   pixels(r,cmap=gray,sperc=100.0,title='r')
   return t,s,e,r,p
@@ -279,7 +280,7 @@ def getInputs():
   strainT,strainR,strainS = 0.50,0.20,1.00 if warp3d else -1.0
   #smoothT,smoothR,smoothS = 16.0,4.0,4.0
   smoothT,smoothR,smoothS = 32.0,8.0,8.0
-  warp = DataWarping(
+  warp = ImageWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
   w = zerofloat(nt,nr,ns) # warping shifts
 
