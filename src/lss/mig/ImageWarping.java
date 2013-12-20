@@ -9,33 +9,33 @@ import lss.mod.Receiver;
 public class ImageWarping {
 
   public ImageWarping(
-    double strainT, double strainR, double strainS,
-    double smoothT, double smoothR, double smoothS,
-    double maxShift, double dt)
+    double strain1, double strain2, double strain3,
+    double smooth1, double smooth2, double smooth3,
+    double maxShift, double d1)
   {
-    this(strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,1);
+    this(strain1,strain2,strain3,smooth1,smooth2,smooth3,maxShift,d1,1);
   }
 
   public ImageWarping(
-    double strainT, double strainR, double strainS,
-    double smoothT, double smoothR, double smoothS,
-    double maxShift, double dt, int td)
+    double strain1, double strain2, double strain3,
+    double smooth1, double smooth2, double smooth3,
+    double maxShift, double d1, int t1)
   {
-    Check.argument(td>=1,"td>=1");
-    int shiftMax = (int)(maxShift/(td*dt));
+    Check.argument(t1>=1,"t1>=1");
+    int shiftMax = (int)(maxShift/(t1*d1));
     _warp = new DynamicWarping(-shiftMax,shiftMax);
-    _warp.setShiftSmoothing(smoothT/td,smoothR,smoothS); // shift smoothing
+    _warp.setShiftSmoothing(smooth1/t1,smooth2,smooth3); // shift smoothing
     _warp.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE);
     _warp.setErrorSmoothing(2); // number of smoothings of alignment errors
-    if (strainS<=0.0) {
-      _warp.setStrainMax(strainT,strainR);
+    if (strain3<=0.0) {
+      _warp.setStrainMax(strain1,strain2);
       _3d = false;
     } else {
-      _warp.setStrainMax(strainT,strainR,strainS);
+      _warp.setStrainMax(strain1,strain2,strain3);
       _3d = true;
     }
-    _td = td;
-    _sigmaRms = 1.0*maxShift/(td*dt);
+    _t1 = t1;
+    _sigmaRms = 1.0*maxShift/(t1*d1);
   }
 
   public Receiver[] warp(Receiver[] rp, Receiver[] ro) {
@@ -53,20 +53,20 @@ public class ImageWarping {
     final int nt = u[0][0].length;
     final int nr = u[0].length;
     final int ns = u.length;
-    final int ntm = nt/_td;
+    final int ntm = nt/_t1;
     float[][][] ep = new float[ns][][];
     float[][][] eo = new float[ns][][];
     float[][][] uu = new float[ns][nr][ntm];
     for (int is=0; is<ns; ++is) {
-      ep[is] = copy(ntm,nr,0,0,_td,1,rp[is].getData());
-      eo[is] = copy(ntm,nr,0,0,_td,1,ro[is].getData());
+      ep[is] = copy(ntm,nr,0,0,_t1,1,rp[is].getData());
+      eo[is] = copy(ntm,nr,0,0,_t1,1,ro[is].getData());
     }
-    findShifts(ep,eo,uu);
-    if (_td>1) { // if decimated, interpolate shifts
-      mul((float)_td,uu,uu); // scale shifts to compensate for decimation
+    filterAndFindShifts(ep,eo,uu);
+    if (_t1>1) { // if decimated, interpolate shifts
+      mul((float)_t1,uu,uu); // scale shifts to compensate for decimation
       final LinearInterpolator li = new LinearInterpolator();
       li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT);
-      li.setUniform(ntm,_td,0.0,nr,1.0,0.0,ns,1.0,0.0,uu);
+      li.setUniform(ntm,_t1,0.0,nr,1.0,0.0,ns,1.0,0.0,uu);
       Parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int is) {
         for (int ir=0; ir<nr; ++ir) {
@@ -85,27 +85,38 @@ public class ImageWarping {
     return rw;
   }
 
+  public void findShifts(
+    final float[][][] f, final float[][][] g, final float[][][] u)
+  {
+    if (_3d) {
+      _warp.findShifts(f,g,u);
+    } else {
+      int ns = f.length;
+      Parallel.loop(ns,new Parallel.LoopInt() {
+      public void compute(int is) {
+        _warp.findShifts(f[is],g[is],u[is]);
+      }});
+    }
+  }
+
+  public float[][][] applyShifts(float[][][] u, float[][][] g) {
+    return _warp.applyShifts(u,g);
+  }
+
   //////////////////////////////////////////////////////////////////////////
 
-  private int _td; // time decimation
+  private int _t1; // decimate along in direction 1, e.g., time
   private boolean _3d; // true for 3D warping
   private double _sigmaRms; // sigma for RMS filtering
   private DynamicWarping _warp;
 
-  private void findShifts(
+  // public for now
+  public void filterAndFindShifts(
     final float[][][] rp, final float[][][] ro, final float[][][] u)
   {
     rmsFilter(rp,ro);
     addRandomNoise(10.0f,rp,ro);
-    if (_3d) {
-      _warp.findShifts(rp,ro,u);
-    } else {
-      int ns = rp.length;
-      Parallel.loop(ns,new Parallel.LoopInt() {
-      public void compute(int is) {
-        _warp.findShifts(rp[is],ro[is],u[is]);
-      }});
-    }
+    findShifts(rp,ro,u);
   }
 
   private void addRandomNoise(float snr, float[][][] x, float[][][] y) {
@@ -127,8 +138,9 @@ public class ImageWarping {
   }
 
   private void rmsFilter(float[][][] x, float[][][] y) {
-    plot(x[0],"x before");
-    plot(y[0],"y before");
+    int ns = x.length;
+    plot(x[ns/2],"x before");
+    plot(y[ns/2],"y before");
 
     equalize(x,y);
     float[][][] xx = abs(x);
@@ -150,7 +162,7 @@ public class ImageWarping {
     ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE);
     if (_3d) {
       ref.apply(xx,xx);
-      ref.apply(xx,xx);
+      ref.apply(yy,yy);
     } else {
       ref.apply2(xx,xx);
       ref.apply1(xx,xx);
@@ -158,20 +170,20 @@ public class ImageWarping {
       ref.apply1(yy,yy);
     }
 
-    plot(xx[0],"xx smoothed");
-    plot(yy[0],"yy smoothed");
+    plot(xx[ns/2],"xx smoothed");
+    plot(yy[ns/2],"yy smoothed");
 
     // numerator = 2*xx*yy
     float[][][] num = mul(2.0f,xx);
     mul(yy,num,num);
-    plot(num[0],"num");
+    plot(num[ns/2],"num");
 
     // denominator = xx^2+yy^2
     mul(xx,xx,xx);
     mul(yy,yy,yy);
     add(xx,yy,xx); // den = xx^2+yy^2
     add(1.0E-3f*max(xx),xx,xx);
-    plot(xx[0],"den");
+    plot(xx[ns/2],"den");
 
     // scale = numerator/denominator
     div(num,xx,num);
@@ -181,16 +193,18 @@ public class ImageWarping {
     mul(num,y,y);
     equalize(x,y);
 
-    plot(num[0],"scale");
-    plot(x[0],"x after");
-    plot(y[0],"y after");
+    plot(num[ns/2],"scale");
+    plot(x[ns/2],"x after");
+    plot(y[ns/2],"y after");
   }
 
   private static void plot(float[][] x, String title) {
-    //edu.mines.jtk.mosaic.SimplePlot sp =
-    //  edu.mines.jtk.mosaic.SimplePlot.asPixels(x);
-    //sp.setTitle(title);
-    //sp.addColorBar();
+    /*
+    edu.mines.jtk.mosaic.SimplePlot sp =
+      edu.mines.jtk.mosaic.SimplePlot.asPixels(x);
+    sp.setTitle(title);
+    sp.addColorBar();
+    */
   }
 
   private static void equalize(float[][][] x, float[][][] y) {
