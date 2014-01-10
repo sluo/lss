@@ -94,12 +94,24 @@ public class ImageWarping {
       int ns = f.length;
       Parallel.loop(ns,new Parallel.LoopInt() {
       public void compute(int is) {
-        _warp.findShifts(f[is],g[is],u[is]);
+        findShifts(f[is],g[is],u[is]);
       }});
     }
   }
 
+  public void findShifts(float[][] f, float[][] g, float[][] u) {
+    _warp.findShifts(f,g,u);
+  }
+
+  public float[][] findShifts(float[][] f, float[][] g) {
+    return _warp.findShifts(f,g);
+  }
+
   public float[][][] applyShifts(float[][][] u, float[][][] g) {
+    return _warp.applyShifts(u,g);
+  }
+
+  public float[][] applyShifts(float[][] u, float[][] g) {
     return _warp.applyShifts(u,g);
   }
 

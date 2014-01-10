@@ -14,7 +14,7 @@ import edu.mines.jtk.mosaic.*;
  * Acoustic constant-density Born modeling with an optional 
  * time-shift operator, parallelized over sources.
  * @see lss.vel.BornOperator
- * @author Simon Luo, Colorado SChool
+ * @author Simon Luo, Colorado School of Mines
  * @version 2013.11.20
  */
 public class BornOperatorS {
@@ -37,7 +37,6 @@ public class BornOperatorS {
     _born = new BornOperator(s,dx,dt,nabsorb);
     _u = u;
     _a = a;
-    _s = s;
     _nx = s[0].length;
     _nz = s.length;
     _nabsorb = nabsorb;
@@ -56,7 +55,6 @@ public class BornOperatorS {
   }
 
   public void setSlowness(float[][] s) {
-    copy(s,_s);
     _born.setSlowness(s);
   }
 
@@ -342,7 +340,6 @@ public class BornOperatorS {
 
   private final int _nabsorb;
   private final int _nx,_nz;
-  private final float[][] _s;
   private final SharedFloat4 _u;
   private final SharedFloat4 _a;
   private final BornOperator _born;

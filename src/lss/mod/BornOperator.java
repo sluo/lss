@@ -40,7 +40,7 @@ public class BornOperator {
   }
 
   public void setSlowness(float[][] s) {
-    copy(s,_s);
+    _s = s;
     _wave.setSlowness(s);
   }
 
