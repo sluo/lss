@@ -7,9 +7,9 @@ from warp import *
 #############################################################################
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 gfile = None
 pfile = None
@@ -70,7 +70,7 @@ def setupForMarmousi():
   psou = min(14,ns)
   #psou = min(8,ns)
   fpeak = 10.0
-  niter = 10
+  niter = 5
   sw = Stopwatch(); sw.start()
   u = zerofloat4(nz,nx,nt,psou)
   a = zerofloat4(nz,nx,nt,psou)
@@ -596,7 +596,7 @@ class AmplitudeInversion(Inversion):
   def residual(self,ds,do,ra=None):
     if ra is None:
       ra = like(ds)
-    makeWarpedResidual(ds,do,ra=ra)
+    makeWarpedResidual(ds,do,ra=ra,adjoint=True) # XXX: use adjoint?
     return ra
   def getMisfitFunction(self,g,isou,do):
     return AmplitudeMisfitFunction(g,isou,do)
@@ -643,14 +643,15 @@ def makeWarpedResidualP(ds,do,ra=None,rt=None,rc=None,dw=None,v=None):
 #          sub(dsi,dwi,rai)
 #  Parallel.loop(nsou,Loop())
 
-def makeWarpedResidual(ds,do,ra=None,rt=None,rc=None,dw=None,v=None):
+def makeWarpedResidual(ds,do,ra=None,rt=None,rc=None,
+                       dw=None,v=None,adjoint=False):
   reverseOrder = False
   if dw is None:
     dw = like(ds)
   if v is None:
     v = like(ds)
   if reverseOrder:
-    warp(do,ds,dw,v) # wrong order
+    warp(do,ds,dw,v,adjoint=adjoint) # wrong order
     mul(-1.0,v,v)
     if ra is not None:
       sub(dw,do,ra)
@@ -662,70 +663,14 @@ def makeWarpedResidual(ds,do,ra=None,rt=None,rc=None,dw=None,v=None):
   else:
     if (rt is None) and (rc is not None):
       rt = like(ds)
-    warp(ds,do,dw,v,rt) # right order
+    warp(ds,do,dw,v,rt,adjoint=adjoint) # right order
     if ra is not None:
       sub(ds,dw,ra)
     if rc is not None:
       sub(ds,dw,rc)
       add(rt,rc,rc)
-def xmakeWarpedResidual(ds,do,u=None,wd=None):
-  reverseOrder = False
-  if reverseOrder:
-    dw,v = warp(do,ds) # wrong order
-    mul(-1.0,v,v)
-    rt = mul(v,timeDerivative(ds)) # traveltime residual
-    ra = sub(dw,do) # warped residual
-  else:
-    rt = like(do)
-    dw,v = warp(ds,do,rt=rt) # right order
-    ra = sub(ds,dw) # warped residual
-  if u is not None:
-    copy(v,u)
-  if wd is not None:
-    copy(dw,wd)
-  return rt,ra,add(rt,ra)
 
-def xwarp(ds,do,dw=None,v=None,rt=None):
-  """Smooth dynamic warping"""
-  doRmsFilter = True # filter by local rms amplitudes
-  doEgain = False # exponential gain from first arrivals
-  maxShift = 0.5 # max shift in seconds
-  sw = Stopwatch(); sw.start()
-  doc = copy(do)
-  if sum(ds)==0.0:
-    return doc,like(doc)
-  if doRmsFilter:
-    ds,do = rmsFilter(ds,do,sigma=0.5*maxShift)
-  if doEgain:
-    ds,do = egain(ds),egain(do)
-  ds,do = addRandomNoise(10.0,ds,do,sigma=1.0)
-
-  r1max,r2max = 0.25,0.10 # strain limits (r1max in s/s, r2max in s/km)
-  #d1min,d2min = 20*dt,20*dx # smoothness (d1min in seconds, d2min in km)
-  d1min,d2min = 50*dt,50*dx # smoothness (d1min in seconds, d2min in km)
-  warp = DynamicWarpingR(-maxShift,maxShift,st,sx)
-  warp.setStrainLimits(-r1max,r1max,-r2max,r2max)
-  warp.setSmoothness(d1min,d2min)
-  if v is None:
-    v = warp.findShifts(st,ds,st,do)
-  else:
-    copy(warp.findShifts(st,ds,st,do),v)
-  if dw is None:
-    dw = warp.applyShifts(st,doc,v)
-  else:
-    copy(warp.applyShifts(st,doc,v),dw)
-  if rt is not None:
-    rt = warp.applyShifts(st,timeDerivative(doc),v)
-    mul(v,rt,rt)
-
-  #report('warping',sw)
-  #plot(ds,title='f') # used for dynamic warping
-  #plot(do,title='g') # used for dynamic warping
-  #plot(dw,title='h') # warped
-  #plot(v,sperc=100.0,title='shifts')
-  return dw,v
-
-def warp(ds,do,dw=None,v=None,rt=None):
+def warp(ds,do,dw=None,v=None,rt=None,adjoint=False):
   doRmsFilter = True # filter by local rms amplitudes
   doEgain = False # exponential gain from first arrivals
   doAgc = False # agc
@@ -769,9 +714,11 @@ def warp(ds,do,dw=None,v=None,rt=None):
       v[ir][it] = li.interpolate(t,z) # interpolate shifts
   if dw is None:
     dw = zerofloat(nt,nr)
-  warp.applyShifts(v,doc,dw)
+  #warp.applyShifts(v,doc,dw)
+  applyShifts(v,doc,dw,adjoint)
   if rt is not None:
-    warp.applyShifts(v,timeDerivative(doc),rt)
+    #warp.applyShifts(v,timeDerivative(doc),rt)
+    applyShifts(v,timeDerivative(doc),rt,adjoint)
     mul(v,rt,rt)
   #report('warping',sw)
   #plot(ds,title='f') # used for dynamic warping
@@ -779,7 +726,25 @@ def warp(ds,do,dw=None,v=None,rt=None):
   #plot(dw,title='h') # warped
   #plot(v,sperc=100.0,title='shifts')
   return dw,v
-  
+
+def applyForwardShifts(u,g,h):
+  applyShifts(u,g,h,False)
+def applyAdjointShifts(u,g,h):
+  applyShifts(u,g,h,True)
+def applyShifts(u,g,h,adjoint):
+  n1,n2 = len(u[0]),len(u)
+  r = rampfloat(0.0,1.0,n1)
+  si = SincInterp()
+  class Loop(Parallel.LoopInt):
+    def compute(self,i2):
+      p = add(r,u[i2])
+      if adjoint:
+        zero(h[i2]) # XXX: necessary?
+        si.accumulate(n1,p,g[i2],n1,1.0,0.0,h[i2]);
+      else:
+        si.interpolate(n1,1.0,0.0,g[i2],n1,p,h[i2]);
+  Parallel.loop(n2,Loop())
+
 def rmsFilter(ds,do,sigma=0.1):
   x,y = copy(ds),copy(do)
   rmsx = rms(x)

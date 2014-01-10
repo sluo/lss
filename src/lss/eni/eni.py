@@ -11,20 +11,20 @@ subDir = '/data/sluo/eni/dat/subc/'
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
 #savDir = '/home/sluo/Desktop/pngdat2/'
-#savDir = '/home/sluo/Desktop/pngdat3/'
+savDir = '/home/sluo/Desktop/pngdat3/'
 
 ##############################################################################
 
 def main(args):
   #showFiles()
-  readFiles()
+  #readFiles()
   #goBornData()
   #goAcousticData()
   #resimulateData()
   #compareWavelets()
   #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
-  #goAmplitudeInversionO() # shift observed data
+  goAmplitudeInversionO() # shift observed data
   #goAmplitudeInversionP() # shift predicted data
 
 def getWavelet():
@@ -53,8 +53,8 @@ def setGlobals():
     sx = Sampling(3201,0.00625,0.0) # distance
     sz = Sampling(181,0.00625,0.0) # depth
     st = Sampling(3751,0.0004,0.0) # time
-    #npmax = 8 # max number of parallel shots
-    npmax = 6 # max number of parallel shots
+    npmax = 8 # max number of parallel shots
+    #npmax = 6 # max number of parallel shots
   #stride = 1
   stride = 2
   #stride = 1000
@@ -131,8 +131,8 @@ def getInputs():
 
 def goAmplitudeInversionO():
   """Shift observed data."""
-  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
-  nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
+  nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   zeroReflectivity = True # zero reflectivity between outer iterations
   born,bs,src,rcp,rco,warping = getInputs()
   print 'nouter=%r'%nouter
@@ -147,7 +147,7 @@ def goAmplitudeInversionO():
     if iouter<nouter and nouter>0:
       print "computing predicted data..."
       born.applyForward(src,r,rcp)
-      print 'warping (3d=%r)'%warp3d
+      print 'warping...'
       rcw = warping.warp(rcp,rco,w)
       bs.setObservedData(rcw)
       pixels(rcp[ns/2].getData(),title='rcp%d'%iouter)
@@ -166,8 +166,8 @@ def goAmplitudeInversionO():
 
 def goAmplitudeInversionP():
   """Shift predicted data."""
-  nouter,ninner,nfinal = 5,1,5 # outer, inner, final after last outer
-  #nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
+  #nouter,ninner,nfinal = 5,1,5 # outer, inner, final after last outer
+  nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   zeroReflectivity = True # zero reflectivity between outer iterations
   born,bs,src,rcp,rco,warping = getInputs()
