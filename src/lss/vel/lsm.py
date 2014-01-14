@@ -7,9 +7,9 @@ from warp import *
 #############################################################################
 
 pngdatDir = None
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 gfile = None
 pfile = None
@@ -67,10 +67,11 @@ def setupForMarmousi():
   plots(tt,t0,t1,s0,s1)
   if sfile is not None:
     s1 = read(sfile)
-  psou = min(14,ns)
+  #psou = min(14,ns)
   #psou = min(8,ns)
+  psou = min(1,ns)
   fpeak = 10.0
-  niter = 5
+  niter = 10
   sw = Stopwatch(); sw.start()
   u = zerofloat4(nz,nx,nt,psou)
   a = zerofloat4(nz,nx,nt,psou)
@@ -530,6 +531,7 @@ class Inversion():
           Wavefield.WavefieldSource(dt,s1,ui),
           Wavefield.Receiver(kzr,kxr),
           s0,ds)
+      zero(r) # XXX: necessary?
       self.residual(ds,do,r)
       #GaussianTaper.apply2(r,r) # taper
       wave.modelAcousticWavefield(
@@ -596,7 +598,8 @@ class AmplitudeInversion(Inversion):
   def residual(self,ds,do,ra=None):
     if ra is None:
       ra = like(ds)
-    makeWarpedResidual(ds,do,ra=ra,adjoint=True) # XXX: use adjoint?
+    #makeWarpedResidual(ds,do,ra=ra,adjoint=False) # XXX: no adjoint
+    makeWarpedResidual(ds,do,ra=ra,adjoint=True) # XXX: use adjoint
     return ra
   def getMisfitFunction(self,g,isou,do):
     return AmplitudeMisfitFunction(g,isou,do)

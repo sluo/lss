@@ -8,7 +8,7 @@ from imports import *
 savDir = None
 #savDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-#savDir = '/Users/sluo/Dropbox/pngdat/'
+savDir = '/Users/sluo/Dropbox/pngdat/'
 
 datDir = None
 #datDir = './dat/'
@@ -254,7 +254,7 @@ def goInversion():
         mul(mp,rr[isou],rr[isou])
         mul(mp,rm[isou],rm[isou])
         mul(mp,rp[isou],rp[isou])
-    Parallel.loop(ns,Loop())
+    Parallel.loop(offset,ns-offset,Loop())
     pixels(mp,title='mp_%d'%i)
     pixels(rm[ns/2],sperc=99.9,title='rm_%d'%i)
     pixels(rr[ns/2],sperc=99.9,title='rr_%d'%i)
@@ -273,12 +273,45 @@ def goInversion():
     pixels(mul(mp,up[ns/2]),cmap=rwb,sperc=99.9,title='up_%d'%i)
 
     # Denominator for adjoint sources
+    #rgfDeriv = RecursiveGaussianFilter(1.0)
+    #rgfSmooth = RecursiveGaussianFilter(0.125/dx)
+    #class Loop(Parallel.LoopInt):
+    #  def compute(self,isou):
+    #    dma,dmb = copy(rm[isou]),copy(rm[isou]) # shifted image
+    #    dpa,dpb = copy(rp[isou]),copy(rp[isou]) # shifted image
+    #    rgfDeriv.apply1X(dma,dma) # 1st derivative of shifted image
+    #    rgfDeriv.apply1X(dpa,dpa) # 1st derivative of shifted image
+    #    rgfDeriv.apply2X(dmb,dmb) # 2nd derivative of shifted image
+    #    rgfDeriv.apply2X(dpb,dpb) # 2nd derivative of shifted image
+    #    mul(dma,dma,dma) # 1st derivative squared, first term in denom
+    #    mul(dpa,dpa,dpa) # 1st derivative squared, first term in denom
+    #    mul(sub(rr[isou],rm[isou]),dmb,dmb) # second term in denom
+    #    mul(sub(rr[isou],rp[isou]),dpb,dpb) # second term in denom
+    #    sub(dma,dmb,dmb) # denominator
+    #    sub(dpa,dpb,dpb) # denominator
+    #    #copy(dma,dm[isou]) # denominator (ignoring second term)
+    #    #copy(dpa,dp[isou]) # denominator (ignoring second term)
+    #    rgfSmooth.apply00(dmb,dm[isou]) # smooth
+    #    rgfSmooth.apply00(dpb,dp[isou]) # smooth
+    #Parallel.loop(offset,ns-offset,Loop())
+    #mul(1.0/max(abs(dm)),dm,dm) # normalize
+    #mul(1.0/max(abs(dp)),dp,dp) # normalize
+    #add(0.01,dm,dm) # stabilize for division
+    #add(0.01,dp,dp) # stabilize for division
+    ##mul(1.0/max(abs(dm)),dm,dm) # normalize
+    ##mul(1.0/max(abs(dp)),dp,dp) # normalize
+    #pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i)
+    #pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i)
+  
+    # Denominator assuming center image is always used for adjoint source
     rgfDeriv = RecursiveGaussianFilter(1.0)
     rgfSmooth = RecursiveGaussianFilter(0.125/dx)
     class Loop(Parallel.LoopInt):
       def compute(self,isou):
-        dma,dmb = copy(rm[isou]),copy(rm[isou]) # shifted image
-        dpa,dpb = copy(rp[isou]),copy(rp[isou]) # shifted image
+        #dma,dmb = copy(rr[isou]),copy(rm[isou]) # shifted image
+        #dpa,dpb = copy(rr[isou]),copy(rp[isou]) # shifted image
+        dma,dmb = copy(rr[isou]),copy(rr[isou]) # shifted image
+        dpa,dpb = copy(rr[isou]),copy(rr[isou]) # shifted image
         rgfDeriv.apply1X(dma,dma) # 1st derivative of shifted image
         rgfDeriv.apply1X(dpa,dpa) # 1st derivative of shifted image
         rgfDeriv.apply2X(dmb,dmb) # 2nd derivative of shifted image
@@ -287,21 +320,24 @@ def goInversion():
         mul(dpa,dpa,dpa) # 1st derivative squared, first term in denom
         mul(sub(rr[isou],rm[isou]),dmb,dmb) # second term in denom
         mul(sub(rr[isou],rp[isou]),dpb,dpb) # second term in denom
+        #mul(sub(rm[isou],rr[isou]),dmb,dmb) # second term in denom
+        #mul(sub(rp[isou],rr[isou]),dpb,dpb) # second term in denom
         sub(dma,dmb,dmb) # denominator
         sub(dpa,dpb,dpb) # denominator
         #copy(dma,dm[isou]) # denominator (ignoring second term)
         #copy(dpa,dp[isou]) # denominator (ignoring second term)
         rgfSmooth.apply00(dmb,dm[isou]) # smooth
         rgfSmooth.apply00(dpb,dp[isou]) # smooth
-    Parallel.loop(ns,Loop())
+    Parallel.loop(offset,ns-offset,Loop())
     mul(1.0/max(abs(dm)),dm,dm) # normalize
     mul(1.0/max(abs(dp)),dp,dp) # normalize
-    add(0.5,dm,dm) # stabilize for division
-    add(0.5,dp,dp) # stabilize for division
-    mul(1.0/max(abs(dm)),dm,dm) # normalize
-    mul(1.0/max(abs(dp)),dp,dp) # normalize
+    add(0.01,dm,dm) # stabilize for division
+    add(0.01,dp,dp) # stabilize for division
+    #mul(1.0/max(abs(dm)),dm,dm) # normalize
+    #mul(1.0/max(abs(dp)),dp,dp) # normalize
     pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i)
     pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i)
+
 
     # Adjoint sources
     uu = add(div(um,dm),div(up,dp))
@@ -309,37 +345,23 @@ def goInversion():
     class Loop(Parallel.LoopInt):
       def compute(self,isou):
 
-        # XXX
-        qq = copy(rr[isou])
-        abs(qq,qq)
-        efilter(8.0,qq,qq)
-        #mul(1.0/max(qq),qq,qq)
-        print 1.0/max(qq)
-        add(0.01,qq,qq)
-
-        #if isou==ns/2:
-        #  print len(rr[isou])
-        #  print len(qq)
-        #  print len(rr[isou][0])
-        #  print len(qq[0])
-        #  print sum(qq)
-        #  pixels(qq,title='qq')
-        #print sum(qq)
+        # Extra preconditioner
+        #pp = copy(rr[isou])
+        #abs(pp,pp)
+        #efilter(8.0,pp,pp)
+        #mul(1.0/max(pp),pp,pp)
+        #add(0.01,pp,pp)
+        #div(1.0,pp,pp)
 
         for ix in range(nx):
           for iz in range(1,nz-1):
-            #ru[isou][iz][ix] =\
-            #  0.5*uu[isou][ix][iz]*(rr[isou][ix][iz+1]-rr[isou][ix][iz-1])/dz
-            #ru[isou][iz][ix] =\
-            #  mp[ix][iz]*uu[isou][ix][iz]*\
-            #  (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])*qq[ix][iz]
-            ru[isou][iz][ix] = qq[ix][iz]
+            ru[isou][iz][ix] =\
+              mp[ix][iz]*uu[isou][ix][iz]*\
+              (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])
 
-    Parallel.loop(ns,Loop())
+    Parallel.loop(offset,ns-offset,Loop())
     pixels(mul(mp,uu[ns/2]),cmap=rwb,sperc=99.9,title='uu_%d'%i)
     pixels(ru[ns/2],sperc=99.9,title='ru_%d'%i)
-
-    return
 
     # Gradient and conjugate gradient
     class Reduce(Parallel.ReduceInt):
