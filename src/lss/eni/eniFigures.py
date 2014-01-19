@@ -21,13 +21,13 @@ savDir = '/Users/sluo/Desktop/png/'
 widthPoints = 225.0 # 1 column
 #widthPoints = 470.0 # 2 column (full page)
 
-rclip = 0.015 # clip for migration images
-#rclip = 0.020 # clip for migration images
+#rclip = 0.015 # clip for migration images
+rclip = 0.025 # clip for migration images
 
-#cmapVel = ColorMap.GRAY # colormap for slowness model
-cmapVel = ColorMap.JET # colormap for slowness model
-#cmapMig = ColorMap.GRAY # colormap for migration images
-cmapMig = ColorMap.GRAY_YELLOW_RED # colormap for migration images
+cmapVel = ColorMap.GRAY # colormap for slowness model
+#cmapVel = ColorMap.JET # colormap for slowness model
+cmapMig = ColorMap.GRAY # colormap for migration images
+#cmapMig = ColorMap.GRAY_YELLOW_RED # colormap for migration images
 
 #############################################################################
 
@@ -44,6 +44,10 @@ def readFiles(vz):
   s = read('/Users/sluo/Dropbox/save/eni/subc/'+dira+'s.dat');
   ra = read('/Users/sluo/Dropbox/save/eni/subc/'+dira+'r0.dat');
   rb = read('/Users/sluo/Dropbox/save/eni/subc/'+dirb+'r5.dat');
+  #print 'max(ra)=%f'%max(ra)
+  #print 'min(ra)=%f'%min(ra)
+  #print 'max(rb)=%f'%max(rb)
+  #print 'min(rb)=%f'%min(rb)
   return s,ra,rb
 
 def plotFiles(vz):
