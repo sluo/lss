@@ -598,8 +598,8 @@ class AmplitudeInversion(Inversion):
   def residual(self,ds,do,ra=None):
     if ra is None:
       ra = like(ds)
-    #makeWarpedResidual(ds,do,ra=ra,adjoint=False) # XXX: no adjoint
-    makeWarpedResidual(ds,do,ra=ra,adjoint=True) # XXX: use adjoint
+    makeWarpedResidual(ds,do,ra=ra,adjoint=False) # XXX: no adjoint
+    #makeWarpedResidual(ds,do,ra=ra,adjoint=True) # XXX: use adjoint
     return ra
   def getMisfitFunction(self,g,isou,do):
     return AmplitudeMisfitFunction(g,isou,do)

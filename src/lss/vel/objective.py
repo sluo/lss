@@ -12,10 +12,12 @@ ft = -0.5*nt*dt
 st = Sampling(nt,dt,ft)
 
 pngdatDir = None
-#pngdatDir = '/Users/sluo/Desktop/pngdat/'
+pngdatDir = '/Users/sluo/Desktop/png/'
 
 #widthPoints = None # slides
-widthPoints = 240.0 # single column
+#widthPoints = 240.0 # single column
+widthPoints = 260.0 # half page column
+#widthPoints = 175.0 # half of 4/3 column
 
 #############################################################################
 
@@ -243,6 +245,8 @@ def goAmplitudeAndTraveltime():
   points(Sampling(nt,0.1*dt,0.1*ft),do,cmin=cmin,cmax=cmax,title='do')
   points(Sampling(nt,0.1*dt,0.1*ft),ds,do,cmin=cmin,cmax=cmax,title='ds_do')
   #points(Sampling(nt,0.1*dt,0.1*ft),do,ds,cmin=cmin,cmax=cmax,title='do_ds')
+  points(Sampling(nt,0.1*dt,0.1*ft),shift(do,-timeShift),ds,
+    cmin=cmin,cmax=cmax,title='do_shift')
   points(Sampling(nt,0.1*dt,0.1*ft),do,ds,shift(do,-timeShift),
     cmin=cmin,cmax=cmax,title='do_ds_shift')
 
@@ -278,13 +282,18 @@ def plot(f,s1=None,s2=None,cmap=jet,
   #panel.setHLabel('Traveltime shift')
   panel.setVLabel('Amplitude scale')
   cb = panel.addColorBar()
-  #cb.setLabel('Normalized misfit')
-  cb.setLabel('Misfit')
+  cb.setLabel('Normalized misfit')
+  #cb.setLabel('Misfit')
   cb.setInterval(1.0)
   if widthPoints is None:
     cb.setWidthMinimum(160)
   elif widthPoints==240.0:
-    cb.setWidthMinimum(130)
+    #cb.setWidthMinimum(130)
+    cb.setWidthMinimum(120)
+  elif widthPoints==260.0:
+    cb.setWidthMinimum(110)
+  elif widthPoints==175.0:
+    cb.setWidthMinimum(120)
   if s1 is not None and s2 is not None:
     pixel = panel.addPixels(s1,s2,f)
     contour = panel.addContours(s1,s2,f)
@@ -308,17 +317,24 @@ def plot(f,s1=None,s2=None,cmap=jet,
     frame.setSize(1200,500)
   elif widthPoints==240.0:
     frame.setFontSizeForPrint(8,widthPoints)
-    frame.setSize(1200,500)
+    #frame.setSize(1200,500)
+    frame.setSize(1200,450)
+  elif widthPoints==260.0:
+    frame.setFontSizeForPrint(8,widthPoints)
+    frame.setSize(1200,450)
+  elif widthPoints==175.0:
+    frame.setFontSizeForPrint(8,widthPoints)
+    frame.setSize(1200,600)
   if title:
     frame.setTitle(title)
   frame.setVisible(True)
   if title and pngdatDir:
-    if widthPoints is None:
+    if widthPoints is not None:
+      frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
+    else:
       #frame.paintToPng(360,3.0,pngdatDir+title+'.png')
       frame.paintToPng(720,3.08,pngdatDir+title+'.png')
       #write(pngdatDir+title+'.dat',f)
-    elif widthPoints==240.0:
-      frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
   return panel
 
 def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
@@ -335,7 +351,7 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
     gv.setStyle(GridView.Style.DASH)
   if widthPoints is None:
     lineWidth = 3.0
-  elif widthPoints==240.0:
+  else:
     lineWidth = 4.0
   point1 = panel.addPoints(s,x1)
   point1.setLineColor(Color.BLACK)
@@ -345,6 +361,7 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
   if x2 is not None:
     #max2 = 1.1*max(abs(x2))
     point2 = panel.addPoints(s,x2)
+    #point2.setLineColor(Color.BLUE)
     point2.setLineColor(Color.RED)
     #point2.setLineColor(Color.GRAY)
     #point2.setLineStyle(PointsView.Line.DASH)
@@ -362,18 +379,29 @@ def points(s,x1,x2=None,x3=None,cmin=0.0,cmax=0.0,title=None):
     frame.setFontSizeForSlide(0.86,0.86)
     frame.setSize(1200,500)
   elif widthPoints==240.0:
-    frame.setFontSizeForPrint(8,widthPoints)
-    frame.setSize(1200,500)
+    #frame.setFontSizeForPrint(8,widthPoints)
+    #frame.setSize(1200,500)
+    frame.setFontSizeForPrint(9,widthPoints)
+    #frame.setSize(1067,500)
+    frame.setSize(1067,450)
+  elif widthPoints==260.0:
+    frame.setFontSizeForPrint(9,widthPoints)
+    frame.setSize(1078,450)
+  elif widthPoints==175.0:
+    #frame.setFontSizeForPrint(8,widthPoints)
+    #frame.setSize(1200,500)
+    frame.setFontSizeForPrint(9,widthPoints)
+    frame.setSize(1067,600)
   if title:
     frame.setTitle(title)
   frame.setVisible(True)
   if title and pngdatDir:
-    if widthPoints is None:
+    if widthPoints is not None:
+      frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
+    else:
       #frame.paintToPng(360,3.0,pngdatDir+title+'.png')
       frame.paintToPng(720,3.08,pngdatDir+title+'.png')
       #write(pngdatDir+title+'.dat',f)
-    elif widthPoints==240.0:
-      frame.paintToPng(720,widthPoints/72.0,pngdatDir+title+'.png')
 
 def read(name,image=None):
   if not image:
