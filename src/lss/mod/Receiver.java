@@ -5,6 +5,23 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Receiver {
 
+  /**
+   * Residual.
+   */
+  public static interface Residual {
+
+    /**
+     * Computes the residual.
+     * @param recp input receiver containing predicted data.
+     * @param reco input receiver containing observed data.
+     * @return receiver containing residuals.
+     */
+    public Receiver compute(Receiver rcp, Receiver rco);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Constructors
+
   public Receiver(int xr, int zr, int nt) {
     this(new int[]{xr},new int[]{zr},nt,null);
   }
@@ -39,6 +56,8 @@ public class Receiver {
       _data = new float[_nr][_nt];
     }
   }
+
+  ////////////////////////////////////////////////////////////////////////////
 
   public void setData(float[][] ui, int it, int nabsorb) {
     for (int ir=0; ir<_nr; ++ir) {

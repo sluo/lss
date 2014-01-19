@@ -6,8 +6,8 @@ from imports import *
 #############################################################################
 
 savDir = None
-#savDir = os.getenv('HOME')+'/Desktop/pngdat/'
-savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
+savDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 #############################################################################
@@ -16,10 +16,10 @@ def main(args):
   #readFiles()
   #getModelAndMask()
   #goNonlinearInversionQs() # inversion using line search
-  #goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
+  goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
   #goInversionQs() # inversion without line search
   #goAmplitudeInversionQs() # amplitude inversion without line search
-  goNewAmplitudeInversionQs() # shift predicted data instead
+  #goNewAmplitudeInversionQs() # shift predicted data instead
 
   #compareData()
   #test()
@@ -87,8 +87,8 @@ def setupForMarmousi():
   #xs,zs = [0],[0]
   #xs,zs = [nx/2],[0]
   #xs,zs = rampint(1,15,52),fillint(0,52)
-  #xs,zs = rampint(3,10,77),fillint(0,77)
-  xs,zs = rampint(3,8,96),fillint(0,96)
+  xs,zs = rampint(3,10,77),fillint(0,77)
+  #xs,zs = rampint(3,8,96),fillint(0,96)
   #xs,zs = rampint(3,5,153),fillint(0,153)
   #xs,zs = rampint(1,3,256),fillint(0,256)
   xr,zr = rampint(0,1,nx),fillint(0,nx)
@@ -497,7 +497,7 @@ def applyImagingCondition(u,a):
   return WaveOperator.collapse(u,a,nabsorb)
 
 def goNonlinearAmplitudeInversionQs():
-  niter = 10
+  niter = 5
   _,t0,_,t1,m = getModelAndMask()
   s0 = mul(0.95,t0) # erroneous background slowness
   #s0 = mul(1.00,t0)

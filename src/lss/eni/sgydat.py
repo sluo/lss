@@ -18,7 +18,7 @@ ns,nr,nt,nz,nx = ss.count,sr.count,st.count,sz.count,sx.count
 sgyDir = '/data/sluo/eni/segy/'
 
 datDir = None
-#datDir = '/data/sluo/eni/dat/'
+datDir = '/data/sluo/eni/dat/'
 
 #############################################################################
 
@@ -28,6 +28,9 @@ def main(args):
   #writeSubsetA()
   #writeSubsetB()
   #writeSubsetC()
+  #writeSubsetD()
+  #writeSubsetE()
+  writeSubsetF()
 
 def showVelocity():
   segy = SegyImage(sgyDir+'velo.segy')
@@ -85,6 +88,33 @@ def writeSubsetC():
   tt = 1.5
   dt = 0.0004
   ddir = 'subc/'
+  writeSubset(fix,nix,niz,tt,dt,ddir)
+
+def writeSubsetD():
+  fix = 2080
+  nix = 1121
+  niz = 181
+  tt = 1.5
+  dt = 0.0004
+  ddir = 'subd/'
+  writeSubset(fix,nix,niz,tt,dt,ddir)
+
+def writeSubsetE():
+  fix = 1600
+  nix = 1121
+  niz = 181
+  tt = 1.5
+  dt = 0.0004
+  ddir = 'sube/'
+  writeSubset(fix,nix,niz,tt,dt,ddir)
+
+def writeSubsetF():
+  fix = 1120
+  nix = 2241
+  niz = 181
+  tt = 1.5
+  dt = 0.0004
+  ddir = 'subf/'
   writeSubset(fix,nix,niz,tt,dt,ddir)
 
 def writeSubset(fix,nix,niz,tt,dt,ddir):

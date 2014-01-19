@@ -123,7 +123,14 @@ public class BornOperator {
       Check.argument(b[0][0].length==u[0][0].length,"consistent nx");
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
-    _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
+    if (sum(rx)==0.0f) { // no need to model if zero reflectivity
+      if (u!=null)
+        zero(u);
+      if (receiver!=null)
+        zero(receiver.getData());
+    } else {
+      _wave.applyForward(new Source.WavefieldSource(b,rx),receiver,u);
+    }
     applyForwardShifts(ts,receiver,receiver);
   }
 
@@ -191,7 +198,7 @@ public class BornOperator {
   }
 
   /**
-   * Applies the adjoint operator after computing the background wavefield.
+   * Applies the adjoint operator using precomputed background wavefield.
    * @param b input array containing precomputed background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param receiver input receiver containing data to be migrated.
@@ -223,7 +230,7 @@ public class BornOperator {
   /**
    * Applies the Hessian operator after computing the background wavefield.
    * @param source input source for computing background wavefield.
-   * @param receiver input receiver containing data to be migrated.
+   * @param receiver input receiver for storing predicted data.
    * @param b input array for storing background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param rx input reflectivity image.
@@ -249,8 +256,8 @@ public class BornOperator {
 
   /**
    * Applies the Hessian operator using precomputed background wavefield.
-   * @param receiver input receiver containing data to be migrated.
-   * @param b input array for storing background wavefield.
+   * @param receiver input receiver for storing predicted data.
+   * @param b input array containing precomputed background wavefield.
    * @param a input array for storing adjoint wavefield.
    * @param rx input reflectivity image.
    * @param ts time shifts.

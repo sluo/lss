@@ -4,6 +4,7 @@ import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
+import lss.mod.Receiver;
 import lss.util.*;
 
 // testing
@@ -25,7 +26,7 @@ public class BornOperatorS {
 
   public static Receiver[] getReceiverArray(int n) {
     return new Receiver[n];
-  }
+  } 
 
   ////////////////////////////////////////////////////////////////////////////  
 
@@ -180,7 +181,7 @@ public class BornOperatorS {
   /**
    * Applies the Hessian operator.
    * @param source input sources for computing background wavefields. 
-   * @param receiver input receivers containing data to be migrated.
+   * @param receiver input receivers for storing predicted data.
    * @param rx input reflectivity image.
    * @param ts input time shifts.
    * @param ry output reflectivity image.
@@ -301,6 +302,49 @@ public class BornOperatorS {
       }
     });
     copy(rz,ry);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////  
+  // Gradient computation; similar to Hessian.
+
+  /**
+   * Computes the gradient for an implemented residual computation.
+   * @param residual residual used in the gradient computation.
+   * @param source input sources for computing background wavefields. 
+   * @param recp input receivers for storing predicted data.
+   * @param reco input receivers containing observed data.
+   * @param rx input reflectivity image.
+   * @param gy output gradient image.
+   */
+  public void computeGradientForResidual(
+    final Receiver.Residual residual, final Source[] source,
+    final Receiver[] recp, final Receiver[] reco,
+    final float[][] rx, final float[][] gy)
+  {
+    Check.argument(rx[0].length==_nx,"consistent nx");
+    Check.argument(rx.length==_nz,"consistent nz");
+    Check.argument(gy[0].length==_nx,"consistent nx");
+    Check.argument(gy.length==_nz,"consistent nz");
+    final int ns = reco.length;
+    final int nx = gy[0].length;
+    final int nz = gy.length;
+    final int np = _a.getN4(); // number of parallel shots
+    PartialParallel parallel = new PartialParallel(np);
+    float[][] gz = parallel.reduce(ns,new Parallel.ReduceInt<float[][]>() {
+      public float[][] compute(int isou) {
+        float[][] gt = new float[nz][nx];
+        float[][][] u = _u.get(isou);
+        float[][][] a = _a.get(isou);
+        _born.applyForward(source[isou],u,rx,recp[isou]);
+        Receiver recr = residual.compute(recp[isou],reco[isou]);
+        _born.applyAdjoint(u,a,recr,gt);
+        return gt;
+      }
+      public float[][] combine(float[][] ga, float[][] gb) {
+        return add(ga,gb);
+      }
+    });
+    copy(gz,gy);
   }
 
   ////////////////////////////////////////////////////////////////////////////

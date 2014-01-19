@@ -6,13 +6,17 @@ from dnp import *
 
 #subDir = '/data/sluo/eni/dat/suba/'
 #subDir = '/data/sluo/eni/dat/subb/'
-subDir = '/data/sluo/eni/dat/subc/'
+#subDir = '/data/sluo/eni/dat/subc/'
+#subDir = '/data/sluo/eni/dat/subd/'
+subDir = '/data/sluo/eni/dat/sube/'
+#subDir = '/data/sluo/eni/dat/subf/'
 
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
-#savDir = '/home/sluo/Desktop/pngdat2/'
-savDir = '/home/sluo/Desktop/pngdat3/'
+savDir = '/home/sluo/Desktop/pngdat2/'
+#savDir = '/home/sluo/Desktop/pngdat3/'
 
+timer = Timer()
 ##############################################################################
 
 def main(args):
@@ -24,12 +28,13 @@ def main(args):
   #compareWavelets()
   #estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False)
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
-  goAmplitudeInversionO() # shift observed data
+  #goAmplitudeInversionO() # shift observed data
   #goAmplitudeInversionP() # shift predicted data
+  goNonlinearAmplitudeInversionO() # nonlinear inversion, shift observed
 
 def getWavelet():
-  #return readWavelet()
-  return estimateWavelet(rotate=0.50*FLT_PI,d2=True)
+  return readWavelet()
+  #return estimateWavelet(rotate=0.50*FLT_PI,d2=True)
   #return makeRickerWavelet() # Ricker wavelet
 
 def setGlobals():
@@ -55,8 +60,23 @@ def setGlobals():
     st = Sampling(3751,0.0004,0.0) # time
     npmax = 8 # max number of parallel shots
     #npmax = 6 # max number of parallel shots
+  elif subset=='subd' or subset=='sube':
+    ss = Sampling(463,0.0125,1.225) # shot (relative offset)
+    sr = Sampling(197,0.00625,-1.225) # receiver
+    sx = Sampling(1121,0.00625,0.0) # distance
+    sz = Sampling(181,0.00625,0.0) # depth
+    st = Sampling(3751,0.0004,0.0) # time
+    npmax = 16 # max number of parallel shots
+  elif subset=='subf':
+    ss = Sampling(1023,0.0125,1.225) # shot (relative offset)
+    sr = Sampling(197,0.00625,-1.225) # receiver
+    sx = Sampling(2241,0.00625,0.0) # distance
+    sz = Sampling(181,0.00625,0.0) # depth
+    st = Sampling(3751,0.0004,0.0) # time
+    npmax = 16 # max number of parallel shots
   #stride = 1
-  stride = 2
+  #stride = 2
+  stride = 4
   #stride = 1000
   ns,ds,fs = int((ss.count+stride-1)/stride),ss.delta,ss.first
   nr,dr,fr = sr.count,sr.delta,sr.first
@@ -72,9 +92,9 @@ def setGlobals():
 
 def getSourceAndReceiver():
   w = getWavelet() # wavelet
-  src = BornOperatorS.getSourceArray(ns) # source
-  rcp = BornOperatorS.getReceiverArray(ns) # predicted data
-  rco = BornOperatorS.getReceiverArray(ns) # observed data
+  src = zeros(ns,Source) # source
+  rcp = zeros(ns,Receiver) # predicted data
+  rco = zeros(ns,Receiver) # observed data
   for isou in range(ns):
     xs = fs+isou*stride*ds
     kxs = sx.indexOf(xs)
@@ -95,16 +115,20 @@ def getSourceAndReceiver():
   return src,rcp,rco
 
 def getInputs():
-  vz = True # 1D velocity?
+  #vz,smin,sder = False,None,None # 1D velocity
+  #vz,smin,sder = True,None,None # 1D velocity (used for subc)
+  #vz,smin,sder = True,0.75,-0.0025 # 1D velocity
+  vz,smin,sder = True,0.76,-0.0027 # 1D velocity
   warp3d = True # 3D warping?
   print 'vz=%r'%vz
   print 'warp3d=%r'%warp3d
 
   # BornSolver
-  print "allocating..."
+  timer.start('allocating')
   u = SharedFloat4(nxp,nzp,nt,np)
   a = SharedFloat4(nxp,nzp,nt,np)
-  s,m = getBackgroundAndMask(vz)
+  timer.stop('allocating')
+  s,m = getBackgroundAndMask(vz,smin,sder)
   src,rcp,rco = getSourceAndReceiver()
   #sigma = 0.25*nx*nz/(sum(s)*fmax*dx*sqrt(2.0)) # quarter wavelength
   sigma = 0.25*averageWavelength()/(sqrt(2.0)*dx) # quarter wavelength
@@ -115,7 +139,7 @@ def getInputs():
   # ImageWarping
   td = 4 # time decimation
   maxShift = 0.1 # max shift (seconds)
-  strainT,strainR,strainS = 0.20,0.20,0.50*stride
+  strainT,strainR,strainS = 0.20,0.20,min(0.50*stride,1.0)
   if strainS>1.0 or not warp3d:
     strainS = -1.0
   smoothT,smoothR,smoothS = 32.0,4.0,4.0
@@ -127,14 +151,14 @@ def getInputs():
 
   pixels(s,cmap=jet,title='s')
   pixels(m,cmap=gray,title='m')
-  return born,bs,src,rcp,rco,warping
+  return born,bs,src,rcp,rco,warping,s,m,ref
 
 def goAmplitudeInversionO():
   """Shift observed data."""
   nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   zeroReflectivity = True # zero reflectivity between outer iterations
-  born,bs,src,rcp,rco,warping = getInputs()
+  born,bs,src,rcp,rco,warping,_,_,_ = getInputs()
   print 'nouter=%r'%nouter
   print 'ninner=%r'%ninner
   print 'nfinal=%r'%nfinal
@@ -170,7 +194,7 @@ def goAmplitudeInversionP():
   nouter,ninner,nfinal = 5,2,5 # outer, inner, final after last outer
   #nouter,ninner,nfinal = 0,0,5 # outer, inner, final after last outer
   zeroReflectivity = True # zero reflectivity between outer iterations
-  born,bs,src,rcp,rco,warping = getInputs()
+  born,bs,src,rcp,rco,warping,_,_,_ = getInputs()
   print 'nouter=%r'%nouter
   print 'ninner=%r'%ninner
   print 'nfinal=%r'%nfinal
@@ -200,24 +224,273 @@ def goAmplitudeInversionP():
     sw.stop(); print 'outer: %.1f minutes'%(sw.time()/60.0)
   pixels(rco[ns/2].getData(),title='rco')
 
+##############################################################################
+# Nonlinear inversion with line search
+
+def goNonlinearAmplitudeInversionO():
+  niter = 5
+  useAmplitudeResidual = True
+  born,bs,src,rcp,rco,warping,s,m,ref = getInputs()
+  res = AmplitudeResidual(warping) if useAmplitudeResidual\
+    else WaveformResidual()
+  mp = div(1.0,mul(s,s)) # v^2 preconditioning
+  mul(1.0/max(mp),mp,mp)
+  mul(m,mp,mp)
+  r = zerofloat(nx,nz) # reflectivity
+  w = zerofloat(nt,nr,ns) # warping shifts
+  g,gm,pm = zerofloat(nx,nz),None,None # gradient & cg directions
+  for iiter in range(niter):
+    timer.start('ITERATION')
+    timer.start('gradient')
+    born.computeGradientForResidual(res,src,rcp,rco,r,g)
+    timer.stop('gradient')
+    #print 'sum(g)=%f'%sum(g)
+    for i in range(2):
+      roughen(g,ref) # roughen
+    mul(mp,g,g) # precondition
+    p = conjugateDirection(g,gm,pm) # conjugate gradient
+    if niter>1:
+      timer.start('line search')
+      lineSearchUpdate(p,r,src,rco,born,res,nsou=1)
+      timer.stop('line search')
+    pixels(g,cmap=rwb,sperc=100.0,title='g'+str(iiter))
+    pixels(p,cmap=rwb,sperc=100.0,title='p'+str(iiter))
+    pixels(r,cmap=gray,sperc=100.0,title='r'+str(iiter))
+    gm,pm = g,p
+    timer.stop('ITERATION')
+  pixels(rco[ns/2].getData(),title='rco')
+
+class AmplitudeResidual(Receiver.Residual):
+  def __init__(self,warping):
+    self.warping = warping
+  def compute(self,rcp,rco):
+    dp,do = rcp.getData(),rco.getData()
+    if sum(dp)==0.0:
+      dw = sub(dp,do)
+    else:
+      u = self.warping.findShifts(dp,do)
+      dw = self.warping.applyShifts(u,do)
+      sub(dp,dw,dw)
+    return Receiver(rco.getXIndices(),rco.getZIndices(),dw)
+
+class WaveformResidual(Receiver.Residual):
+  def compute(self,rcp,rco):
+    dp,do = rcp.getData(),rco.getData()
+    return Receiver(rco.getXIndices(),rco.getZIndices(),sub(dp,do))
+
+def lineSearchUpdate(p,r,src,rco,born,res,nsou=1):
+  amin,amax = -0.04,0.01 # bounds
+  atol = 0.20*abs(amax-amin) # tolerance
+  nsou = 4 # number of shots used to evaluate misfit function
+  misfit = MisfitFunction(p,r,src,rco,born,res,nsou)
+  aopt = BrentMinFinder(misfit).findMin(amin,amax,atol)
+  print 'neval=%d'%misfit.neval
+  print 'amin=%f'%amin
+  #print 'amax=%f'%amax
+  #print 'atol=%f'%atol
+  print 'aopt=%f'%aopt
+  add(mul(aopt,misfit.p),r,r)
+
+class MisfitFunction(BrentMinFinder.Function):
+  def __init__(self,p,r,src,rco,born,res,nsou):
+    self.r = r
+    self.p = div(p,max(abs(p))) # normalized conjugate ascent direction
+    self.src = zeros(nsou,Source) # source
+    self.rcp = zeros(nsou,Receiver) # predicted data
+    self.rco = zeros(nsou,Receiver) # observed data
+    for isou in range(nsou):
+      ksou = (1+isou)*ns/(1+nsou)
+      print 'ksou=%d'%ksou
+      self.src[isou] = src[ksou]
+      self.rcp[isou] = Receiver(rco[ksou])
+      self.rco[isou] = rco[ksou]
+    self.born = born
+    self.res = res
+    self.nsou = nsou
+    self.neval = 0
+  def evaluate(self,atry):
+    self.neval += 1
+    rr = add(self.r,mul(atry,self.p))
+    self.born.applyForward(self.src,rr,self.rcp)
+    misfit = 0.0
+    for isou in range(self.nsou):
+      dr = self.res.compute(self.rcp[isou],self.rco[isou]).getData()
+      mul(dr,dr,dr)
+      misfit += sum(dr)
+    return misfit
+
+#def xgoNonlinearAmplitudeInversionO():
+#  niter = 8
+#  useAmplitudeResidual = False
+#  born,bs,src,rcp,rco,warping,s,m,ref = getInputs()
+#  mp = div(1.0,mul(s,s)) # v^2 preconditioning
+#  mul(1.0/max(mp),mp,mp)
+#  mul(m,mp,mp)
+#  r = zerofloat(nx,nz) # reflectivity
+#  w = zerofloat(nt,nr,ns) # warping shifts
+#  g,gm,pm = zerofloat(nx,nz),None,None # gradient & cg directions
+#  for iiter in range(niter):
+#    timer.start('ITERATION')
+#    if iiter>0:
+#      print "computing predicted data..."
+#      timer.start('predicted data')
+#      born.applyForward(src,r,rcp) # simulate predicted data
+#      timer.stop('predicted data')
+#      pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
+#      if useAmplitudeResidual:
+#        timer.start('warping')
+#        rcw = warping.warp(rcp,rco,w) # warping
+#        timer.stop('warping')
+#        pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
+#        pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
+#        rsub(rcp,rcw,rcp) # amplitude residual
+#      else:
+#        rsub(rcp,rco,rcp) # data residual
+#    else:
+#      rmul(-1.0,rco,rcp)
+#    timer.start('gradient')
+#    born.applyAdjoint(src,rcp,g) # gradient
+#    timer.stop('gradient')
+#    for i in range(2):
+#      roughen(g,ref) # roughen
+#    mul(mp,g,g) # precondition
+#    p = conjugateDirection(g,gm,pm) # conjugate gradient
+#    if niter>1:
+#      if useAmplitudeResidual:
+#        mf = AmplitudeMisfitFunction(r,p,src[ns/2],rco[ns/2],born,warping)
+#      else:
+#        mf = WaveformMisfitFunction(r,p,src[ns/2],rco[ns/2],born,warping)
+#      timer.start('line search')
+#      updateModel(mf,r) # line search
+#      timer.stop('line search')
+#    pixels(g,cmap=rwb,sperc=100.0,title='g'+str(iiter))
+#    pixels(p,cmap=rwb,sperc=100.0,title='p'+str(iiter))
+#    pixels(r,cmap=gray,sperc=100.0,title='r'+str(iiter))
+#    gm,pm = g,p
+#    timer.stop('ITERATION')
+#  pixels(rco[ns/2].getData(),title='rco')
+#
+#def updateModel(misfitFunction,s1):
+#  print 'searching for step length...'
+#  a,b = -0.04,0.01
+#  tol = 0.20*abs(b-a)
+#  sw = Stopwatch(); sw.restart()
+#  step = BrentMinFinder(misfitFunction).findMin(a,b,tol)
+#  print 'a =',a
+#  #print 'b =',b
+#  #print 'tol =',tol
+#  print 'step =',step
+#  add(mul(step,misfitFunction.p),s1,s1)
+#
+#class MisfitFunction(BrentMinFinder.Function):
+#  def __init__(self,s1,p,src,rco,born,warping):
+#    self.s1 = s1
+#    self.p = div(p,max(abs(p))) # normalized conjugate ascent direction
+#    self.src = zeros(1,Source) # source
+#    self.rcp = zeros(1,Receiver) # predicted data
+#    self.rco = zeros(1,Receiver) # observed data
+#    self.src[0] = src
+#    #self.rco[0] = rco
+#    self.rco[0] = Receiver(rco)
+#    self.rcp[0] = Receiver(rco)
+#    self.born = born
+#    self.warping = warping
+#  def evaluate(self,a):
+#    print 'evaluating'
+#    s1p = add(self.s1,mul(a,self.p))
+#    self.born.applyForward(self.src,s1p,self.rcp)
+#    r = self.residual(self.rcp,self.rco,self.warping)
+#    return sum(mul(r,r))
+#
+#class AmplitudeMisfitFunction(MisfitFunction):
+#  def residual(self,rcp,rco,warping):
+#    #rcw = self.warping.warp(rcp,rco) # warping
+#    #rsub(rcp,rcw,rcw)
+#    #return rcw[0].getData()
+#    dp,do = rcp[0].getData(),rco[0].getData()
+#    u = warping.findShifts(dp,do)
+#    dw = warping.applyShifts(u,do)
+#    sub(dp,dw,dw)
+#    return dw
+#
+#class WaveformMisfitFunction(MisfitFunction):
+#  def residual(self,rcp,rco,warping):
+#    dp,do = rcp[0].getData(),rco[0].getData()
+#    return sub(dp,do)
+
+def roughen(g,ref):
+  h = copy(g)
+  ref.apply(g,h)
+  sub(g,h,h)
+  copy(h,g)
+
+def rsub(rcx,rcy,rcz):
+  nsou = len(rcz)
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      sub(rcx[isou].getData(),rcy[isou].getData(),rcz[isou].getData())
+  Parallel.loop(nsou,Loop())
+
+def rmul(s,rcx,rcz):
+  nsou = len(rcz)
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      mul(s,rcx[isou].getData(),rcz[isou].getData())
+  Parallel.loop(nsou,Loop())
+
+def conjugateDirection(g,gm=None,pm=None):
+  """Polak-Ribiere nonlinear conjugate gradient method.
+  Parameters:
+    g - gradient ascent direction for current iteration.
+    gm - gradient ascent direction for previous iteration.
+    pm - conjugate ascent direction for previous iteration.
+  Returns:
+    the conjugate ascent direction for the current iteration.
+  """
+  if gm is None and pm is None:
+    # For first iteration, use steepest descent direction.
+    return g
+  else:
+    b = sum(mul(g,sub(g,gm)))/sum(mul(gm,gm))
+    if b<0.0:
+      b = 0.0
+      print "  CG DIRECTION RESET"
+    return add(g,mul(b,pm))
+
+##############################################################################
+
 def showFiles():
+  #vz,smin,sder = True,0.75,-0.0025 # 1D velocity
+  vz,smin,sder = True,0.76,-0.0027 # 1D velocity
   w = readWavelet(); points(w)
   d = getGather(ns/2); pixels(d,perc=99.8); points(d[196])
   s = getSlowness(False); pixels(s,cmap=jet)
-  s0,_ = getBackgroundAndMask(False); pixels(t0,cmap=jet)
-  t0,m = getBackgroundAndMask(True); pixels(s0,cmap=jet); pixels(m,cmap=gray)
-  pixels(sub(s0,t0),sperc=100.0)
+  s0,_ = getBackgroundAndMask(False,None,None)
+  e0,m = getBackgroundAndMask(vz,smin,sder)
+  pixels(s0,cmap=jet)
+  pixels(e0,cmap=jet)
+  pixels(m,cmap=gray)
+  pixels(sub(s0,e0),cmap=rwb,sperc=100.0)
+  ts = transpose(s0)
+  te = transpose(e0)
+  SimplePlot.asPoints(ts[nx/2])
+  SimplePlot.asPoints(te[nx/2])
 
 def readFiles():
-  ra = zerofloat(nz,nx)
-  rb = zerofloat(nz,nx)
-  #rc = zerofloat(nz,nx)
-  read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',ra);
-  read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',rb);
-  #read('/home/sluo/Desktop/save/eni/subc/n/iter515vz/r5.dat',rc);
+  ra,rb,rc = zerofloat(nz,nx),zerofloat(nz,nx),zerofloat(nz,nx)
+  #read('/home/sluo/Desktop/save/eni/subc/iter005vz/r0.dat',ra);
+  #read('/home/sluo/Desktop/save/eni/subc/iter525vz/r5.dat',rb);
+  #read('/home/sluo/Desktop/save/eni/subc/n/iter005vz/r0.dat',ra);
+  #read('/home/sluo/Desktop/save/eni/subc/n/O525vz/r5.dat',rb);
+  #read('/home/sluo/Desktop/save/eni/subc/n/P525vz/r5.dat',rc);
+  read('/home/sluo/Desktop/subd/005/r0.dat',ra);
+  #read('/home/sluo/Desktop/subd/005vz/r0.dat',rb);
+  #read('/home/sluo/Desktop/subd/525vz/r5.dat',rc);
+  read('/home/sluo/Desktop/subd/nonlinear/aresVz/r4.dat',rb);
+  read('/home/sluo/Desktop/subd/nonlinear/dresVz/r4.dat',rc);
   pixels(ra,cmap=gray,sperc=98.0)
   pixels(rb,cmap=gray,sperc=98.0)
-  #pixels(rc,cmap=gray,sperc=98.0)
+  pixels(rc,cmap=gray,sperc=98.0)
   """
   dp = zerofloat(nt,nr,ns)
   read('/home/sluo/Desktop/eni_save/less_time_delay/525_vz/dp.dat',dp)
@@ -247,7 +520,8 @@ def compareWavelets():
 def readWavelet():
   print 'reading wavelet'
   w = zerofloat(nt)
-  read(subDir+'w.dat',w)
+  #read(subDir+'w.dat',w)
+  read('/data/sluo/eni/dat/wavelet.dat',w)
   #points(w)
   return w
 
@@ -282,7 +556,8 @@ def estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False):
   points(w)
   if toFile:
     print 'writing wavelet'
-    write(subDir+'w.dat',w)
+    #write(subDir+'w.dat',w)
+    write('/data/sluo/eni/dat/wavelet.dat',w)
   return w
 
 def estimateWaterBottomWavelet():
@@ -624,40 +899,52 @@ def getVelocity(vz=False):
   #      v[ix][iz] = total[iz]
   return transpose(v)
 
-def getSlowness(vz=False):
+def getSlowness(vz=False,smin=None,sder=None):
   v = getVelocity(vz)
   div(1000.0,v,v)
   if vz: # linear slowness model
-    v = transpose(v)
-    v00 = v[0][0]
-    a,b,c = 0.0,0.0,0.0
-    for ix in range(int(0.31*nx),nx): # 0.31 just because
-      x,y,xy,xx,n = 0.0,0.0,0.0,0.0,0.0
+    if smin is not None and sder is not None:
+      v00 = v[0][0]
+      c = copy(v)
       for iz in range(nz):
-        if v[ix][iz]!=v00:
-          x += iz
-          y += v[ix][iz]
-          xy += iz*v[ix][iz]
-          xx += iz*iz
-          n += 1.0
-      s = (xy-x*y/n)/(xx-x*x/n)
-      b += s
-      a += y/n-s*x/n
-      c += 1.0
-    a = a/c
-    b = b/c
-    for ix in range(nx):
+        siz = smin+iz*sder
+        fill(siz,v[iz])
       for iz in range(nz):
-        if v[ix][iz]!=v00:
-          v[ix][iz] = a+b*iz
-    v = transpose(v)
+        for ix in range(nx):
+          if c[iz][ix]==v00:
+            v[iz][ix] = v00;
+    else:
+      v = transpose(v)
+      v00 = v[0][0]
+      a,b,c = 0.0,0.0,0.0
+      for ix in range(int(0.31*nx),nx): # 0.31 just because
+      #for ix in range(nx):
+        x,y,xy,xx,n = 0.0,0.0,0.0,0.0,0.0
+        for iz in range(nz):
+          if v[ix][iz]!=v00:
+            x += iz
+            y += v[ix][iz]
+            xy += iz*v[ix][iz]
+            xx += iz*iz
+            n += 1.0
+        s = (xy-x*y/n)/(xx-x*x/n)
+        b += s
+        a += y/n-s*x/n
+        c += 1.0
+      a = a/c
+      b = b/c
+      for ix in range(nx):
+        for iz in range(nz):
+          if v[ix][iz]!=v00:
+            v[ix][iz] = a+b*iz
+      v = transpose(v)
   return v
 
-def getBackgroundAndMask(vz=False):
-  return getBackground(vz),getMask()
+def getBackgroundAndMask(vz=False,smin=None,sder=None):
+  return getBackground(vz,smin,sder),getMask()
 
-def getBackground(vz=False):
-  s = getSlowness(vz)
+def getBackground(vz=False,smin=None,sder=None):
+  s = getSlowness(vz,smin,sder)
   sigma = 0.5*averageWavelength() # half wavelength
   print 'sigma0=%f'%sigma
   #esmooth(sigma/dx,s,s)
