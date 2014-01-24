@@ -111,8 +111,16 @@ public class ImageWarping {
     return _warp.applyShifts(u,g);
   }
 
+  public void applyShifts(float[][][] u, float[][][] g, float[][][] h) {
+    _warp.applyShifts(u,g,h);
+  }
+
   public float[][] applyShifts(float[][] u, float[][] g) {
     return _warp.applyShifts(u,g);
+  }
+
+  public void applyShifts(float[][] u, float[][] g, float[][] h) {
+    _warp.applyShifts(u,g,h);
   }
 
   //////////////////////////////////////////////////////////////////////////
