@@ -26,7 +26,8 @@ def main(args):
   #getModelAndMask()
   #goMigration()
   #goGradient()
-  goInversion()
+  #goInversion()
+  goInversionX() # exact implementation of notes
 
 def setupForLayered():
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
@@ -206,6 +207,240 @@ def getInputs():
 
   return e,wave,born,bornsolver,src,rco,u4,a4,b4,warping
 
+def goInversionX():
+  s,wave,born,bs,src,rco,u4,a4,b4,warping = getInputs()
+  doMigration = False
+  doLineSearch = False
+  ninv = 1 # inversion iterations
+  nmig = 5 # migration iterations within each inversion iteration
+  nlsr = 2 # migration iterations within each inversion iteration
+  #offset,stride = 10,5 # shot offset for warping, stride for gradient
+  offset,stride = 20,5 # shot offset for warping, stride for gradient
+  #offset,stride = 30,5 # shot offset for warping, stride for gradient
+
+  r = zerofloat(nx,nz,ns) # reflectivity images
+  ru = zerofloat(nx,nz,ns) # adjoint source images
+  rr = zerofloat(nz,nx,ns) # reflectivity images (transposed)
+  rm = zerofloat(nz,nx,ns) # shifted images (transposed)
+  rp = zerofloat(nz,nx,ns) # shifted images (transposed)
+  um = zerofloat(nz,nx,ns) # shifts (transposed)
+  up = zerofloat(nz,nx,ns) # shifts (transposed)
+  dm = zerofloat(nz,nx,ns) # denominator for adjoint sources (transposed)
+  dp = zerofloat(nz,nx,ns) # denominator for adjoint sources (transposed)
+  rmw = zerofloat(nz,nx,ns) # warped images (transposed)
+  rpw = zerofloat(nz,nx,ns) # warped images (transposed)
+  gm,pm = None,None # gradient & conjugate-gradient directions
+
+  for i in range(ninv):
+    print ''
+    timer.start('ITERATION %d'%i)
+
+    # Migration
+    if i>0 or doMigration:
+      timer.start('migration')
+      bs.solve(nmig,r)
+      timer.stop('migration')
+      if i==0:
+        write('./dat/r.dat',r)
+    else:
+      read('./dat/r.dat',r)
+    
+    # Transpose and shift images, apply preconditioner
+    transposeAndShiftImages(offset,r,rr,rm,rp)
+    pixels(rm[ns/2],sperc=99.9,title='rm_%d'%i)
+    pixels(rr[ns/2],sperc=99.9,title='rr_%d'%i)
+    pixels(rp[ns/2],sperc=99.9,title='rp_%d'%i)
+
+    # Warping
+    findAndApplyShifts(warping,rr,rm,rp,um,up,rmw,rpw)
+    pixels(rmw[ns/2],sperc=99.9,title='rmw_%d'%i)
+    pixels(rpw[ns/2],sperc=99.9,title='rpw_%d'%i)
+    #pixels(mul(mp,um[ns/2]),cmap=rwb,sperc=99.9,title='um_%d'%i)
+    #pixels(mul(mp,up[ns/2]),cmap=rwb,sperc=99.9,title='up_%d'%i)
+    pixels(um[ns/2],cmap=rwb,sperc=99.9,title='um_%d'%i)
+    pixels(up[ns/2],cmap=rwb,sperc=99.9,title='up_%d'%i)
+
+    # Denominator
+    #makeDenominator(offset,rr,rmw,rpw,dm,dp)
+    makeDenominatorX(offset,rr,rmw,rpw,dm,dp)
+    pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i)
+    pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i)
+
+    # XXX
+    tm = div(rr[ns/2],dm[ns/2])
+    tp = div(rr[ns/2],dp[ns/2])
+    pixels(tm,cmap=gray,sperc=99.9,title='tm')
+    pixels(tp,cmap=gray,sperc=99.9,title='tm')
+    pixels(add(um[ns/2],up[ns/2]),cmap=rwb,title='um+up')
+    pixels(mul(tm,add(um[ns/2],up[ns/2])),cmap=gray,title='tm*(um+up)')
+
+    # Adjoint sources
+    makeAdjointSource(offset,um,up,dm,dp,rr,rmw,rpw,ru)
+    #pixels(mul(mp,uu[ns/2]),cmap=rwb,sperc=99.9,title='uu_%d'%i)
+    #pixels(uu[ns/2],cmap=rwb,sperc=99.9,title='uu_%d'%i)
+    pixels(ru[ns/2],sperc=99.9,title='ru_%d'%i)
+    
+    # Gradient and conjugate gradient
+    g = computeGradient(offset,stride,ru,wave,src,rco,u4,a4,b4)
+    p = getConjugateDirection(g,gm,pm)
+    gm,pm = g,p # rotate
+
+    # XXX
+    #pp = zerofloat(nx,nz)
+    #for iz in range(nz):
+    #  fill(float(iz+1),pp[iz])
+    #mul(1.0/max(pp),pp,pp)
+    #pixels(pp,title='pp')
+    #mul(pp,g,g)
+
+    pixels(g,cmap=rwb,sperc=99.9,title='g_%d'%i)
+    pixels(p,cmap=rwb,sperc=99.9,title='p_%d'%i)
+
+    # Line search
+    if doLineSearch:
+      timer.start('line search')
+      aopt = findStepLength(s,p,mp,nlsr,offset,rco,u4,a4,warping)
+      timer.stop('line search')
+    else:
+      aopt = 0.0
+
+    # Update slowness model
+    add(s,mul(aopt,p),s)
+    born.setSlowness(s)
+    wave.setSlowness(s)
+    pixels(s,cmap=jet,title='s_%d'%i)
+
+    timer.stop('ITERATION %d'%i)
+
+def transposeAndShiftImages(offset,r,rr,rm,rp):
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      transpose12(r[isou       ],rr[isou])
+      transpose12(r[isou-offset],rm[isou])
+      transpose12(r[isou+offset],rp[isou])
+  Parallel.loop(offset,ns-offset,Loop())
+  mp = getModelPrecondition(rr) # preconditioner
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      mul(mp,rr[isou],rr[isou])
+      mul(mp,rm[isou],rm[isou])
+      mul(mp,rp[isou],rp[isou])
+  Parallel.loop(offset,ns-offset,Loop())
+  #pixels(mp,title='mp')
+
+def findAndApplyShifts(warping,rr,rm,rp,um,up,rmw,rpw):
+  timer.start('warping')
+  #warping.findShifts(rr,rm,um)
+  #warping.findShifts(rr,rp,up)
+  warping.filterAndFindShifts(copy(rr),copy(rm),um)
+  warping.filterAndFindShifts(copy(rr),copy(rp),up)
+  timer.stop('warping')
+  warping.applyShifts(um,rm,rmw) # shift image
+  warping.applyShifts(up,rp,rpw) # shift image
+
+def makeDenominator(offset,rr,rmw,rpw,dm,dp):
+  rgfDeriv = RecursiveGaussianFilter(1.0)
+  #rgfSmooth = RecursiveGaussianFilter(0.125/dx)
+  rgfSmooth = RecursiveGaussianFilter(0.250/dx)
+  #rgfSmooth = RecursiveGaussianFilter(0.500/dx)
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      dma,dmb = copy(rr[isou]),copy(rr[isou]) # shifted image
+      dpa,dpb = copy(rr[isou]),copy(rr[isou]) # shifted image
+      #dma,dmb = copy(rmw[isou]),copy(rmw[isou]) # shifted image
+      #dpa,dpb = copy(rpw[isou]),copy(rpw[isou]) # shifted image
+      rgfDeriv.apply1X(dma,dma) # 1st derivative of shifted image
+      rgfDeriv.apply1X(dpa,dpa) # 1st derivative of shifted image
+      rgfDeriv.apply2X(dmb,dmb) # 2nd derivative of shifted image
+      rgfDeriv.apply2X(dpb,dpb) # 2nd derivative of shifted image
+      mul(dma,dma,dma) # 1st derivative squared, first term in denom
+      mul(dpa,dpa,dpa) # 1st derivative squared, first term in denom
+      mul(sub(rr[isou],rmw[isou]),dmb,dmb) # second term in denom
+      mul(sub(rr[isou],rpw[isou]),dpb,dpb) # second term in denom
+      #mul(sub(rm[isou],rr[isou]),dmb,dmb) # second term in denom
+      #mul(sub(rp[isou],rr[isou]),dpb,dpb) # second term in denom
+      sub(dma,dmb,dmb) # denominator
+      sub(dpa,dpb,dpb) # denominator
+      rgfSmooth.apply00(dmb,dm[isou]) # smooth
+      rgfSmooth.apply00(dpb,dp[isou]) # smooth
+  Parallel.loop(offset,ns-offset,Loop())
+  mul(1.0/max(abs(dm)),dm,dm) # normalize
+  mul(1.0/max(abs(dp)),dp,dp) # normalize
+  add(0.01,dm,dm) # stabilize for division
+  add(0.01,dp,dp) # stabilize for division
+
+def makeDenominatorX(offset,rr,rmw,rpw,dm,dp):
+  rgfDeriv = RecursiveGaussianFilter(1.0)
+  #rgfSmooth = RecursiveGaussianFilter(0.125/dx)
+  rgfSmooth = RecursiveGaussianFilter(0.250/dx)
+  #rgfSmooth = RecursiveGaussianFilter(0.500/dx)
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      dma,dmb = copy(rr[isou]),copy(rr[isou]) # shifted image
+      dpa,dpb = copy(rr[isou]),copy(rr[isou]) # shifted image
+      rgfDeriv.apply1X(dma,dma) # 1st derivative of shifted image
+      rgfDeriv.apply1X(dpa,dpa) # 1st derivative of shifted image
+      #mul(dma,dma,dma) # 1st derivative squared, first term in denom
+      #mul(dpa,dpa,dpa) # 1st derivative squared, first term in denom
+      abs(dma,dma) # 1st derivative absolute value
+      abs(dpa,dpa) # 1st derivative absolute value
+      rgfSmooth.apply00(dma,dm[isou]) # denominator (ignoring second term)
+      rgfSmooth.apply00(dpa,dp[isou]) # denominator (ignoring second term)
+  Parallel.loop(offset,ns-offset,Loop())
+  mul(1.0/max(abs(dm)),dm,dm) # normalize
+  mul(1.0/max(abs(dp)),dp,dp) # normalize
+  add(0.01,dm,dm) # stabilize for division
+  add(0.01,dp,dp) # stabilize for division
+
+def makeAdjointSource(offset,um,up,dm,dp,rr,rmw,rpw,ru):
+  mp = getModelPrecondition(rr) # preconditioner
+  div(um,dm,dm)
+  div(up,dp,dp)
+  uu = add(dm,dp)
+  class Loop(Parallel.LoopInt):
+    def compute(self,isou):
+      for ix in range(nx):
+        for iz in range(1,nz-1):
+          #ru[isou][iz][ix] = mp[ix][iz]*uu[isou][ix][iz]*\
+          ru[isou][iz][ix] = uu[isou][ix][iz]*\
+            (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])
+      #e = transpose(getEnergy(rr[isou]))
+      #mul(e,ru[isou],ru[isou])
+  Parallel.loop(offset,ns-offset,Loop())
+
+def computeGradient(offset,stride,ru,wave,src,rco,u4,a4,b4):
+  class Reduce(Parallel.ReduceInt):
+    def compute(self,isou):
+      ksou = (isou-offset)/stride
+      rui,ui,ai,bi = ru[isou],u4.get(ksou),a4.get(ksou),b4.get(ksou)
+      wave.applyForward(src[isou],ui)
+      #gp = wave.collapse(ui,ui,nabsorb) # gradient preconditioner
+      #mul(1.0/max(gp),gp,gp)
+      wave.applyAdjoint(Source.ReceiverSource(rco[isou]),ai)
+      # TODO: second time derivative?
+
+
+      wave.applyAdjoint(Source.WavefieldSource(ai,rui),bi)
+      #for it in range(nt):
+      #  mul(float(it),bi[it],bi[it])
+      ga = wave.collapse(ui,bi,nabsorb) # source side
+
+      wave.applyForward(Source.WavefieldSource(ui,rui),bi)
+      #for it in range(nt):
+      #  mul(float(it),bi[it],bi[it])
+      gb = wave.collapse(bi,ai,nabsorb) # receiver side
+
+      #return div(add(ga,gb),gp)
+      return add(ga,gb)
+    def combine(self,ga,gb):
+      return add(ga,gb)
+  timer.start('gradient')
+  g = PartialParallel(np).reduce(offset,ns-offset,stride,Reduce()) 
+  #g = PartialParallel(np).reduce(nx/2,1+nx/2,stride,Reduce()) # one shot
+  timer.stop('gradient')
+  RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0))).apply(g,g) # XXX
+  return g
+
 def goInversion():
   s,wave,born,bs,src,rco,u4,a4,b4,warping = getInputs()
   doMigration = False
@@ -232,14 +467,14 @@ def goInversion():
     timer.start('ITERATION')
 
     # Migration
-    timer.start('migration')
     if i>0 or doMigration:
+      timer.start('migration')
       bs.solve(nmig,r)
+      timer.stop('migration')
       if i==0:
         write('./dat/r.dat',r)
     else:
       read('./dat/r.dat',r)
-    timer.stop('migration')
     
     # Transpose and shift images, apply preconditioner
     class Loop(Parallel.LoopInt):
@@ -265,8 +500,8 @@ def goInversion():
     warping.findShifts(rr,rm,um)
     warping.findShifts(rr,rp,up)
     timer.stop('warping')
-    rm = warping.applyShifts(um,rm) # shift images
-    rp = warping.applyShifts(up,rp) # shift images
+    rm = warping.applyShifts(um,rm) # shift image
+    rp = warping.applyShifts(up,rp) # shift image
     pixels(rm[ns/2],sperc=99.9,title='rmw_%d'%i)
     pixels(rp[ns/2],sperc=99.9,title='rpw_%d'%i)
     pixels(mul(mp,um[ns/2]),cmap=rwb,sperc=99.9,title='um_%d'%i)
@@ -305,7 +540,8 @@ def goInversion():
   
     # Denominator assuming center image is always used for adjoint source
     rgfDeriv = RecursiveGaussianFilter(1.0)
-    rgfSmooth = RecursiveGaussianFilter(0.125/dx)
+    #rgfSmooth = RecursiveGaussianFilter(0.125/dx)
+    rgfSmooth = RecursiveGaussianFilter(0.250/dx)
     class Loop(Parallel.LoopInt):
       def compute(self,isou):
         #dma,dmb = copy(rr[isou]),copy(rm[isou]) # shifted image
@@ -335,8 +571,8 @@ def goInversion():
     add(0.01,dp,dp) # stabilize for division
     #mul(1.0/max(abs(dm)),dm,dm) # normalize
     #mul(1.0/max(abs(dp)),dp,dp) # normalize
-    pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i)
-    pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i)
+    #pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i) # XXX
+    #pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i) # XXX
 
 
     # Adjoint sources
@@ -359,9 +595,18 @@ def goInversion():
               mp[ix][iz]*uu[isou][ix][iz]*\
               (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])
 
+            #dm[isou][ix][iz] = (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])*\
+            #  (mp[ix][iz]*um[isou][ix][iz]/dm[isou][ix][iz])
+            #dp[isou][ix][iz] = (rr[isou][ix][iz+1]-rr[isou][ix][iz-1])*\
+            #  (mp[ix][iz]*up[isou][ix][iz]/dp[isou][ix][iz])
+
     Parallel.loop(offset,ns-offset,Loop())
     pixels(mul(mp,uu[ns/2]),cmap=rwb,sperc=99.9,title='uu_%d'%i)
     pixels(ru[ns/2],sperc=99.9,title='ru_%d'%i)
+
+    # XXX
+    pixels(dm[ns/2],cmap=rwb,sperc=99.9,title='dm_%d'%i)
+    pixels(dp[ns/2],cmap=rwb,sperc=99.9,title='dp_%d'%i)
 
     # Gradient and conjugate gradient
     class Reduce(Parallel.ReduceInt):
@@ -441,8 +686,8 @@ def findStepLength(s,p,m,nmig,offset,reco,u4,a4,warping):
       #add(um,up,up)
       add(abs(um),abs(up),up)
       mul(m,up,up)
-      pixels(rr,title='_rr_%f'%a)
-      pixels(up,cmap=rwb,sperc=100.0,title='_up_%f'%a)
+      #pixels(rr,title='_rr_%f'%a)
+      #pixels(up,cmap=rwb,sperc=100.0,title='_up_%f'%a)
       return sum(mul(up,up))
   aopt = BrentMinFinder(Misfit()).findMin(amin,amax,atol)
   print 'aopt=%f'%aopt
@@ -616,11 +861,14 @@ def getGradientFromImages(ru):
 
 def getModelPrecondition(rr):
   r = getStackedImage(rr)
-  #mul(r,r,r)
-  abs(r,r)
-  efilter(8.0,r,r)
-  mul(1.0/max(r),r,r)
-  return r
+  return getEnergy(r)
+
+def getEnergy(r):
+  e = abs(r)
+  #e = mul(r,r)
+  efilter(8.0,e,e)
+  mul(1.0/max(e),e,e)
+  return e
 
 def efilter(sigma,f,g,niter=2):
   ref = RecursiveExponentialFilter(sigma/sqrt(niter))
