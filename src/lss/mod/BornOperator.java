@@ -217,6 +217,21 @@ public class BornOperator {
     WaveOperator.collapse(b,a,_nabsorb,ry);
   }
 
+  public void xapplyAdjoint(
+    float[][][] b, float[][][] a, Receiver receiver, float[][] ts,
+    float[][] ry)
+  {
+    Check.argument(b[0][0].length-ry[0].length==2*_nabsorb,"consistent nx");
+    Check.argument(b[0].length-ry.length==2*_nabsorb,"consistent nz");
+    Receiver rc = receiver.clone();
+    if (ts!=null) {
+      zero(rc.getData());
+      applyAdjointShifts(ts,receiver,rc);
+    }
+    _wave.applyAdjoint(new Source.ReceiverSource(rc),a);
+    WaveOperator.collapse(b,a,_nabsorb,ry);
+  }
+
   public void applyAdjoint(
     float[][][] b, float[][][] a, Receiver receiver,
     float[][] ry)

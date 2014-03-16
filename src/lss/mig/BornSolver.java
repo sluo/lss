@@ -56,41 +56,96 @@ public class BornSolver {
   /**
    * Solves for the reflectivity image.
    * @param niter number of CG iterations to perform.
-   * @param rx input/output reflectivity image.
+   * @param rx input reflectivity image.
+   * @param ry output reflectivity image.
    */
-  public void solve(int niter, float[][] rx) {
-    CgSolver cg = new CgSolver(0.0,niter);
-    float[][] rb = new float[_nz][_nx];
+  public void solve(int niter, float[][] rx, float[][] ry) {
+    Check.argument(rx.length==ry.length,"rx.length==ry.length");
+    Check.argument(rx[0].length==ry[0].length,"rx[0].length==ry[0].length");
+    float[][] rb = (rx!=ry)?ry:new float[_nz][_nx];
     makeB(rb);
-    VecArrayFloat2 vx = new VecArrayFloat2(rx);
-    VecArrayFloat2 vb = new VecArrayFloat2(rb);
-    CgSolver.A ma = new A2();
-    CgSolver.A mm = new M2();
-    cg.solve(ma,mm,vb,vx);
+    new CgSolver(0.0,niter).solve(
+      new A2(),new M2(),new VecArrayFloat2(rb),new VecArrayFloat2(rx));
+    if (rx!=ry) {
+      copy(rx,ry);
+    }
+  }
+  
+  public void solve(int niter, float[][] ry) {
+    zero(ry);
+    solve(niter,ry,ry);
   }
 
   public float[][] solve(int niter) {
-    float[][] rx = new float[_nz][_nx];
-    solve(niter,rx);
-    return rx;
+    float[][] ry = new float[_nz][_nx];
+    solve(niter,ry);
+    return ry;
   }
 
   /**
    * Solves for the reflectivity images for each shot individually.
    * @param niter number of CG iterations to perform.
-   * @param rx input/output reflectivity image.
+   * @param rx input reflectivity image.
+   * @param ry output reflectivity image.
    */
-  public void solve(int niter, float[][][] rx) {
+  public void solve(int niter, float[][][] rx, float[][][] ry) {
     Check.argument(rx.length==_ns,"rx.length==_ns");
-    CgSolver cg = new CgSolver(0.0,niter);
-    float[][][] rb = new float[_ns][_nz][_nx];
+    Check.argument(rx.length==ry.length,"rx.length==ry.length");
+    Check.argument(rx[0].length==ry[0].length,"rx[0].length==ry[0].length");
+    Check.argument(rx[0][0].length==ry[0][0].length,
+      "rx[0].length==ry[0][0].length");
+    float[][][] rb = (rx!=ry)?ry:new float[_ns][_nz][_nx];
     makeB(rb);
-    VecArrayFloat3 vx = new VecArrayFloat3(rx);
-    VecArrayFloat3 vb = new VecArrayFloat3(rb);
-    CgSolver.A ma = new A3();
-    CgSolver.A mm = new M3();
-    cg.solve(ma,mm,vb,vx);
+    new CgSolver(0.0,niter).solve(
+      new A3(),new M3(),new VecArrayFloat3(rb),new VecArrayFloat3(rx));
+    if (rx!=ry) {
+      copy(rx,ry);
+    }
   }
+
+  public void solve(int niter, float[][][] ry) {
+    zero(ry);
+    solve(niter,ry,ry);
+  }
+
+//  /**
+//   * Solves for the reflectivity image.
+//   * @param niter number of CG iterations to perform.
+//   * @param rx input/output reflectivity image.
+//   */
+//  public void solve(int niter, float[][] rx) {
+//    CgSolver cg = new CgSolver(0.0,niter);
+//    float[][] rb = new float[_nz][_nx];
+//    makeB(rb);
+//    VecArrayFloat2 vx = new VecArrayFloat2(rx);
+//    VecArrayFloat2 vb = new VecArrayFloat2(rb);
+//    CgSolver.A ma = new A2();
+//    CgSolver.A mm = new M2();
+//    cg.solve(ma,mm,vb,vx);
+//  }
+//
+//  public float[][] solve(int niter) {
+//    float[][] rx = new float[_nz][_nx];
+//    solve(niter,rx);
+//    return rx;
+//  }
+//
+//  /**
+//   * Solves for the reflectivity images for each shot individually.
+//   * @param niter number of CG iterations to perform.
+//   * @param rx input/output reflectivity image.
+//   */
+//  public void solve(int niter, float[][][] rx) {
+//    Check.argument(rx.length==_ns,"rx.length==_ns");
+//    CgSolver cg = new CgSolver(0.0,niter);
+//    float[][][] rb = new float[_ns][_nz][_nx];
+//    makeB(rb);
+//    VecArrayFloat3 vx = new VecArrayFloat3(rx);
+//    VecArrayFloat3 vb = new VecArrayFloat3(rb);
+//    CgSolver.A ma = new A3();
+//    CgSolver.A mm = new M3();
+//    cg.solve(ma,mm,vb,vx);
+//  }
 
   // Old method using QuadraticSolver.
   public float[][] xsolve(int niter) {

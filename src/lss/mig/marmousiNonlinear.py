@@ -1,5 +1,5 @@
 #############################################################################
-# Wavefield modeling using BornWaveOperator
+# Marmousi nonlinear inversion. Testing shift predicted vs observed.
 
 from imports import *
 
@@ -10,128 +10,67 @@ savDir = None
 #savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
+timer = Timer()
 #############################################################################
 
 def main(args):
-  #readFiles()
-  #getModelAndMask()
-  #goNonlinearInversionQs() # inversion using line search
-  goNonlinearAmplitudeInversionQs() # amplitude inversion using line search
-  #goInversionQs() # inversion without line search
-  #goAmplitudeInversionQs() # amplitude inversion without line search
-  #goNewAmplitudeInversionQs() # shift predicted data instead
+  #goNonlinearAmplitudeInversionO() # shift observed
+  goNonlinearAmplitudeInversionP() # shift predicted
 
-  #compareData()
-  #test()
+#############################################################################
+# Setup
 
-def compareData():
-  born,bs,src,rcp,rco,warp = getInputs()
-  rf = zerofloat(nx,nz)
-  #read('/home/sluo/Desktop/new/rand/0-0-10/r0.dat',rf)
-  read('/home/sluo/Desktop/pngdat3/r0.dat',rf)
-  _,_,_,m,_ = getMarmousiModelAndMask()
-  mul(m,rf,rf)
-  print "computing predicted data..."
-  born.applyForward(src,rf,rcp)
-  pixels(rcp[ns/2].getData(),sperc=99.9,title='rcp')
-  pixels(rco[ns/2].getData(),sperc=99.9,title='rco')
+def getInputs():
+  t,s,r,p = getMarmousiModelAndMask()
+  e = mul(0.95,s) # erroneous background slowness
 
-def test():
-  """ Amplitude inversion using shifts computed from lsm.py result."""
-  niter = 10
-  born,bs,src,rcp,rco,warp = getInputs()
+  # Wavefields.
+  timer.start("allocating")
+  u = SharedFloat4(nxp,nzp,nt,np)
+  a = SharedFloat4(nxp,nzp,nt,np)
+  timer.stop("allocating")
 
-  # Time shifts
-  rf = zerofloat(nz,nx)
-  read('/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/s1_19.dat',rf)
-  rf = transpose(rf)
-  print "computing predicted data..."
-  born.applyForward(src,rf,rcp)
-  w = zerofloat(nt,nr,ns) # warping shifts
-  print 'warping...'
-  rcw = warp.warp(rco,rcp,w)
-  bs.setTimeShifts(w)
+  # Sources and receivers.
+  src = zeros(ns,Source)
+  rco = zeros(ns,Receiver)
+  rcp = zeros(ns,Receiver)
+  for isou in range(ns):
+    rco[isou] = Receiver(xr,zr,nt)
+    rcp[isou] = Receiver(xr,zr,nt)
+  for isou in range(ns):
+    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
+  bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
 
-  # Solve
-  rx = bs.solve(niter)
-  pixels(rx,cmap=gray,sperc=100.0,title='r0')
+  # Observed data.
+  timer.start("observed data")
+  bornt.applyForward(src,r,rco) # observed data
+  timer.stop("observed data")
 
-  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
-  pixels(w[ns-1],cmap=rwb,sperc=100.0,title='w0')
-  pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp0')
-  pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw0')
-  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
+  # Born modeling and solver.
+  born = BornOperatorS(e,dx,dt,nabsorb,u,a)
+  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
+  bs = BornSolver(born,src,rcp,rco,ref,p) # solver
 
-def readFiles():
-  setupForMarmousi()
-  #ra = zerofloat(nz,nx)
-  ra = zerofloat(nx,nz)
-  rb = zerofloat(nx,nz)
-  #read('/home/sluo/Desktop/save/lsm/marmousi/95p/ares5/s1_19.dat',ra)
-  #read('/home/sluo/Desktop/pngdat3/r0.dat',rb); rb = transpose(rb)
-  read('/home/sluo/Desktop/new/rand/0-0-10/r0.dat',ra)
-  read('/home/sluo/Desktop/new/rand/0-0-10-A-256/r0.dat',rb)
-  pixels(ra,sperc=99.9)
-  pixels(rb,sperc=99.9)
+  # Warping.
+  td = 4 # time decimation
+  maxShift = 0.1 # max shift (seconds)
+  #strainT,strainR,strainS = 0.50,0.20,-1.00 # 2D warping
+  strainT,strainR,strainS = 0.50,0.20,1.00
+  #smoothT,smoothR,smoothS = 16.0,4.0,4.0
+  smoothT,smoothR,smoothS = 32.0,8.0,8.0
+  warp = ImageWarping(
+    strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
 
-def setupForMarmousi():
-  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
-  global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
-  global sigma0,sigma1
-  sz = Sampling(265,0.012,0.0)
-  sx = Sampling(767,0.012,0.0)
-  st = Sampling(5501,0.0010,0.0)
-  nz,nx,nt = sz.count,sx.count,st.count
-  dz,dx,dt = sz.delta,sx.delta,st.delta
-  fz,fx,ft = sz.first,sx.first,st.first
-  #xs,zs = [0],[0]
-  #xs,zs = [nx/2],[0]
-  #xs,zs = rampint(1,15,52),fillint(0,52)
-  xs,zs = rampint(3,10,77),fillint(0,77)
-  #xs,zs = rampint(3,8,96),fillint(0,96)
-  #xs,zs = rampint(3,5,153),fillint(0,153)
-  #xs,zs = rampint(1,3,256),fillint(0,256)
-  xr,zr = rampint(0,1,nx),fillint(0,nx)
-  ns,nr = len(xs),len(xr)
-  fpeak = 10.0 # Ricker wavelet peak frequency
-  nabsorb = 22 # absorbing boundary size
-  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
-  np = min(8,ns) # number of parallel sources
-  sigma0 = 1.0/fpeak
-  sigma1 = 1.0/fpeak
-  print 'ns=%d'%ns
-  return getMarmousiModelAndMask()
-
-def setupForLayered():
-  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
-  global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
-  global sigma0,sigma1
-  #sz = Sampling(301,0.012,0.0) # for layered model
-  #sx = Sampling(501,0.012,0.0)
-  #st = Sampling(2750,0.0015,0.0)
-  sz = Sampling(201,0.016,0.0)
-  sx = Sampling(202,0.016,0.0)
-  st = Sampling(2003,0.0010,0.0)
-  nz,nx,nt = sz.count,sx.count,st.count
-  dz,dx,dt = sz.delta,sx.delta,st.delta
-  fz,fx,ft = sz.first,sx.first,st.first
-  #xs,zs = [0],[0]
-  #xs,zs = [nx/2],[0]
-  #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
-  xs,zs = [nx/5,2*nx/5,3*nx/5,4*nx/5],[0,0,0,0]
-  #xs,zs = rampint(1,10,51),fillint(0,51) # for layered
-  xr,zr = rampint(0,1,nx),fillint(0,nx)
-  ns,nr = len(xs),len(xr)
-  fpeak = 20.0 # Ricker wavelet peak frequency
-  nabsorb = 22 # absorbing boundary size
-  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
-  np = min(16,ns) # number of parallel sources
-  sigma0 = 4.0/fpeak
-  sigma1 = 1.0/fpeak
-  print 'ns=%d'%ns
-  return getLayeredModelAndMask()
+  pixels(t,cmap=jet,title='t')
+  pixels(s,cmap=jet,title='s')
+  pixels(e,cmap=jet,title='e')
+  pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
+  pixels(r,cmap=gray,sperc=100.0,title='r')
+  pixels(p,cmap=gray,title='p')
+  return born,bs,src,rcp,rco,warp,p
 
 def getMarmousiModelAndMask():
+  setupForMarmousi()
   s = getMarmousi()
   s0,s1 = makeBornModel(s)
 
@@ -155,267 +94,35 @@ def getMarmousiModelAndMask():
   mul(1.0/max(p),p,p)
   mul(m,p,p)
 
-  #pixels(s,cmap=jet)
-  #pixels(s0,cmap=jet)
-  #pixels(s1,sperc=100.0)
-  #pixels(p,cmap=gray)
-  return s,s0,mul(s1,m),m,p
+  return s,s0,mul(s1,m),p
 
-def getLayeredModelAndMask():
-  constantBackground = True
-  tb = 0.25 # background slowness
-  t = getLayered2()
-  t0,t1 = makeBornModel(t)
-  GaussianTaper.apply1(t1,t1)
-  if constantBackground:
-    fill(tb,t0)
-  m = fillfloat(1.0,nx,nz)
-  for iz in range(nz/3-6):
-    for ix in range(nx):
-      m[iz][ix] = 0.0
-  RecursiveExponentialFilter(1.0).apply2(m,m)
-  #return t,t0,t1,m
-  return t,t0,t1,None,None
-
-def getLayered2(s0mul=1.0):
-  t = fillfloat(1.0/1.5,nz,nx)
-  for ix in range(nx):
-    for iz in range(nz/3,2*nz/3):
-      t[ix][iz] = 0.5
-    for iz in range(2*nz/3,nz):
-      t[ix][iz] = 0.2
-  #t = fillfloat(0.35,nz,nx)
-  #for ix in range(nx):
-  #  for iz in range(nz/3,2*nz/3):
-  #    t[ix][iz] = 0.3
-  #  for iz in range(2*nz/3,nz):
-  #    t[ix][iz] = 0.2
-  return transpose(t)
-
-#############################################################################
-# Inversion without line search
-
-def addRandomError(s,emax=0.010,m=None):
-  random = Random(0)
-  r = sub(randfloat(random,nz,nx),0.5); r = transpose(r)
-  RecursiveGaussianFilter(62.5).apply00(r,r)
-  mul(emax/max(abs(r)),r,r)
-  if m is not None:
-    mul(m,r,r)
-  return add(s,r)
-
-def addGaussianError(s,emax=0.010,m=None):
-  g = zerofloat(nx,nz)
-  g[nz/2][nx/2] = 1.0
-  RecursiveGaussianFilter(nz/5.0).apply00(g,g)
-  mul(emax/max(g),g,g)
-  if m is not None:
-    mul(m,g,g)
-  return add(s,g)
-
-def getModelAndMask():
-  t,s,r,m,p = setupForMarmousi()
-  #t,s,r,m,p = setupForLayered()
-  e = mul(0.95,s) # erroneous background slowness
-  #e = mul(0.85,s) # erroneous background slowness
-  #e = addGaussianError(s,emax=0.025,m=m)
-  #e = addRandomError(s,emax=0.025,m=m)
-  #e = addRandomError(s,emax=0.050,m=m)
-  pixels(t,cmap=jet,title='t')
-  pixels(s,cmap=jet,title='s')
-  pixels(e,cmap=jet,title='e')
-  if m is not None:
-    pixels(m,cmap=gray,title='m')
-  pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
-  pixels(r,cmap=gray,sperc=100.0,title='r')
-  return t,s,e,r,p
-
-def getInputs():
-  useAcoustic = False # use WaveOperator for observed data
-  warp3d = False # use 3D warping
-  print 'warp3d=%r'%warp3d
-  t,s,e,r,m = getModelAndMask()
-
-  # Wavefields.
-  print "allocating..."
-  u = SharedFloat4(nxp,nzp,nt,np)
-  a = SharedFloat4(nxp,nzp,nt,np)
-
-  # Sources and receivers.
-  print "computing observed data..."
-  src = zeros(ns,Source)
-  rco = zeros(ns,Receiver)
-  rcp = zeros(ns,Receiver)
-  for isou in range(ns):
-    rco[isou] = Receiver(xr,zr,nt)
-    rcp[isou] = Receiver(xr,zr,nt)
-  if useAcoustic:
-    v = fillfloat(t[0][0],nx,nz)
-    sro = BornOperatorS.getSourceArray(ns) # source for observed data
-    rct = BornOperatorS.getReceiverArray(ns) # temp receivers
-    for isou in range(ns):
-      sro[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
-      src[isou] = Source.WaveletSource(xs[isou],zs[isou],rotatedRicker())
-      rct[isou] = Receiver(xr,zr,nt)
-    wavet = WaveOperatorS(t,dx,dt,nabsorb,u,a) # true slowness
-    wavev = WaveOperatorS(v,dx,dt,nabsorb,u,a) # for direct arrival
-    wavet.applyForward(sro,rco) # observed data
-    wavev.applyForward(sro,rct) # direct arrival
-    for isou in range(ns):
-      sub(rco[isou].getData(),rct[isou].getData(),rco[isou].getData())
-  else:
-    for isou in range(ns):
-      src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
-    bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
-    bornt.applyForward(src,r,rco) # observed data
-
-  # Born modeling and solver.
-  born = BornOperatorS(e,dx,dt,nabsorb,u,a)
-  ref = RecursiveExponentialFilter(1.0/(fpeak*dx*sqrt(2.0)))
-  bs = BornSolver(born,src,rcp,rco,ref,m) # solver
-
-  # Warping.
-  td = 4 # time decimation
-  maxShift = 0.1 # max shift (seconds)
-  strainT,strainR,strainS = 0.50,0.20,1.00 if warp3d else -1.0
-  #smoothT,smoothR,smoothS = 16.0,4.0,4.0
-  smoothT,smoothR,smoothS = 32.0,8.0,8.0
-  warp = ImageWarping(
-    strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
-  w = zerofloat(nt,nr,ns) # warping shifts
-
-  return born,bs,src,rcp,rco,warp
-
-def goAmplitudeInversionQs():
-  nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
-  #nouter,ninner,nfinal = 0,0,5 # outer, inner, inner for last outer
-  zeroReflectivity = True # zero reflectivity after each outer iteration
-  """""" 
-  born,bs,src,rcp,rco,warp = getInputs()
-  rx = zerofloat(nx,nz) # reflectivity image
-  w = zerofloat(nt,nr,ns) # warping shifts
-  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
-  for iouter in range(nouter+1):
-    bs.solve(nfinal if iouter==nouter else ninner,rx,rx);
-    pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
-    if nouter>0 and iouter<nouter:
-      born.applyForward(src,rx,rcp)
-      print 'warping'
-      rcw = warp.warp(rcp,rco,w)
-      bs.setObservedData(rcw)
-      pixels(rcp[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
-      pixels(rcw[ns-1].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
-      pixels(w[ns-1],cmap=rwb,sperc=100.0,title='w%d'%iouter)
-    if zeroReflectivity:
-      zero(rx)
-  pixels(rco[ns-1].getData(),cmin=dmin,cmax=dmax,title='rco')
-
-def goNewAmplitudeInversionQs():
-  #nouter,ninner,nfinal = 5,2,5 # outer, inner, inner for last outer
-  nouter,ninner,nfinal = 0,0,10 # outer, inner, inner for last outer
-  saveReflectivity = False # save reflectivity between outer iterations
-  shiftsFromFile = False # compute shifts from reflectivity from file
-  """""" 
-  print 'nouter=%d'%nouter
-  print 'ninner=%d'%ninner
-  print 'nfinal=%d'%nfinal
-  print 'saveReflectivity=%r'%saveReflectivity
-  print 'shiftsFromFile=%r'%shiftsFromFile
-  born,bs,src,rcp,rco,warp = getInputs()
-  w = zerofloat(nt,nr,ns) # warping shifts
-  if shiftsFromFile:
-    rf = zerofloat(nx,nz)
-    read('/home/sluo/Desktop/new/const/0-0-10-96s-2/r0.dat',rf)
-    _,_,_,m,_ = getMarmousiModelAndMask()
-    mul(m,rf,rf)
-    print "computing predicted data..."
-    born.applyForward(src,rf,rcp)
-    print "warping..."
-    warp.warp(rco,rcp,w)
-    bs.setTimeShifts(w)
-  rx = zerofloat(nx,nz) # reflectivity image
-  dmin,dmax = min(rco[ns-1].getData()),max(rco[ns-1].getData())
-  for iouter in range(nouter+1):
-    bs.solve(nfinal if iouter==nouter else ninner,rx,rx);
-    pixels(rx,cmap=gray,sperc=100.0,title='r%d'%iouter)
-    if nouter>0 and iouter<nouter:
-      print "computing predicted data..."
-      born.applyForward(src,rx,rcp) # simulate predicted data
-      print 'warping...'
-      rcw = warp.warp(rco,rcp,w) # estimate new time shifts
-      bs.setTimeShifts(w) # set new time shifts
-      pixels(rcp[ns/2].getData(),cmin=dmin,cmax=dmax,title='rcp%d'%iouter)
-      pixels(rcw[ns/2].getData(),cmin=dmin,cmax=dmax,title='rcw%d'%iouter)
-      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iouter)
-    if not saveReflectivity:
-      zero(rx)
-  pixels(rco[ns/2].getData(),cmin=dmin,cmax=dmax,title='rco')
-
-def rotatedRicker():
-  """Phase-rotated and twice-differentiated Ricker wavelet."""
-  def ricker(t):
-    x = FLT_PI*fpeak*(t-1.5/fpeak)
-    xx = x*x
-    return (1.0-2.0*xx)*exp(-xx);
-  w = zerofloat(nt)
-  for it in range(nt):
-    t = it*dt
-    w[it] = ricker(t)
-  w = rotateAndDifferentiate(w)
-  mul(1.0/max(abs(w)),w,w)
-  #points(w)
-  return w
-def rotateAndDifferentiate(rx):
-  fft = Fft(rx)
-  sf = fft.getFrequencySampling1()
-  nf = sf.count
-  cy = fft.applyForward(rx) # forward FFT
-  p = 0.25*FLT_PI # phase rotation angle
-  t = zerofloat(2*nf)
-  for i in range(nf):
-    w = sf.getValue(i)
-    #t[2*i  ] = cos(p) # phase rotation
-    #t[2*i+1] = sin(p) # phase rotation
-    #t[2*i  ] = w*w # negative 2nd time derivative
-    #t[2*i+1] = 0.0 # negative 2nd time derivative
-    t[2*i  ] = w*w*cos(p) # phase rotation and negative 2nd time derivative
-    t[2*i+1] = w*w*sin(p) # phase rotation and negative 2nd time derivative
-  cmul(t,cy,cy)
-  ry = fft.applyInverse(cy) # inverse FFT
-  return ry
-
-def goInversionQs():
-  niter = 2
-  #s,r = makeBornModel(getMarmousi(stride))
-  _,s,_,r,m = getModelAndMask()
-  e = mul(0.95,s) # erroneous background slowness
-
-  src = BornOperatorS.getSourceArray(ns) # sources
-  rco = BornOperatorS.getReceiverArray(ns) # receivers
-  for isou in range(ns):
-    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
-    rco[isou] = Receiver(xr,zr,nt)
-  print "allocating"
-  u = SharedFloat4(nxp,nzp,nt,np)
-  a = SharedFloat4(nxp,nzp,nt,np)
-  born = BornOperatorS(e,dx,dt,nabsorb,u,a)
-  bornt = BornOperatorS(s,dx,dt,nabsorb,u,a) # true slowness
-
-  ref = RecursiveExponentialFilter(0.5/(fpeak*dx));
-  bs = BornSolver(born,src,rco,ref)
-  bs.setTrueBornOperator(bornt)
-  bs.setTrueReflectivity(r)
-  """
-  ref = RecursiveExponentialFilter(0.5/(fpeak*dx));
-  bornt.applyForward(src,r,rco)
-  bs = BornSolver(born,src,rco,ref)
-  """
-
-  rx = bs.solve(niter);
-  pixels(s,cmap=jet,title="s")
-  pixels(e,cmap=jet,title="e")
-  pixels(r,sperc=99.5,title="r")
-  pixels(rx,sperc=99.5,title="r%d"%niter)
+def setupForMarmousi():
+  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
+  global zs,xs,zr,xr,ns,nr,fpeak,nabsorb,np
+  global sigma0,sigma1
+  sz = Sampling(265,0.012,0.0)
+  sx = Sampling(767,0.012,0.0)
+  st = Sampling(5501,0.0010,0.0)
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  fz,fx,ft = sz.first,sx.first,st.first
+  #xs,zs = [0],[0]
+  #xs,zs = [nx/2],[0]
+  #xs,zs = [nx/4,nx/2,3*nx/4],[0,0,0]
+  #xs,zs = rampint(1,15,52),fillint(0,52)
+  #xs,zs = rampint(3,10,77),fillint(0,77) #
+  xs,zs = rampint(3,8,96),fillint(0,96)
+  #xs,zs = rampint(3,5,153),fillint(0,153)
+  #xs,zs = rampint(1,3,256),fillint(0,256)
+  xr,zr = rampint(0,1,nx),fillint(0,nx)
+  ns,nr = len(xs),len(xr)
+  fpeak = 10.0 # Ricker wavelet peak frequency
+  nabsorb = 22 # absorbing boundary size
+  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
+  np = min(8,ns) # number of parallel sources
+  sigma0 = 1.0/fpeak
+  sigma1 = 1.0/fpeak
+  print 'ns=%d'%ns
 
 #############################################################################
 # Nonlinear inversion using line search
@@ -496,62 +203,74 @@ def goNonlinearInversionQs():
 def applyImagingCondition(u,a):
   return WaveOperator.collapse(u,a,nabsorb)
 
-def goNonlinearAmplitudeInversionQs():
-  niter = 5
-  _,t0,_,t1,m = getModelAndMask()
-  s0 = mul(0.95,t0) # erroneous background slowness
-  #s0 = mul(1.00,t0)
-
-  # Wavefields
-  print "allocating"
-  u = SharedFloat4(nxp,nzp,nt,np)
-  a = SharedFloat4(nxp,nzp,nt,np)
-
-  # BornOperator
-  born = BornOperatorS(s0,dx,dt,nabsorb,u,a) # erroneous slowness
-  bornt = BornOperatorS(t0,dx,dt,nabsorb,u,a) # true slowness
-
-  # Sources and receivers
-  src = BornOperatorS.getSourceArray(ns) # sources
-  rco = BornOperatorS.getReceiverArray(ns) # receivers
-  rcp = BornOperatorS.getReceiverArray(ns) # receivers
-  for isou in range(ns):
-    src[isou] = Source.RickerSource(xs[isou],zs[isou],dt,fpeak)
-    rco[isou] = Receiver(xr,zr,nt)
-    rcp[isou] = Receiver(xr,zr,nt)
-  bornt.applyForward(src,t1,rco) # observed data
-
-  w = div(1.0,mul(s0,s0)); mul(1.0/max(w)/ns,w,w) # v^2 preconditioning
-  s1 = like(t1) # computed reflectivity
-  gm,pm = None,None # previous gradient, conjugate gradient
+def goNonlinearAmplitudeInversionP():
+  goNonlinearAmplitudeInversion(shiftPredicted=True)
+def goNonlinearAmplitudeInversionO():
+  goNonlinearAmplitudeInversion(shiftPredicted=False)
+def goNonlinearAmplitudeInversion(shiftPredicted):
+  niter = 2 # nonlinear iterations
+  born,bs,src,rcp,rco,warping,mp = getInputs()
+  r = zerofloat(nx,nz) # reflectivity image
+  gm,pm = None,None # previous gradient, previous conjugate gradient
   for iiter in range(niter):
-    if iiter>0:
-      born.applyForward(src,s1,rcp)
-      rcr = makeAmplitudeResiduals(rcp,rco)
-    else:
-      rcr = BornOperatorS.getReceiverArray(ns)
-      for isou in range(ns):
-        rcr[isou] = Receiver(xr,zr,mul(-1.0,rco[isou].getData()))
-    g = like(s1)
-    #twiceIntegrate(rcr); # XXX
-    born.applyAdjoint(src,rcr,g) # gradient
-    roughen(g) # roughen
-    mul(w,g,g) # precondition
-    if m is not None:
-      mul(m,g,g) # mask
-    p = conjugateDirection(g,gm,pm) # conjugate gradient
-    if niter>1:
-      amf = AmplitudeMisfitFunction(s1,p,src[ns/2],rco[ns/2],born)
-      updateModel(amf,s1) # line search
+    g = computeGradientP(r,mp,born,src,rcp,rco,warping) if shiftPredicted\
+      else computeGradientO(r,mp,born,src,rcp,rco,warping)
+    p = conjugateDirection(g,gm,pm) # conjugate gradient direction
+    add(mul(-0.05/max(abs(p)),p),r,r) # fixed step length XXX
     pixels(g,cmap=rwb,sperc=100.0,title='g_'+str(iiter))
     pixels(p,cmap=rwb,sperc=100.0,title='p_'+str(iiter))
-    pixels(s1,cmap=rwb,sperc=100.0,title='s1_'+str(iiter))
+    pixels(r,cmap=rwb,sperc=100.0,title='r_'+str(iiter))
     gm,pm = g,p
 
-  #pixels(rco[ns/2].getData(),title='rco')
-  pixels(t1,cmap=rwb,sperc=100.0,title='t1')
-  pixels(t0,cmap=jet,title='t0')
-  pixels(s0,cmap=jet,title='s0')
+def computeGradientO(r,mp,born,src,rcp,rco,warping):
+  g = zerofloat(nx,nz) # gradient
+  w = zerofloat(nt,nr,ns) # warping shifts
+  if sum(r)!=0.0:
+    timer.start("predicted data")
+    born.applyForward(src,r,rcp)
+    timer.stop("predicted data")
+    timer.start("warping")
+    rcw = warping.warp(rcp,rco,w) # warp observed to predicted
+    timer.stop("warping")
+  else:
+    rcw = rco
+  rcr = rsub(rcp,rcw) # residual
+  timer.start("gradient")
+  born.applyAdjoint(src,rcr,g) # gradient
+  timer.stop("gradient")
+  roughen(g) # roughen
+  mul(mp,g,g) # precondition
+  return g
+
+def computeGradientP(r,mp,born,src,rcp,rco,warping):
+  g = zerofloat(nx,nz) # gradient
+  w = zerofloat(nt,nr,ns) # warping shifts
+  if sum(r)!=0.0:
+    timer.start("predicted data")
+    born.applyForward(src,r,rcp)
+    timer.stop("predicted data")
+    timer.start("warping")
+    rcw = warping.warp(rco,rcp,w) # warp predicted to observed
+    timer.stop("warping")
+  else:
+    rcw = rcp
+  rcr = rsub(rcw,rco) # residual
+  timer.start("gradient")
+  #born.applyAdjoint(src,rcr,w,g) # gradient, including warping shifts
+  born.applyAdjoint(src,rcr,g) # gradient, including warping shifts
+  timer.stop("gradient")
+  roughen(g) # roughen
+  mul(mp,g,g) # precondition
+  return g
+
+def rsub(rcx,rcy,rcz=None):
+  if rcz is None:
+    rcz = zeros(ns,Receiver)
+    for isou in range(ns):
+      rcz[isou] = Receiver(xr,zr,nt)
+  for isou in range(ns):
+    sub(rcx[isou].getData(),rcy[isou].getData(),rcz[isou].getData())
+  return rcz
 
 def twiceIntegrate(rec):
   try:
