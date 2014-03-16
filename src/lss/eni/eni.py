@@ -4,18 +4,19 @@
 from imports import *
 from dnp import *
 
-#subSet = 'suba'
-#subSet = 'subb'
-#subSet = 'subc'
-#subSet = 'subd'
-subSet = 'sube'
-#subSet = 'subf'
+#subset = 'suba'
+#subset = 'subb'
+#subset = 'subc'
+#subset = 'subd'
+#subset = 'sube'
+#subset = 'subf'
+subset = 'subg'
 subDir = '/data/sluo/eni/dat/'+subset+'/'
 
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
-savDir = '/home/sluo/Desktop/pngdat2/'
-#savDir = '/home/sluo/Desktop/pngdat3/'
+#savDir = '/home/sluo/Desktop/pngdat2/'
+savDir = '/home/sluo/Desktop/pngdat3/'
 
 timer = Timer()
 ##############################################################################
@@ -31,7 +32,10 @@ def main(args):
   #estimateWavelet(toFile=False,rotate=0.50*FLT_PI,d2=True)
   #goAmplitudeInversionO() # shift observed data
   #goAmplitudeInversionP() # shift predicted data
-  goNonlinearAmplitudeInversionO() # nonlinear inversion, shift observed
+  #goNonlinearWaveformInversion() # nonlinear inversion using data residual
+  #goNonlinearAmplitudeInversionO() # nonlinear inversion, shift observed
+  goNonlinearAmplitudeInversionP() # nonlinear inversion, shift predicted
+  #goPredictedData() # resimulate predicted data
 
 def getWavelet():
   return readWavelet()
@@ -74,6 +78,13 @@ def setGlobals():
     sz = Sampling(181,0.00625,0.0) # depth
     st = Sampling(3751,0.0004,0.0) # time
     npmax = 16 # max number of parallel shots
+  elif subset=='subg':
+    ss = Sampling(863,0.0125,1.225) # shot (relative offset)
+    sr = Sampling(197,0.00625,-1.225) # receiver
+    sx = Sampling(1921,0.00625,0.0) # distance
+    sz = Sampling(181,0.00625,0.0) # depth
+    st = Sampling(3751,0.0004,0.0) # time
+    npmax = 12 # max number of parallel shots
   #stride = 1
   stride = 2
   #stride = 4
@@ -123,9 +134,34 @@ def getInputs():
       smin,sder = None,None
     elif subset=='sube':
       smin,sder = 0.76,-0.0027
+    elif subset=='subg':
+      smin,sder = 0.72,-0.0023
     else:
       smin,sder = 0.75,-0.0025
+  else:
+    smin,sder = None,None
   print 'vz=%r'%vz
+
+  # ImageWarping
+  td = 4 # time decimation
+  maxShift = 0.1 # max shift (seconds)
+  #maxShift = 0.05 # max shift (seconds)
+  #strainT,strainR,strainS = 0.2,0.2,0.2
+  #strainT,strainR,strainS = 0.2,0.2,0.5
+  #strainT,strainR,strainS = 0.3,0.3,0.3
+  strainT,strainR,strainS = 0.4,0.4,0.3 #
+  #strainT,strainR,strainS = 0.4,0.4,0.4
+  #strainT,strainR,strainS = 0.4,0.4,0.5
+  #strainT,strainR,strainS = 0.5,0.5,0.5
+  #strainT,strainR,strainS = 0.4,0.4,1.0
+  #strainT,strainR,strainS = 0.5,0.5,1.0
+  #strainT,strainR,strainS = 1.0,1.0,1.0
+  smoothT,smoothR,smoothS = 32.0,4.0,4.0
+  warping = ImageWarping(
+    strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
+  print 'bstrainT=%d'%int(ceil(1.0/strainT))
+  print 'bstrainR=%d'%int(ceil(1.0/strainR))
+  print 'bstrainS=%d'%int(ceil(1.0/strainS))
 
   # BornSolver
   timer.start('allocating')
@@ -139,21 +175,6 @@ def getInputs():
   ref = RecursiveExponentialFilter(sigma)
   born = BornOperatorS(s,dx,dt,nabsorb,u,a)
   bs = BornSolver(born,src,rcp,rco,ref,m)
-
-  # ImageWarping
-  td = 4 # time decimation
-  maxShift = 0.1 # max shift (seconds)
-  #strainT,strainR,strainS = 0.20,0.20,0.20
-  #strainT,strainR,strainS = 0.20,0.20,0.50
-  #strainT,strainR,strainS = 0.50,0.50,1.00
-  strainT,strainR,strainS = 1.00,1.00,1.00
-  #strainT,strainR,strainS = 0.20,0.20,min(0.50*stride,1.0)
-  smoothT,smoothR,smoothS = 32.0,4.0,4.0
-  warping = ImageWarping(
-    strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
-  print 'strainT=%f'%strainT
-  print 'strainR=%f'%strainR
-  print 'strainS=%f'%strainS
 
   pixels(s,cmap=jet,title='s')
   pixels(m,cmap=gray,title='m')
@@ -172,7 +193,7 @@ def goAmplitudeInversionO():
   w = zerofloat(nt,nr,ns) # warping shifts
   for iouter in range(nouter+1):
     sw = Stopwatch(); sw.start()
-    bs.solve(nfinal if iouter==nouter else ninner,r)
+    bs.solve(nfinal if iouter==nouter else ninner,r,r)
     pixels(r,cmap=gray,sperc=100.0,title='r%d'%iouter)
     if iouter<nouter and nouter>0:
       print "computing predicted data..."
@@ -208,7 +229,7 @@ def goAmplitudeInversionP():
   w = zerofloat(nt,nr,ns) # warping shifts
   for iouter in range(nouter+1):
     sw = Stopwatch(); sw.start()
-    bs.solve(nfinal if iouter==nouter else ninner,r);
+    bs.solve(nfinal if iouter==nouter else ninner,r,r);
     pixels(r,cmap=gray,sperc=100.0,title='r%d'%iouter)
     if iouter<nouter and nouter>0:
       print "computing predicted data..."
@@ -233,13 +254,58 @@ def goAmplitudeInversionP():
 ##############################################################################
 # Nonlinear inversion with line search
 
+def goPredictedData():
+  rdir = '/home/sluo/Desktop/subg/nonlinear/vz/dres00/'
+  #rdir = '/home/sluo/Desktop/subg/nonlinear/vz/ares05/'
+  rfile = rdir+'r9.dat'
+  sfile = rdir+'s.dat'
+  r = zerofloat(nz,nx); read(rfile,r); r = transpose(r)
+  s = zerofloat(nz,nx); read(sfile,s); s = transpose(s)
+  pixels(r,sperc=99,title='r')
+  pixels(s,cmap=jet,title='s')
+  born,bs,src,rcp,rco,warping,ss,m,ref = getInputs()
+  Check.argument(sum(sub(s,ss))==0.0,'sum(sub(s,ss))==0.0')
+  timer.start('predicted data')
+  born.applyForward(src,r,rcp) # simulate predicted data
+  timer.stop('predicted data')
+  w = zerofloat(nt,nr,ns) # warping shifts
+  timer.start('warping')
+  rcw = warping.warp(rcp,rco,w) # warping
+  timer.stop('warping')
+  ksou = [0,25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425]
+  clip = getSymmetricClip(0.98,rco[ns/2].getData())
+  for isou in ksou:
+    x = fs+isou*stride*ds
+    pixels(rco[isou].getData(),cmin=-clip,cmax=clip,title='do_x=%f'%x)
+    pixels(rcp[isou].getData(),cmin=-clip,cmax=clip,title='dp_x=%f'%x)
+    pixels(rcw[isou].getData(),cmin=-clip,cmax=clip,title='dw_x=%f'%x)
+    pixels(w[isou],cmap=rwb,sperc=99.9,title='w_x=%f'%x)
+
+def goNonlinearWaveformInversion():
+  goNonlinearInversion(0)
 def goNonlinearAmplitudeInversionO():
+  goNonlinearInversion(1)
+def goNonlinearAmplitudeInversionP():
+  goNonlinearInversion(2)
+def goNonlinearInversion(residualType=0):
+  """Nonlinear inversion via a line search.
+  residualType = 0: data residual
+  residualType = 1: amplitude residual with shifted observed data
+  residualType = 2: amplitude residual with shifted predicted data
+  """
+  #niter,riter = 10,5 # number of iterations, iteration to reset reflectivity
   niter,riter = 10,0 # number of iterations, iteration to reset reflectivity
-  useAmplitudeResidual = True
-  print 'useAmplitudeResidual=%r'%useAmplitudeResidual
+  #useAmplitudeResidual = True
+  print 'niter=%d'%niter
+  print 'riter=%d'%riter
+  #print 'useAmplitudeResidual=%r'%useAmplitudeResidual
   born,bs,src,rcp,rco,warping,s,m,ref = getInputs()
-  res = AmplitudeResidual(warping) if useAmplitudeResidual\
-    else WaveformResidual()
+  if residualType==0:
+    res = WaveformResidual()
+  elif residualType==1:
+    res = AmplitudeResidualO(warping)
+  elif residualType==2:
+    res = AmplitudeResidualP(warping)
   mp = getPreconditioner(s,m) # preconditioner
   w = zerofloat(nt,nr,ns) # warping shifts
   r = zerofloat(nx,nz) # reflectivity
@@ -247,23 +313,29 @@ def goNonlinearAmplitudeInversionO():
   for iiter in range(niter):
     print ''
     timer.start('ITERATION %d'%iiter)
-    if iiter>0:
-      timer.start('predicted data')
-      born.applyForward(src,r,rcp) # simulate predicted data
-      timer.stop('predicted data')
-      pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
-    if useAmplitudeResidual and iiter>0:
-      timer.start('warping')
-      rcw = warping.warp(rcp,rco,w) # warping
-      timer.stop('warping')
-      pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
-      pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
-      rsub(rcp,rcw,rcp) # amplitude residual
-    else:
-      rsub(rcp,rco,rcp) # data residual
-    timer.start('gradient')
-    born.applyAdjoint(src,rcp,g) # gradient
-    timer.stop('gradient')
+    #if iiter>0 and iiter!=riter:
+    #  timer.start('predicted data')
+    #  born.applyForward(src,r,rcp) # simulate predicted data
+    #  timer.stop('predicted data')
+    #  pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
+    #if useAmplitudeResidual and iiter>0:
+    #  timer.start('warping')
+    #  rcw = warping.warp(rcp,rco,w) # warping
+    #  timer.stop('warping')
+    #  pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
+    #  pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
+    #  rsub(rcp,rcw,rcp) # amplitude residual
+    #else:
+    #  rsub(rcp,rco,rcp) # data residual
+    #timer.start('gradient')
+    #born.applyAdjoint(src,rcp,g) # gradient
+    #timer.stop('gradient')
+    if residualType==0:
+      g = computeGradient(iiter,r,born,src,rcp,rco)
+    elif residualType==1:
+      g = computeGradientO(iiter,r,born,src,rcp,rco,warping)
+    elif residualType==2:
+      g = computeGradientP(iiter,r,born,src,rcp,rco,warping)
     for i in range(2):
       roughen(g,ref) # roughen
     mul(mp,g,g) # precondition
@@ -279,9 +351,67 @@ def goNonlinearAmplitudeInversionO():
     timer.stop('ITERATION %d'%iiter)
     if (iiter+1)==riter:
       print '\nresetting reflectivity'
+      zero(r); gm = None; pm = None
       rco = rcw
-      zero(r)
   pixels(rco[ns/2].getData(),title='rco')
+
+def computeGradient(iiter,r,born,src,rcp,rco):
+  """Gradient for waveform residual."""
+  g = zerofloat(nx,nz) # gradient
+  if iiter>0:
+    timer.start('predicted data')
+    born.applyForward(src,r,rcp) # simulate predicted data
+    timer.stop('predicted data')
+    pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
+  rsub(rcp,rco,rcp) # residual
+  timer.start('gradient')
+  born.applyAdjoint(src,rcp,g) # gradient
+  timer.stop('gradient')
+  return g
+
+def computeGradientO(iiter,r,born,src,rcp,rco,warping):
+  """Gradient for amplitude residual with shifted observed data."""
+  g = zerofloat(nx,nz) # gradient
+  w = zerofloat(nt,nr,ns) # warping shifts
+  if iiter>0:
+    timer.start('predicted data')
+    born.applyForward(src,r,rcp) # simulate predicted data
+    timer.stop('predicted data')
+    timer.start("warping")
+    rcw = warping.warp(rcp,rco,w) # warp observed to predicted
+    timer.stop("warping")
+    pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
+    pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
+    pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
+  else:
+    rcw = rco
+  rsub(rcp,rcw,rcw) # residual
+  timer.start('gradient')
+  born.applyAdjoint(src,rcw,g) # gradient
+  timer.stop('gradient')
+  return g
+
+def computeGradientP(iiter,r,born,src,rcp,rco,warping):
+  """Gradient for amplitude residual with shifted predicted data."""
+  g = zerofloat(nx,nz) # gradient
+  w = zerofloat(nt,nr,ns) # warping shifts
+  if iiter>0:
+    timer.start('predicted data')
+    born.applyForward(src,r,rcp) # simulate predicted data
+    timer.stop('predicted data')
+    timer.start("warping")
+    rcw = warping.warp(rco,rcp,w) # warp predicted to observed
+    timer.stop("warping")
+    pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
+    pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
+    pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
+  else:
+    rcw = rcp
+  rsub(rcw,rco,rcw) # residual
+  timer.start('gradient')
+  born.applyAdjoint(src,rcw,w,g) # gradient, including warping shifts
+  timer.stop('gradient')
+  return g
 
 def lineSearchUpdate(p,r,src,rco,born,res):
   amin,amax,atol = -0.10,0.01,0.005 # step length bounds and tolerance
@@ -327,8 +457,21 @@ class MisfitFunction(BrentMinFinder.Function):
       mul(dr,dr,dr)
       misfit += sum(dr)
     return misfit
+    #class Reduce(Parallel.ReduceInt):
+    #  def compute(self,isou):
+    #    dp,do = self.rcp[isou].getData(),self.rco[isou].getData()
+    #    dr = self.res.compute(dp,do)
+    #    mul(dr,dr,dr)
+    #    return sum(dr)
+    #  def combine(self,misfit1,misfit2):
+    #    return misfit1+misfit2
+    #return Parallel.reduce(self.nsou,Reduce())
 
-class AmplitudeResidual():
+class WaveformResidual():
+  def compute(self,dp,do):
+    return sub(dp,do)
+
+class AmplitudeResidualO():
   def __init__(self,warping):
     self.warping = warping
   def compute(self,dp,do):
@@ -337,9 +480,14 @@ class AmplitudeResidual():
     sub(dp,dw,dw)
     return dw
 
-class WaveformResidual():
+class AmplitudeResidualP():
+  def __init__(self,warping):
+    self.warping = warping
   def compute(self,dp,do):
-    return sub(dp,do)
+    u = self.warping.findShifts(do,dp)
+    dw = self.warping.applyShifts(u,dp)
+    sub(dw,do,dw)
+    return dw
 
 def getPreconditioner(s,m):
   mp = div(1.0,mul(s,s)) # v^2 preconditioning
@@ -390,7 +538,9 @@ def conjugateDirection(g,gm=None,pm=None):
 
 def showFiles():
   #vz,smin,sder = True,0.75,-0.0025 # 1D velocity
-  vz,smin,sder = True,0.76,-0.0027 # 1D velocity
+  #vz,smin,sder = True,0.73,-0.0024 # 1D velocity
+  vz,smin,sder = True,0.72,-0.0023 # 1D velocity
+  #vz,smin,sder = True,0.76,-0.0027 # 1D velocity
   w = readWavelet(); points(w)
   d = getGather(ns/2); pixels(d,perc=99.8); points(d[196])
   s = getSlowness(False); pixels(s,cmap=jet)
@@ -414,9 +564,12 @@ def readFiles():
   #read('/home/sluo/Desktop/save/eni/subc/n/P525vz/r5.dat',rc);
   #read('/home/sluo/Desktop/sube/nonlinear/aresVz6/r9.dat',ra);
   #read('/home/sluo/Desktop/sube/nonlinear/aresVz7/r9.dat',rb);
-  read('/home/sluo/Desktop/sube/nonlinear/vfile/dres/r9.dat',ra);
-  read('/home/sluo/Desktop/sube/nonlinear/vz/dres01/r9.dat',rb);
-  read('/home/sluo/Desktop/sube/nonlinear/vz/ares07/r9.dat',rc);
+  #read('/home/sluo/Desktop/sube/nonlinear/vfile/dres/r9.dat',ra);
+  #read('/home/sluo/Desktop/sube/nonlinear/vz/ares08/r9.dat',rb);
+  #read('/home/sluo/Desktop/sube/nonlinear/vz/ares12/r19.dat',rc);
+  read('/home/sluo/Desktop/subg/nonlinear/vfile/dres00/r9.dat',ra);
+  read('/home/sluo/Desktop/subg/nonlinear/vz/dres00/r9.dat',rb);
+  read('/home/sluo/Desktop/subg/nonlinear/vz/ares05/r9.dat',rc);
   pixels(ra,cmap=gray,sperc=98.0)
   pixels(rb,cmap=gray,sperc=98.0)
   pixels(rc,cmap=gray,sperc=98.0)
@@ -1004,8 +1157,7 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   if perc<100.0:
     pv.setPercentiles(100.0-perc,perc)
   if sperc is not None: # symmetric percentile clip (for plotting gradients)
-    clips = Clips(100-sperc,sperc,x)
-    clip = max(abs(clips.getClipMin()),abs(clips.getClipMax()))
+    clip = getSymmetricClip(sperc,x)
     pv.setClips(-clip,clip)
   if cmin<cmax:
     pv.setClips(cmin,cmax)
@@ -1018,6 +1170,10 @@ def points(x,cmin=0.0,cmax=0.0):
   sp = SimplePlot.asPoints(x)
   if cmin<cmax:
     sp.setVLimits(cmin,cmax)
+
+def getSymmetricClip(sperc,x):
+  clips = Clips(100-sperc,sperc,x)
+  return max(abs(clips.getClipMin()),abs(clips.getClipMax()))
 
 ##############################################################################
 # Do everything on Swing thread.

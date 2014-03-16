@@ -30,7 +30,8 @@ def main(args):
   #writeSubsetC()
   #writeSubsetD()
   #writeSubsetE()
-  writeSubsetF()
+  #writeSubsetF()
+  writeSubsetG()
 
 def showVelocity():
   segy = SegyImage(sgyDir+'velo.segy')
@@ -117,6 +118,15 @@ def writeSubsetF():
   ddir = 'subf/'
   writeSubset(fix,nix,niz,tt,dt,ddir)
 
+def writeSubsetG():
+  fix = 1600
+  nix = 1921
+  niz = 181
+  tt = 1.5
+  dt = 0.0004
+  ddir = 'subg/'
+  writeSubset(fix,nix,niz,tt,dt,ddir)
+
 def writeSubset(fix,nix,niz,tt,dt,ddir):
   """
   Writes a velocity and data subset.
@@ -169,9 +179,9 @@ def writeDataSubset(fix,nix,tt,dt,ddir):
   print 'fs =',fsou
   print 'ls =',lsou
   si = SincInterp()
-  for isou in range(fsou,lsou+1):
+  #for isou in range(fsou,lsou+1):
   #for isou in range(fsou,fsou+nsou/2):
-  #for isou in range(fsou+nsou/2,lsou+1):
+  for isou in range(fsou+nsou/2,lsou+1):
     print '  isou = %d'%isou
     d = getGather(isou)
     e = zerofloat(nt,2*nr-1)

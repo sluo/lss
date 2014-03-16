@@ -17,13 +17,21 @@ savDir = None
 ##############################################################################
 
 def main(args):
-  goInterpolateAndAccumulate()
+  #goInterpolateAndAccumulate()
+  goAdjointTest()
 
-def points(f,cmin=0.0,cmax=0.0):
-  sp = SimplePlot()
-  if cmin<cmax:
-    sp.setVLimits(cmin,cmax)
-  pv = sp.addPoints(f)
+def goAdjointTest():
+  si = SincInterp()
+  random = Random(12345)
+  uu = makeShifts() # shifts
+  xa = randfloat(random,nt)
+  xb = randfloat(random,nt)
+  ya = zerofloat(nt)
+  yb = zerofloat(nt)
+  si.interpolate(nt,1.0,0.0,xa,nt,uu,ya) # interpolate (forward)
+  si.accumulate(nt,uu,xb,nt,1.0,0.0,yb) # accumulate (adjoint)
+  print dot(ya,xb)
+  print dot(xa,yb)
 
 def goInterpolateAndAccumulate():
 
@@ -31,10 +39,10 @@ def goInterpolateAndAccumulate():
   #si = SincInterp.fromErrorAndFrequency(0.001,0.499)
 
   u = makeShifts() # shifts
-  SimplePlot.asPoints(u)
+  points(u)
   s = add(rampfloat(0.0,1.0,nt),u) # shifted coordinates
   t = zerofloat(nt); InverseInterpolator(nt,nt).invert(s,t) # inverse
-  SimplePlot.asPoints(t)
+  points(t)
 
   f = zerofloat(nt,nt) # input
   for it in range(nt):
@@ -146,6 +154,14 @@ def pixels(f,cmap=gray,cmin=0.0,cmax=0.0,title=None):
   pv.setColorModel(cmap)
   if cmin<cmax:
     pv.setClips(cmin,cmax)
+
+def points(f,cmin=0.0,cmax=0.0,title=None):
+  sp = SimplePlot()
+  if cmin<cmax:
+    sp.setVLimits(cmin,cmax)
+  pv = sp.addPoints(f)
+  if title is not None:
+    sp.addTitle(title)
 
 ##############################################################################
 # Do everything on Swing thread.

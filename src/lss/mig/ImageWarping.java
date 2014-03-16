@@ -9,6 +9,19 @@ import lss.mod.Receiver;
 public class ImageWarping {
 
   public ImageWarping(
+    int bstrain1, int bstrain2, int bstrain3,
+    double smooth1, double smooth2, double smooth3,
+    double maxShift, double d1)
+  {
+    this(
+      min(1.0,1.0/(bstrain1-0.5)),
+      min(1.0,1.0/(bstrain2-0.5)),
+      min(1.0,1.0/(bstrain3-0.5)),
+      smooth1,smooth2,smooth3,maxShift,d1
+    );
+  }
+
+  public ImageWarping(
     double strain1, double strain2, double strain3,
     double smooth1, double smooth2, double smooth3,
     double maxShift, double d1)
@@ -88,6 +101,7 @@ public class ImageWarping {
   public void findShifts(
     final float[][][] f, final float[][][] g, final float[][][] u)
   {
+    zero(u);
     if (_3d) {
       _warp.findShifts(f,g,u);
     } else {
@@ -100,6 +114,7 @@ public class ImageWarping {
   }
 
   public void findShifts(float[][] f, float[][] g, float[][] u) {
+    zero(u);
     _warp.findShifts(f,g,u);
   }
 
@@ -121,6 +136,10 @@ public class ImageWarping {
 
   public void applyShifts(float[][] u, float[][] g, float[][] h) {
     _warp.applyShifts(u,g,h);
+  }
+
+  public void setWindowSizeAndOverlap(int l2, int l3, double f2, double f3) {
+    _warp.setWindowSizeAndOverlap(l2,l3,f2,f3);
   }
 
   //////////////////////////////////////////////////////////////////////////
