@@ -15,28 +15,32 @@ nz,nx,nt,nr = sz.count,sx.count,st.count,sr.count
 dz,dx,dt,dr = sz.delta,sx.delta,st.delta,sr.delta
 fz,fx,ft,fr = sz.first,sx.first,st.first,sr.first
 
-#dresDir = '/Users/sluo/Desktop/subg/nonlinear/vfile/dres00/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vfile/ares00/'
-dresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/dres00/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares00/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares01/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares02/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares03/'
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares04/'
-aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares05/' # best
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares05a/' # shift predicted
-#aresDir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares06/'
+home = os.getenv('HOME')
+#dresDir = home+'/Desktop/subg/nonlinear/vfile/dres00/'
+#aresDir = home+'/Desktop/subg/nonlinear/vfile/ares00/'
+dresDir = home+'/Desktop/subg/nonlinear/vz/dres00/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares00/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares01/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares02/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares03/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares04/'
+aresDir = home+'/Desktop/subg/nonlinear/vz/ares05/' # best
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares05a/' # shift predicted
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares05b/' # correct CG
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares06/'
+#aresDir = home+'/Desktop/pngdat3/'
+#aresDir = home+'/Desktop/pngdat2/'
 
 savDir = None
 #savDir = '/Users/sluo/Desktop/png/'
 
 #widthPoints = None # slides
-widthPoints = 190.0 # 1/3 page
+#widthPoints = 190.0 # 1/3 page
 #widthPoints = 225.0 # 1 column
-#widthPoints = 470.0 # 2 column (full page)
+widthPoints = 470.0 # 2 column (full page)
 
 #rclip = 0.015 # clip for migration images
-rclip = 0.020 # clip for migration images
+rclip = 0.020 # clip for migration images ###
 #rclip = 0.025 # clip for migration images
 
 #cmapVel = ColorMap.GRAY # colormap for slowness model
@@ -94,12 +98,16 @@ def plotSlownesses():
 
 def getImages():
   s = readImage(dresDir+'s.dat')
+  #ra = readImage(aresDir+'r1.dat')
+  #rb = readImage(dresDir+'r1.dat')
   ra = readImage(aresDir+'r9.dat')
   rb = readImage(dresDir+'r9.dat')
   return s,ra,rb
 
 def plotImages():
   s,ra,rb = getImages()
+  #plot(ra,cmap=cmapMig,sperc=99.8,title='ra')
+  #plot(rb,cmap=cmapMig,sperc=99.8,title='rb')
   plot(ra,cmap=cmapMig,cmin=-rclip,cmax=rclip,title='ra')
   plot(rb,cmap=cmapMig,cmin=-rclip,cmax=rclip,title='rb')
   plot(s,cmap=cmapVel,cbar='Slowness (s/km)',title='s')

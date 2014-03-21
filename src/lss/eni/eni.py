@@ -15,8 +15,8 @@ subDir = '/data/sluo/eni/dat/'+subset+'/'
 
 savDir = None
 #savDir = '/home/sluo/Desktop/pngdat/'
-#savDir = '/home/sluo/Desktop/pngdat2/'
-savDir = '/home/sluo/Desktop/pngdat3/'
+savDir = '/home/sluo/Desktop/pngdat2/'
+#savDir = '/home/sluo/Desktop/pngdat3/'
 
 timer = Timer()
 ##############################################################################
@@ -159,17 +159,19 @@ def getInputs():
   smoothT,smoothR,smoothS = 32.0,4.0,4.0
   warping = ImageWarping(
     strainT,strainR,strainS,smoothT,smoothR,smoothS,maxShift,dt,td)
+  #warping.setNoise(False) # XXX
   print 'bstrainT=%d'%int(ceil(1.0/strainT))
   print 'bstrainR=%d'%int(ceil(1.0/strainR))
   print 'bstrainS=%d'%int(ceil(1.0/strainS))
 
+
   # BornSolver
+  src,rcp,rco = getSourceAndReceiver()
+  s,m = getBackgroundAndMask(vz,smin,sder)
   timer.start('allocating')
   u = SharedFloat4(nxp,nzp,nt,np)
   a = SharedFloat4(nxp,nzp,nt,np)
   timer.stop('allocating')
-  s,m = getBackgroundAndMask(vz,smin,sder)
-  src,rcp,rco = getSourceAndReceiver()
   #sigma = 0.25*nx*nz/(sum(s)*fmax*dx*sqrt(2.0)) # quarter wavelength
   sigma = 0.25*averageWavelength()/(sqrt(2.0)*dx) # quarter wavelength
   ref = RecursiveExponentialFilter(sigma)
@@ -293,12 +295,9 @@ def goNonlinearInversion(residualType=0):
   residualType = 1: amplitude residual with shifted observed data
   residualType = 2: amplitude residual with shifted predicted data
   """
-  #niter,riter = 10,5 # number of iterations, iteration to reset reflectivity
-  niter,riter = 10,0 # number of iterations, iteration to reset reflectivity
-  #useAmplitudeResidual = True
+  #niter = 2 # number of iterations
+  niter = 10 # number of iterations
   print 'niter=%d'%niter
-  print 'riter=%d'%riter
-  #print 'useAmplitudeResidual=%r'%useAmplitudeResidual
   born,bs,src,rcp,rco,warping,s,m,ref = getInputs()
   if residualType==0:
     res = WaveformResidual()
@@ -306,54 +305,49 @@ def goNonlinearInversion(residualType=0):
     res = AmplitudeResidualO(warping)
   elif residualType==2:
     res = AmplitudeResidualP(warping)
-  mp = getPreconditioner(s,m) # preconditioner
-  w = zerofloat(nt,nr,ns) # warping shifts
   r = zerofloat(nx,nz) # reflectivity
-  g,gm,pm = zerofloat(nx,nz),None,None # gradient & cg directions
+  gm,pm = None,None # gradient & cg directions
   for iiter in range(niter):
     print ''
     timer.start('ITERATION %d'%iiter)
-    #if iiter>0 and iiter!=riter:
-    #  timer.start('predicted data')
-    #  born.applyForward(src,r,rcp) # simulate predicted data
-    #  timer.stop('predicted data')
-    #  pixels(rcp[ns/2].getData(),title='rcp%d'%iiter)
-    #if useAmplitudeResidual and iiter>0:
-    #  timer.start('warping')
-    #  rcw = warping.warp(rcp,rco,w) # warping
-    #  timer.stop('warping')
-    #  pixels(rcw[ns/2].getData(),title='rcw%d'%iiter)
-    #  pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
-    #  rsub(rcp,rcw,rcp) # amplitude residual
-    #else:
-    #  rsub(rcp,rco,rcp) # data residual
-    #timer.start('gradient')
-    #born.applyAdjoint(src,rcp,g) # gradient
-    #timer.stop('gradient')
     if residualType==0:
       g = computeGradient(iiter,r,born,src,rcp,rco)
     elif residualType==1:
       g = computeGradientO(iiter,r,born,src,rcp,rco,warping)
     elif residualType==2:
       g = computeGradientP(iiter,r,born,src,rcp,rco,warping)
-    for i in range(2):
-      roughen(g,ref) # roughen
-    mul(mp,g,g) # precondition
-    p = conjugateDirection(g,gm,pm) # conjugate gradient
+    preconditionGradient(s,m,g)
+    p = g # steepest descent
+    #p = conjugateDirection(g,gm,pm)
     if niter>1:
-      timer.start('line search')
       lineSearchUpdate(p,r,src,rco,born,res)
-      timer.stop('line search')
+    gm,pm = g,p
     pixels(g,cmap=rwb,sperc=100.0,title='g'+str(iiter))
     pixels(p,cmap=rwb,sperc=100.0,title='p'+str(iiter))
     pixels(r,cmap=gray,sperc=100.0,title='r'+str(iiter))
-    gm,pm = g,p
     timer.stop('ITERATION %d'%iiter)
-    if (iiter+1)==riter:
-      print '\nresetting reflectivity'
-      zero(r); gm = None; pm = None
-      rco = rcw
   pixels(rco[ns/2].getData(),title='rco')
+
+def preconditionGradient(s,m,g):
+  sigma = 0.25*averageWavelength()/(sqrt(2.0)*dx) # quarter wavelength
+  ref = RecursiveExponentialFilter(sigma)
+  ref.setEdges(RecursiveExponentialFilter.Edges.INPUT_ZERO_SLOPE)
+  for i in range(2):
+    roughen(g,ref)
+  p = div(1.0,mul(s,s)) # velocity-squared preconditioner
+  mul(1.0/max(p),p,p) # normalized
+  mul(p,g,g) # apply preconditioner
+  mul(m,g,g) # apply mask
+
+def xpreconditionGradient(s,m,g):
+  h = like(g)
+  sigma = 0.25*averageWavelength()/dx # quarter wavelength
+  RecursiveGaussianFilter(sigma).apply00(g,h) # smooth...
+  sub(g,h,g) # ...and subtract
+  p = div(1.0,mul(s,s)) # velocity-squared preconditioner
+  mul(1.0/max(p),p,p) # normalized
+  mul(p,g,g) # apply preconditioner
+  mul(m,g,g) # apply mask
 
 def computeGradient(iiter,r,born,src,rcp,rco):
   """Gradient for waveform residual."""
@@ -385,9 +379,9 @@ def computeGradientO(iiter,r,born,src,rcp,rco,warping):
     pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
   else:
     rcw = rco
-  rsub(rcp,rcw,rcw) # residual
+  rsub(rcp,rcw,rcp) # residual
   timer.start('gradient')
-  born.applyAdjoint(src,rcw,g) # gradient
+  born.applyAdjoint(src,rcp,g) # gradient
   timer.stop('gradient')
   return g
 
@@ -407,9 +401,13 @@ def computeGradientP(iiter,r,born,src,rcp,rco,warping):
     pixels(w[ns/2],cmap=rwb,sperc=100.0,title='w%d'%iiter)
   else:
     rcw = rcp
-  rsub(rcw,rco,rcw) # residual
+  #rsub(rcw,rco,rcw) # residual
+  #timer.start('gradient')
+  #born.applyAdjoint(src,rcw,w,g) # gradient, including warping shifts
+  #timer.stop('gradient')
+  rsub(rcw,rco,rcp) # residual
   timer.start('gradient')
-  born.applyAdjoint(src,rcw,w,g) # gradient, including warping shifts
+  born.applyAdjoint(src,rcp,w,g) # gradient, including warping shifts
   timer.stop('gradient')
   return g
 
@@ -421,7 +419,9 @@ def lineSearchUpdate(p,r,src,rco,born,res):
   nsou = 16 # number of shots used to evaluate misfit function
   #nsou = 4 # number of shots used to evaluate misfit function
   misfit = MisfitFunction(p,r,src,rco,born,res,nsou)
+  timer.start('line search')
   aopt = BrentMinFinder(misfit).findMin(amin,amax,atol)
+  timer.stop('line search')
   print 'neval=%d'%misfit.neval
   print 'amin=%f'%amin
   #print 'amax=%f'%amax
@@ -489,12 +489,6 @@ class AmplitudeResidualP():
     sub(dw,do,dw)
     return dw
 
-def getPreconditioner(s,m):
-  mp = div(1.0,mul(s,s)) # v^2 preconditioning
-  mul(1.0/max(mp),mp,mp)
-  mul(m,mp,mp)
-  return mp
-
 def roughen(g,ref):
   h = copy(g)
   ref.apply(g,h)
@@ -508,31 +502,23 @@ def rsub(rcx,rcy,rcz):
       sub(rcx[isou].getData(),rcy[isou].getData(),rcz[isou].getData())
   Parallel.loop(nsou,Loop())
 
-def rmul(s,rcx,rcz):
-  nsou = len(rcz)
-  class Loop(Parallel.LoopInt):
-    def compute(self,isou):
-      mul(s,rcx[isou].getData(),rcz[isou].getData())
-  Parallel.loop(nsou,Loop())
-
-def conjugateDirection(g,gm=None,pm=None):
+def conjugateDirection(gi,gm=None,pm=None):
   """Polak-Ribiere nonlinear conjugate gradient method.
   Parameters:
-    g - gradient ascent direction for current iteration.
+    gi - gradient ascent direction for current iteration.
     gm - gradient ascent direction for previous iteration.
     pm - conjugate ascent direction for previous iteration.
   Returns:
     the conjugate ascent direction for the current iteration.
   """
   if gm is None and pm is None:
-    # For first iteration, use steepest descent direction.
-    return g
+    return gi
   else:
-    b = sum(mul(g,sub(g,gm)))/sum(mul(gm,gm))
-    if b<0.0:
-      b = 0.0
-      print "  CG DIRECTION RESET"
-    return add(g,mul(b,pm))
+    beta = sum(mul(gi,sub(gi,gm)))/sum(mul(gm,gm))
+    if beta<0.0:
+      print "restarting CG (beta<0.0)"
+      beta = 0.0
+    return add(gi,mul(beta,pm))
 
 ##############################################################################
 
@@ -1162,8 +1148,8 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   if cmin<cmax:
     pv.setClips(cmin,cmax)
   if title and savDir:
-    sp.paintToPng(360,3.33,savDir+title+'.png')
     write(savDir+title+'.dat',x)
+    sp.paintToPng(360,3.33,savDir+title+'.png')
   return sp
 
 def points(x,cmin=0.0,cmax=0.0):

@@ -142,19 +142,25 @@ public class ImageWarping {
     _warp.setWindowSizeAndOverlap(l2,l3,f2,f3);
   }
 
+  public void setNoise(boolean noise) {
+    _noise = noise;
+  }
+
   //////////////////////////////////////////////////////////////////////////
 
   private int _t1; // decimate along in direction 1, e.g., time
   private boolean _3d; // true for 3D warping
   private double _sigmaRms; // sigma for RMS filtering
   private DynamicWarping _warp;
+  private boolean _noise = true; // add random noise before finding shifts
 
   // public for now
   public void filterAndFindShifts(
     final float[][][] rp, final float[][][] ro, final float[][][] u)
   {
     rmsFilter(rp,ro);
-    addRandomNoise(10.0f,rp,ro);
+    if (_noise)
+      addRandomNoise(10.0f,rp,ro);
     findShifts(rp,ro,u);
   }
 

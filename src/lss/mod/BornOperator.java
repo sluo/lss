@@ -123,7 +123,7 @@ public class BornOperator {
       Check.argument(b[0][0].length==u[0][0].length,"consistent nx");
       Check.argument(b[0].length==u[0].length,"consistent nz");
     }
-    if (sum(rx)==0.0f) { // no need to model if zero reflectivity
+    if (sum(abs(rx))==0.0f) { // no need to model if zero reflectivity
       if (u!=null)
         zero(u);
       if (receiver!=null)

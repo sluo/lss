@@ -22,9 +22,9 @@ def main(args):
 
 def testWaveOperator():
   """Adjoint test for forward/adjoint wave propagation"""
-  wave = WaveOperator(getSlowness(),dx,dt,nabsorb)
   fa,fb = rfloat(nxp,nzp,nt),zfloat(nxp,nzp,nt)
   ga,gb = rfloat(nxp,nzp,nt),zfloat(nxp,nzp,nt)
+  wave = WaveOperator(getSlowness(),dx,dt,nabsorb)
   wave.applyForward(Source.WavefieldSource(fa),gb)
   wave.applyAdjoint(Source.WavefieldSource(ga),fb)
   checkDotProducts(fa,fb,ga,gb)
@@ -34,12 +34,12 @@ def testBornOperator(useTimeShifts=False):
   xr = rampint(0,1,min(nx,nz)) # receiver x-coordinates
   zr = rampint(0,1,min(nx,nz)) # receiver z-coordinates
   nr = len(xr)
-  born = BornOperator(getSlowness(),dx,dt,nabsorb)
+  bwf = rfloat(nxp,nzp,nt) # random background wavefield
+  awf = zfloat(nxp,nzp,nt) # array for adjoint wavefield
   fa,fb = rfloat(nx,nz),zfloat(nx,nz) # reflectivity
   ga,gb = rfloat(nt,nr),zfloat(nt,nr) # data...
   ra,rb = Receiver(xr,zr,ga),Receiver(xr,zr,gb) # ...for receivers
-  bwf = rfloat(nxp,nzp,nt) # random background wavefield
-  awf = zfloat(nxp,nzp,nt) # array for adjoint wavefield
+  born = BornOperator(getSlowness(),dx,dt,nabsorb)
   if useTimeShifts:
     ts = rfloat(nt,nr) # random time shifts
     born.applyForward(bwf,fa,ts,rb)
