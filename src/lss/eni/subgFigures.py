@@ -52,7 +52,7 @@ cmapMig = ColorMap.GRAY # colormap for migration images
 
 def main(args):
   plotImages()
-  #plotImageSubsets()
+  plotImageSubsets()
   #plotSlownesses()
   #plotData() # ares05 only
 
@@ -124,8 +124,8 @@ def plotImageSubsets():
   ca = copy(nzm,nxm,int((zmin-fz)/dz),int((xmin)/dx),ra)
   cb = copy(nzm,nxm,int((zmin-fz)/dz),int((xmin)/dx),rb)
   def subPlot(f,title):
-    widthPoints = 190.0 # 1/3 page
-    #widthPoints = 225.0 # single column
+    #widthPoints = 190.0 # 1/3 page
+    widthPoints = 225.0 # single column
     #widthPoints = 280.0 # half page (for 2 column figure)
     panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
     panel.setHLabel('Distance (km)')
@@ -136,9 +136,8 @@ def plotImageSubsets():
     pixel.setClips(-rclip,rclip)
     frame = PlotFrame(panel)
     frame.setFontSizeForPrint(8.0,widthPoints)
-    #frame.setSize(1115,475)
     if widthPoints==225.0:
-      frame.setSize(1115,720)
+      frame.setSize(1115,735)
     elif widthPoints==190.0:
       frame.setSize(1115,740)
     else:
@@ -149,40 +148,6 @@ def plotImageSubsets():
       frame.paintToPng(720.0,widthPoints/72.0,savDir+title+'.png')
   subPlot(ca,'ca')
   subPlot(cb,'cb')
-
-#def plotSubset(f,zmin,zmax,xmin,xmax,width,height,cmin,cmax,title):
-#  g = copy(n1,n2,j1,j2,f)
-#  panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
-#  panel.setHLabel('Distance (km)')
-#  panel.setVLabel('Depth (km)')
-#
-#
-#  widthPoints = 260.0
-#  j1,n1 = int(zmin/dz),int((zmax-zmin)/dz)
-#  j2,n2 = int(xmin/dx),int((xmax-xmin)/dx)
-#  s1 = Sampling(n1,dz,zmin)
-#  s2 = Sampling(n2,dx,xmin)
-#  g = copy(n1,n2,j1,j2,f)
-#  panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
-#  panel.setHLabel('Distance (km)')
-#  panel.setVLabel('Depth (km)')
-#  panel.setHInterval(0.5)
-#  panel.setVInterval(0.5)
-#  cb = panel.addColorBar('Reflectivity')
-#  cb.setWidthMinimum(150)
-#  cb.setInterval(0.05)
-#  pixel = panel.addPixels(s1,s2,g)
-#  pixel.setColorModel(gray)
-#  pixel.setClips(cmin,cmax)
-#  pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
-#  frame = PlotFrame(panel)
-#  frame.setFontSizeForPrint(8.0,widthPoints)
-#  #frame.setSize(1024,670)
-#  frame.setSize(width,height)
-#  frame.setTitle(title)
-#  frame.setVisible(True)
-#  if title and savDir:
-#    frame.paintToPng(720.0,widthPoints/72.0,savDir+title+'.png')
 
 #############################################################################
 
@@ -281,12 +246,13 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,cwidth=None,
   return panel
 
 def readImage(fname,image=None):
-  if image is None:
+  imageIsNone = image is None
+  if imageIsNone:
     image = zerofloat(181,1921)
   ais = ArrayInputStream(fname)
   ais.readFloats(image)
   ais.close()
-  if (image is None) and (nz!=181 or nx!=1921):
+  if (imageIsNone) and (nz!=181 or nx!=1921):
     return copy(nz,nx,int(fz/dz),int(fx/dx),image)
   else:
     return image
