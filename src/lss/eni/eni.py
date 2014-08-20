@@ -14,8 +14,10 @@ subset = 'subg'
 subDir = '/data/sluo/eni/dat/'+subset+'/'
 
 savDir = None
+savDir = '/Users/sluo/Dropbox/png/'
+#savDir = '/Users/sluo/Desktop/png/'
 #savDir = '/home/sluo/Desktop/pngdat/'
-savDir = '/home/sluo/Desktop/pngdat2/'
+#savDir = '/home/sluo/Desktop/pngdat2/'
 #savDir = '/home/sluo/Desktop/pngdat3/'
 
 timer = Timer()
@@ -34,8 +36,20 @@ def main(args):
   #goAmplitudeInversionP() # shift predicted data
   #goNonlinearWaveformInversion() # nonlinear inversion using data residual
   #goNonlinearAmplitudeInversionO() # nonlinear inversion, shift observed
-  goNonlinearAmplitudeInversionP() # nonlinear inversion, shift predicted
+  #goNonlinearAmplitudeInversionP() # nonlinear inversion, shift predicted
   #goPredictedData() # resimulate predicted data
+  goObservedData() # read and plot observed data
+  #testSmoothingError()
+
+def testSmoothingError():
+  b = getBackground(); div(1.0,b,b)
+  #s = getSlowness(); div(1.0,s,s)
+  s = getBackground(vz=True,smin=0.72,sder=-0.0023); div(1.0,s,s)
+  cmin = min(min(b),min(s))
+  cmax = max(max(b),max(s))
+  pixels(s,cmap=jet,cmin=cmin,cmax=cmax,title='provided')
+  pixels(b,cmap=jet,cmin=cmin,cmax=cmax,title='smoothed')
+  pixels(sub(b,s),cmap=jet,sperc=100.0,title='smoothed-provided') 
 
 def getWavelet():
   return readWavelet()
@@ -149,7 +163,9 @@ def getInputs():
   #strainT,strainR,strainS = 0.2,0.2,0.2
   #strainT,strainR,strainS = 0.2,0.2,0.5
   #strainT,strainR,strainS = 0.3,0.3,0.3
-  strainT,strainR,strainS = 0.4,0.4,0.3 #
+  strainT,strainR,strainS = 0.4,0.4,0.3 # 3D warping (best)
+  #strainT,strainR,strainS = 0.4,0.4,-1.0 # 2D warping
+  #strainT,strainR,strainS = 0.4,-1.0,-1.0 # 1D warping
   #strainT,strainR,strainS = 0.4,0.4,0.4
   #strainT,strainR,strainS = 0.4,0.4,0.5
   #strainT,strainR,strainS = 0.5,0.5,0.5
@@ -163,7 +179,6 @@ def getInputs():
   print 'bstrainT=%d'%int(ceil(1.0/strainT))
   print 'bstrainR=%d'%int(ceil(1.0/strainR))
   print 'bstrainS=%d'%int(ceil(1.0/strainS))
-
 
   # BornSolver
   src,rcp,rco = getSourceAndReceiver()
@@ -256,9 +271,44 @@ def goAmplitudeInversionP():
 ##############################################################################
 # Nonlinear inversion with line search
 
+def xgoObservedData():
+  src,rcp,rco = getSourceAndReceiver()
+  do = zerofloat(nt,nr,ns)
+  for isou in range(ns):
+    copy(rco[isou].getData(),do[isou])
+  #do = randfloat(nt,nr,ns)
+  ss = Sampling(ns,0.0125*stride,1.225) # shot (relative offset)
+  sr = Sampling(197,0.00625,-1.225) # receiver
+  st = Sampling(3751,0.0004,0.0) # time
+  pixels3(do,s1=st,s2=sr,s3=ss,cmin=-8.0,cmax=8.0,title='ppp3')
+
+def goObservedData():
+  rdir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares05/warp1d/'
+  #rdir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares05/warp2d/'
+  #rdir = '/Users/sluo/Desktop/subg/nonlinear/vz/ares05/warp3d/'
+  do = zerofloat(nt,nr,ns); read(rdir+'do.dat',do)
+  dp = zerofloat(nt,nr,ns); read(rdir+'dp.dat',dp)
+  dw = zerofloat(nt,nr,ns); read(rdir+'dw.dat',dw)
+  w = zerofloat(nt,nr,ns); read(rdir+'w.dat',w); mul(1000.0*dt,w,w)
+  ss = Sampling(ns,0.0125*stride,1.225) # shot (relative offset)
+  sr = Sampling(197,0.00625,-1.225) # receiver
+  st = Sampling(3751,0.0004,0.0) # time
+  k1,k2,k3 = nt/2,nr-1,25 # x=1.85 (shown in CWP report)
+  #k1,k2,k3 = nt/2,nr-1,173 # x=5.55 (smallest shifts)
+  pixels3(do,s1=st,s2=sr,s3=ss,cmin=-8.0,cmax=8.0,
+    k1=k1,k2=k2,k3=k3,title='do')
+  pixels3(dp,s1=st,s2=sr,s3=ss,cmin=-8.0,cmax=8.0,
+    k1=k1,k2=k2,k3=k3,title='dp')
+  pixels3(dw,s1=st,s2=sr,s3=ss,cmin=-8.0,cmax=8.0,
+    k1=k1,k2=k2,k3=k3,title='dw')
+  pixels3(w,s1=st,s2=sr,s3=ss,cmap=jet,lineColor=Color.BLACK,
+    k1=k1,k2=k2,k3=k3,cbar='Time shift (ms)',title='w',
+    cmin=-17.5,cmax=17.5)
+    #sperc=100.0)
+
 def goPredictedData():
-  rdir = '/home/sluo/Desktop/subg/nonlinear/vz/dres00/'
-  #rdir = '/home/sluo/Desktop/subg/nonlinear/vz/ares05/'
+  #rdir = '/home/sluo/Desktop/subg/nonlinear/vz/dres00/'
+  rdir = '/home/sluo/Desktop/subg/nonlinear/vz/ares05/'
   rfile = rdir+'r9.dat'
   sfile = rdir+'s.dat'
   r = zerofloat(nz,nx); read(rfile,r); r = transpose(r)
@@ -282,6 +332,17 @@ def goPredictedData():
     pixels(rcp[isou].getData(),cmin=-clip,cmax=clip,title='dp_x=%f'%x)
     pixels(rcw[isou].getData(),cmin=-clip,cmax=clip,title='dw_x=%f'%x)
     pixels(w[isou],cmap=rwb,sperc=99.9,title='w_x=%f'%x)
+  do = zerofloat(nt,nr,ns)
+  dp = zerofloat(nt,nr,ns)
+  dw = zerofloat(nt,nr,ns)
+  for isou in range(ns):
+    copy(rco[isou].getData(),do[isou])
+    copy(rcp[isou].getData(),dp[isou])
+    copy(rcw[isou].getData(),dw[isou])
+  write(savDir+'do.dat',do)
+  write(savDir+'dp.dat',dp)
+  write(savDir+'dw.dat',dw)
+  write(savDir+'w.dat',w)
 
 def goNonlinearWaveformInversion():
   goNonlinearInversion(0)
@@ -574,16 +635,20 @@ def readFiles():
 # wavelet
 
 def compareWavelets():
-  w = readWavelet()
-  #w = estimateWavelet(rotate=0.25*FLT_PI)
-  v = estimateWaterBottomWavelet()
-  #mul(1.0/max(abs(w)),w,w)
+  #w = readWavelet()
+  w = estimateWavelet(toFile=False,rotate=0.0*FLT_PI,d2=False)
+  v = estimateWaterBottomWavelet(rotate=0.0*FLT_PI,d2=False)
+  mul(1.0/max(abs(w)),w,w)
   mul(1.0/max(abs(v)),v,v)
   wm = zeroint(1); max(w,wm); wm = wm[0]
   vm = zeroint(1); max(v,vm); vm = vm[0]
   t = copy(v); zero(v); copy(nt-(vm-wm),vm-wm,t,0,v)
-  points(copy(400,w),cmin=-1.0,cmax=1.0)
-  points(copy(400,v),cmin=-1.0,cmax=1.0)
+  sst = Sampling(301,dt,0.0)
+  wc = copy(301,30,w)
+  vc = copy(301,30,v)
+  points(wc,sst,cmin=-1.1,cmax=1.1,label='Time (s)',title='w')
+  points(vc,sst,cmin=-1.1,cmax=1.1,label='Time (s)',title='v')
+  points(wc,sst,x2=vc,cmin=-1.1,cmax=1.1,label='Time (s)',title='wv')
 
 def readWavelet():
   print 'reading wavelet'
@@ -620,7 +685,7 @@ def estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False):
   # Normalize
   mul(1.0/max(abs(w)),w,w)
 
-  points(amplitudeSpectrum(w))
+  amplitudeSpectrum(w,plot=True)
   points(w)
   if toFile:
     print 'writing wavelet'
@@ -628,7 +693,7 @@ def estimateWavelet(toFile=False,rotate=0.25*FLT_PI,d2=False):
     write('/data/sluo/eni/dat/wavelet.dat',w)
   return w
 
-def estimateWaterBottomWavelet():
+def estimateWaterBottomWavelet(rotate=0.25*FLT_PI,d2=False):
   showPlots = False
 
   # Read data.
@@ -682,7 +747,7 @@ def estimateWaterBottomWavelet():
   mul(s,w,w)
   if showPlots:
     points(w)
-  w = Frequency(nt).rotateAndDifferentiate(w,0.25*FLT_PI,d2=False)
+  w = Frequency(nt).rotateAndDifferentiate(w,rotate,d2)
   if showPlots:
     points(w)
 
@@ -715,9 +780,8 @@ def estimateZeroPhaseWavelet(): # average spectra
       count += 1.0
   #print count
   mul(1.0/count,c,c)
-  #RecursiveGaussianFilter(32.0).apply0(c,c)
+  #points(c)
   RecursiveGaussianFilter(64.0).apply0(c,c)
-  #points(d)
   #points(c)
   w = freq.findZeroPhase(c)
   return w
@@ -1070,8 +1134,15 @@ def gsmooth(sigma,x,y):
 ##############################################################################
 # util
 
-def amplitudeSpectrum(x):
-  return cabs(Fft(x).applyForward(x))
+def amplitudeSpectrum(x,plot=False):
+  fft = Fft(x)
+  y = cabs(fft.applyForward(x))
+  if plot:
+    sw = fft.getFrequencySampling1()
+    nw,dw,fw = sw.count,sw.delta,sw.first
+    sf = Sampling(nw,dw/dt,fw)
+    points(y,sf,label='Frequency (Hz)',title='amp')
+  return y
 
 def bandpass(x,y,fmin=None,fmax=None):
   fnyq = 0.5/dt # Nyquist
@@ -1079,8 +1150,10 @@ def bandpass(x,y,fmin=None,fmax=None):
     klower = 0.01
   else:
     klower = fmin/fnyq
+    #klower = 0.5*(fmin/fnyq)
   if fmax is None:
     kupper = 40.0/fnyq
+    #kupper = 0.5*(40.0/fnyq)
   else:
     kupper = fmax/fnyq
   bp = BandPassFilter(klower,kupper,0.01,0.01)
@@ -1152,10 +1225,73 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
     sp.paintToPng(360,3.33,savDir+title+'.png')
   return sp
 
-def points(x,cmin=0.0,cmax=0.0):
-  sp = SimplePlot.asPoints(x)
+def pixels3(x,s1=None,s2=None,s3=None,cmap=gray,lineColor=Color.YELLOW,
+    perc=100.0,sperc=None,cmin=0.0,cmax=0.0,cbar=None,
+    k1=None,k2=None,k3=None,title=None):
+  if s1 is None: s1 = Sampling(len(x[0][0]))
+  if s2 is None: s2 = Sampling(len(x[0]))
+  if s3 is None: s3 = Sampling(len(x))
+  o = PlotPanelPixels3.Orientation.X1DOWN_X2RIGHT
+  a = PlotPanelPixels3.AxesPlacement.LEFT_BOTTOM
+  panel = PlotPanelPixels3(o,a,s1,s2,s3,x)
+  panel.setColorModel(cmap)
+  panel.setSlices(
+    k1 if k1 else s1.count/2,
+    k2 if k2 else s2.count/2,
+    k3 if k3 else s3.count/2)
+  panel.setLabel1("Time (s)")
+  panel.setLabel2("Offset (km)")
+  panel.setLabel3("Position (km)")
+  panel.setLineColor(lineColor)
+  if cbar:
+    panel.addColorBar(cbar)
+  else:
+    panel.addColorBar()
+  panel.setColorBarWidthMinimum(160)
+  panel.setBackground(Color.WHITE)
+  #panel.setInterval1(0.1)
+  #panel.setInterval2(1.0)
+  #panel.setInterval3(1.0)
+  if cmin<cmax:
+    panel.setClips(cmin,cmax)
+  if perc<100.0:
+    panel.setPercentiles(100.0-perc,perc)
+  if sperc is not None:
+    clip = getSymmetricClip(sperc,x)
+    panel.setClips(-clip,clip)
+  panel.mosaic.setHeightMinimum(0,300)
+  panel.mosaic.setWidthMinimum(0,330)
+  panel.mosaic.setWidthElastic(0,0)
+  panel.mosaic.setHeightElastic(0,0)
+  panel.setVLimits(1,0.3,1.4)
+  frame = PlotFrame(panel)
+  frame.setSize(980,800)
+  #frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
+  frame.setFontSize(45.0)
+  frame.setVisible(True)
+  if title and savDir:
+    frame.paintToPng(1920,1.0,savDir+title+'.png')
+
+def points(x,s1=None,x2=None,cmin=0.0,cmax=0.0,label=None,title=None):
+  mul(1.0/max(abs(x)),x,x) # XXX
+  sp = SimplePlot(SimplePlot.Origin.LOWER_LEFT)
+  if x2 is not None:
+    pv2 = sp.addPoints(s1,x2) if s1 else sp.addPoints(x2)
+    pv2.setLineWidth(4.0)
+    pv2.setLineColor(Color.RED)
+    #pv2.setLineStyle(PointsView.Line.DASH)
+  pv = sp.addPoints(s1,x) if s1 else sp.addPoints(x)
+  pv.setLineWidth(4.0)
   if cmin<cmax:
     sp.setVLimits(cmin,cmax)
+  #sp.setVLimits(0.0,1.1) # XXX
+  #sp.setHLimits(0.0,100.0) # XXX
+  if label:
+    sp.setHLabel(label)
+  sp.setFontSize(45.0)
+  sp.setSize(800,805)
+  if title and savDir:
+    sp.paintToPng(1000,1.0,savDir+title+'.png')
 
 def getSymmetricClip(sperc,x):
   clips = Clips(100-sperc,sperc,x)

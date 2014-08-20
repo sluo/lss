@@ -17,7 +17,10 @@ nz,nx,nt = sz.count,sx.count,st.count
 dz,dx,dt = sz.delta,sx.delta,st.delta
 
 pngDir = None
-pngDir = '/Users/sluo/Desktop/pngdat/'
+#pngDir = '/Users/sluo/Desktop/png/'
+pngDir = '/Users/sluo/Dropbox/png/'
+
+plotVelocity = True # convert slowness to velocity
 
 widthPoints = None # slides
 #widthPoints = 175.0 # 1/3 column
@@ -29,12 +32,12 @@ widthPoints = None # slides
 
 def main(args):
   #plotFwi()
-  plotLsm()
+  #plotLsm()
   #plotFwiData()
   #plotLsmData() # Born data
   #plotObjectiveFunction()
   #plotFwiObjectiveFunctions()
-  #plotLsmObjectiveFunctions()
+  plotLsmObjectiveFunctions()
   #plotModelMisfits()
   #plotFiles()
 
@@ -116,7 +119,7 @@ def plotModelMisfits():
 
   frame = PlotFrame(panel)
   if slides:
-    frame.setFontSizeForSlide(1.0,1.0)
+    frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
     frame.setSize(1000,500)
   else:
     frame.setFontSizeForPrint(8.0,widthPoints)
@@ -356,9 +359,10 @@ def addRandomNoise(snr,f,g,sigma=1.0):
 
 def plotLsm():
   lsmDir = '/Users/sluo/Dropbox/save/lsm/'
-  #ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  ddir,iiter = lsmDir+'marmousi/100p/dres2/','19'
+  #ddir,iiter = lsmDir+'marmousi/100p/ares/','19'
   #ddir,iiter = lsmDir+'marmousi/95p/dres3/','19'
-  ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
+  #ddir,iiter = lsmDir+'marmousi/95p/ares5/','19'
   #ddir,iiter = lsmDir+'marmousi/random/10p/plus/dres/','19'
   #ddir,iiter = lsmDir+'marmousi/random/10p/plus/ares/','19'
   t = read(ddir+'s_true.dat')
@@ -366,27 +370,33 @@ def plotLsm():
   t1 = read(ddir+'s1_true.dat')
   s0 = read(ddir+'s0_init.dat')
   s1 = read(ddir+'s1_'+iiter+'.dat')
+  if plotVelocity:
+    div(1.0,t,t)
+    div(1.0,t0,t0)
+    div(1.0,s0,s0)
   g = read(ddir+'g_'+iiter+'.dat'); mul(g,1.0/max(abs(g)),g)
   p = read(ddir+'p_'+iiter+'.dat'); mul(p,1.0/max(abs(p)),p)
   #mul(s1,0.10/max(abs(s1)),s1) # XXX
   #mul(s1,0.15/max(abs(s1)),s1) # XXX
+  clipMin0,clipMax0 = min(t),max(t)
+  #clipMin0,clipMax0 = min(t0),max(t0)
+  #clipMin0,clipMax0 = 1.5,max(t0)
+  cbar0 = 'Velocity (km/s)' if plotVelocity else 'Slowness (s/km)'
   #cmap1,cint,clip1 = rwb,0.1,max(abs(t1))
-  cmap1,cint,clip1 = gray,0.05,0.05
-  #clipDiff = 0.0
-  clipDiff = 0.04
-  plot(t,cmap=jet,cbar='Slowness (s/km)',title='t')
-  plot(t0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='t0')
+  cmap1,cint,clip1 = gray,None,0.05
+  #cmap1,cint,clip1 = gray,0.05,0.05
+  #cmapDiff,clipDiff = rwb,0.0
+  #cmapDiff,clipDiff = rwb,0.04
+  cmapDiff,clipDiff = jet,0.04
+  plot(t,cmap=jet,cbar=cbar0,title='t')
+  plot(t0,cmap=jet,cmin=clipMin0,cmax=clipMax0,cbar=cbar0,title='t0')
   plot(t1,cmap=cmap1,cmin=-clip1,cmax=clip1,
     cint=cint,cbar='Reflectivity',title='t1')
-  #plot(sub(t0,s0),cmap=rwb,cmin=-clipDiff,cmax=clipDiff,sperc=100.0,
-  #  cint=0.04,cbar='Slowness (s/km)',title='t0-s0')
-  if widthPoints:
-    plot(mul(1000,sub(t0,s0)),cmap=rwb,cmin=-1000*clipDiff,cmax=1000*clipDiff,
-      sperc=100.0,cint=40,cbar='Slowness (ms/km)',title='t0-s0')
-  else:
-    plot(sub(t0,s0),cmap=rwb,sperc=100.0,cbar='Slowness (s/km)',
-      cint=0.03,title='t0-s0')
-  plot(s0,cmap=jet,cmin=min(t0),cmax=max(t0),cbar='Slowness (s/km)',title='s0')
+  #plot(sub(t0,s0),cmap=cmapDiff,sperc=100.0,
+  plot(sub(s0,t0),cmap=cmapDiff,sperc=100.0,
+    cbar='Velocity (km/s)' if plotVelocity else 'Slowness (s/km)',
+    title='t0-s0')
+  plot(s0,cmap=jet,cmin=clipMin0,cmax=clipMax0,cbar=cbar0,title='s0')
   plot(s1,cmap=cmap1,cmin=-clip1,cmax=clip1,cbar='Reflectivity',
     cint=cint,title='s1')
   #plot(g,cmap=rwb,cmin=-1.0,cmax=1.0,title='g')
@@ -489,7 +499,7 @@ def plotObjectiveFunction():
   pa.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
   pa.setLineWidth(1.5)
   frame = PlotFrame(panel)
-  frame.setFontSizeForSlide(1.0,1.0)
+  frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
   frame.setSize(1000,700)
   frame.setVisible(True)
   if pngDir:
@@ -533,7 +543,7 @@ def plotFwiObjectiveFunctions():
   pa.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
 
   frame = PlotFrame(panel)
-  frame.setFontSizeForSlide(1.0,1.0)
+  frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
   frame.setSize(1000,500)
   frame.setVisible(True)
   if pngDir:
@@ -542,7 +552,6 @@ def plotFwiObjectiveFunctions():
 
 def plotLsmObjectiveFunctions():
 
-  #slides = True
   slides = True if widthPoints is None else False
 
   alsm_ra95p = zerofloat(21)
@@ -559,7 +568,6 @@ def plotLsmObjectiveFunctions():
   read(ddir+'random/10p/plus/dres/dres.dat',lsm_rd95p)
   read(ddir+'100p/dres2/dres.dat',lsm_rd100p)
   
-
   def normal(x):
     div(x,x[0],x)
   normal(alsm_ra95p)
@@ -577,22 +585,30 @@ def plotLsmObjectiveFunctions():
     panel.setVLabel('Normalized misfit')
     panel.setVInterval(1.0)
   if slides:
-    panel.setVLimits(0.0,1.7)
+    #panel.setVLimits(0.0,1.7)
+    panel.setVLimits(0.0,1.1)
   else:
     panel.setVLimits(0.0,1.3)
     #panel.setVLimits(0.0,2.0)
 
   # Reverse order for colors and styles
-  arrays = [alsm_ra95p,alsm_rd95p,lsm_rd95p,lsm_rd100p]
+  #arrays = [alsm_ra95p,alsm_rd95p,lsm_rd95p,lsm_rd100p]
+  arrays = [alsm_ra95p,alsm_rd95p,lsm_rd95p]
+  #arrays = [lsm_rd95p,lsm_rd100p]
   if slides:
-    colors = [Color.RED,Color.RED,Color.BLUE,Color.BLACK]
+    #colors = [Color.RED,Color.RED,Color.BLUE,Color.BLACK]
+    #styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
+    #          PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
+    colors = [Color.RED,Color.RED,Color.BLUE]
     styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.HOLLOW_CIRCLE,
-              PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
+              PointsView.Mark.FILLED_CIRCLE]
+    #colors = [Color.BLUE,Color.BLACK]
+    #styles = [PointsView.Mark.FILLED_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
   else:
     colors = [Color.BLACK,Color.BLACK,Color.BLACK,Color.BLACK]
     styles = [PointsView.Mark.FILLED_SQUARE,PointsView.Mark.CROSS,
               PointsView.Mark.HOLLOW_CIRCLE,PointsView.Mark.FILLED_CIRCLE]
-  for i in range(4):
+  for i in range(len(colors)):
     p = panel.addPoints(arrays[i])
     p.setLineColor(colors[i])
     p.setMarkColor(colors[i])
@@ -628,14 +644,18 @@ def plotLsmObjectiveFunctions():
 
   frame = PlotFrame(panel)
   if slides:
-    frame.setFontSizeForSlide(1.0,1.0)
-    frame.setSize(1000,500)
+    frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
+    #frame.setSize(1000,500)
+    frame.setSize(1600,800)
   else:
     frame.setFontSizeForPrint(8.0,widthPoints)
     frame.setSize(1000,600)
   frame.setVisible(True)
   if pngDir:
-    frame.paintToPng(1080,3.5,pngDir+'obj.png')
+    if slides:
+      frame.paintToPng(1920,1.0,pngDir+'obj.png')
+    else:
+      frame.paintToPng(1080,3.5,pngDir+'obj.png')
   plotTemplatesForLegend(slides,colors,styles)
 
 def plotTemplatesForLegend(slides,colors,styles):
@@ -653,12 +673,13 @@ def plotTemplatesForLegend(slides,colors,styles):
       point.setLineWidth(3.0)
     point.setMarkStyle(markStyle)
     frame = PlotFrame(panel)
-    frame.setFontSizeForSlide(1.0,1.0)
+    frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
     frame.setSize(1000,500)
     frame.setVisible(True)
     if pngDir:
       if slides:
-        frame.paintToPng(1024,2.0,pngDir+title+'.png')
+        #frame.paintToPng(1024,2.0,pngDir+title+'.png')
+        frame.paintToPng(1920,1.0,pngDir+title+'.png')
       else:
         frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
   #if slides:
@@ -669,7 +690,7 @@ def plotTemplatesForLegend(slides,colors,styles):
   #else:
   #  pass
   titles = ['template1','template2','template3','template4']
-  for i in range(4):
+  for i in range(len(colors)):
     template(colors[i],styles[i],titles[i])
   #template(Color.BLACK,PointsView.Mark.FILLED_CIRCLE,'black_filled')
   #template(Color.BLUE,PointsView.Mark.FILLED_CIRCLE,'blue_filled')
@@ -686,7 +707,7 @@ def points(f,title=None):
   pv.setLineWidth(2.0)
   pv.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
   frame = PlotFrame(panel)
-  frame.setFontSizeForSlide(1.5,1.5)
+  frame.setFontSizeForSlide(1.5,1.5,16.0/9.0)
   frame.setSize(1000,600)
   if title:
     frame.setTitle(title)
@@ -747,7 +768,8 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,cwidth=None,
   if cwidth:
     cb.setWidthMinimum(cwidth)
   elif widthPoints is None:
-    cb.setWidthMinimum(140)
+    #cb.setWidthMinimum(140)
+    cb.setWidthMinimum(190)
   elif widthPoints==175.0:
     cb.setWidthMinimum(200)
   elif widthPoints==240.0:
@@ -785,13 +807,14 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,cwidth=None,
     gv.setStyle(GridView.Style.DASH)
   frame = PlotFrame(panel)
   if widthPoints is None:
-    frame.setFontSizeForSlide(1.0,1.0)
+    frame.setFontSizeForSlide(1.0,1.0,16.0/9.0)
   else:
     frame.setFontSizeForPrint(8.0,widthPoints)
   if (len(f[0])==nz):
     if widthPoints is None:
       #frame.setSize(1200,770)
-      frame.setSize(1024,670)
+      #frame.setSize(1024,670)
+      frame.setSize(1600,800)
     elif widthPoints==240.0 or widthPoints==175.0:
       #frame.setSize(1200,468)
       frame.setSize(1200,464)
@@ -811,7 +834,7 @@ def plot(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,cwidth=None,
   frame.setVisible(True)
   if title and pngDir:
     if widthPoints is None:
-      frame.paintToPng(1024,2.0,pngDir+title+'.png')
+      frame.paintToPng(1920,1.0,pngDir+title+'.png')
     else:
       frame.paintToPng(720.0,widthPoints/72.0,pngDir+title+'.png')
       #frame.paintToPng(3000.0,widthPoints/72.0,pngDir+title+'.png') # poster
