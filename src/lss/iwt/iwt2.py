@@ -2,27 +2,27 @@
 # Image-warping tomography
 
 from imports import *
+from dnp import LocalSlopeFinder
 
 #############################################################################
 
 savDir = None
-#savDir = os.getenv('HOME')+'/Desktop/pngdat/'
+savDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat2/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat4/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat5/'
 #savDir = os.getenv('HOME')+'/Desktop/pngdat6/'
-savDir = os.getenv('HOME')+'/Desktop/pngdat7/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat7/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat8/'
+#savDir = os.getenv('HOME')+'/Desktop/pngdat9/'
 #savDir = '/Users/sluo/Dropbox/pngdat/'
 #savDir = '/Users/sluo/Dropbox/pngdat2/'
 
-#datDir = './dat/multiLayer/nz401/plusMediumGaussian/'
-#datDir = './dat/marmousi/' # ds=2,stride=4
-#datDir = './dat2/marmousi/' # ds=4,stride=4
-datDir = './dat3/marmousi/' # ds=8,stride=8
-
-plots = True
-#plots = False
+modelChanged = False # if True, resimulate and remigrated observed data
+datDir = './dat/marmousi/'
+#datDir = './dat/multiLayer/nz201/mul105/'
+#datDir = './dat/multiLayer/nz201/plusSmallGaussian/'
 
 #############################################################################
 
@@ -32,30 +32,53 @@ plots = True
 timer = Timer()
 def main(args):
   #getModelAndMask()
-  #getInputs(modelChanged=True) # simulate data
-  goInversion()
+  #goInversion()
+  goNearAndFarInversion()
+  #readAndPlot()
 
-def setupForLayered():
+def readAndPlot():
+  t,s,e,r,m = getModelAndMask()
+  nf = 2
+  fdir = os.getenv('HOME')+'/Desktop/pngdat2/'
+  #fname,cmap,smin,smax,sperc = 'rn',gray,0.0,0.0,100.0
+  #fname,cmap,smin,smax,sperc = 'rf',gray,0.0,0.0,100.0
+  #fname,cmap,smin,smax,sperc = 's',jet,0.0,0.0,None
+  fname,cmap,smin,smax,sperc = 'p',rwb,0.0,0.0,100.0
+  for i in range(nf):
+    t = zerofloat(nx,nz)
+    read(fdir+fname+'_'+str(i)+'.dat',t)
+    pixels(t,cmap=cmap,cmin=smin,cmax=smax,sperc=sperc,title=fname+'_'+str(i))
+
+def setGlobalsForLayered():
   global zs,xs,ns,ds
   global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
   global fpeak,nabsorb,np,sigma0,sigma1
-  #sz = Sampling(126,0.016,0.0)
-  #sx = Sampling(189,0.016,0.0)
-  #st = Sampling(1003,0.0015,0.0)
-  #sz = Sampling(126,0.016,0.0)
-  #sx = Sampling(251,0.016,0.0)
-  #st = Sampling(1103,0.0015,0.0) # enough nt?
+  sx = Sampling(501,0.016,0.0)
+  sz = Sampling(201,0.016,0.0)
+  st = Sampling(1803,0.0015,0.0)
+  #sz = Sampling(401,0.016,0.0)
+  #st = Sampling(2503,0.0015,0.0)
+  sigma0,sigma1 = 0.2,0.05 # background/reflectivity models
+  fpeak = 20.0 # Ricker wavelet peak frequency
+  np = 16 # number of parallel shots
+  #ds = 2 # shot stride
+  ds = 4 # shot stride
+  nz,nx,nt = sz.count,sx.count,st.count
+  dz,dx,dt = sz.delta,sx.delta,st.delta
+  #fz,fx,ft = sz.first,sx.first,st.first
+  ns = (nx-1+ds)/ds
+  xs,zs = rampint(0,ds,ns),fillint(0,ns)
+  nabsorb = 22 # absorbing boundary size
+  nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
+  np = min(np,ns) # number of parallel shots
+  print 'ns=%d'%ns
+  #return getSingleLayeredModelAndMask()
+  return getMultiLayeredModelAndMask()
 
-#  sx = Sampling(501,0.016,0.0)
-#  #sz = Sampling(201,0.016,0.0)
-#  #st = Sampling(1803,0.0015,0.0)
-#  sz = Sampling(401,0.016,0.0)
-#  st = Sampling(2503,0.0015,0.0)
-#  sigma0,sigma1 = 0.2,0.05 # background/reflectivity models
-#  fpeak = 20.0 # Ricker wavelet peak frequency
-#  np = 16 # number of parallel shots
-#  ds = 2 # shot stride
-
+def setGlobalsForMarmousi():
+  global zs,xs,ns,ds
+  global sz,sx,st,nz,nx,nt,nxp,nzp,dz,dx,dt
+  global fpeak,nabsorb,np,sigma0,sigma1
   sz = Sampling(265,0.012,0.0)
   sx = Sampling(767,0.012,0.0)
   #st = Sampling(5001,0.0012,0.0)
@@ -64,22 +87,17 @@ def setupForLayered():
   fpeak = 15.0 # Ricker wavelet peak frequency
   np = 8 # number of parallel shots
   #ds = 2 # shot stride
-  #ds = 4 # shot stride
-  ds = 8 # shot stride
-
+  ds = 4 # shot stride
+  #ds = 8 # shot stride
   nz,nx,nt = sz.count,sx.count,st.count
   dz,dx,dt = sz.delta,sx.delta,st.delta
-  fz,fx,ft = sz.first,sx.first,st.first
+  #fz,fx,ft = sz.first,sx.first,st.first
   ns = (nx-1+ds)/ds
   xs,zs = rampint(0,ds,ns),fillint(0,ns)
   nabsorb = 22 # absorbing boundary size
   nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
   np = min(np,ns) # number of parallel shots
-  #sigma0 = 4.0/fpeak
-  #sigma1 = 1.0/fpeak
   print 'ns=%d'%ns
-  #return getSingleLayeredModelAndMask()
-  #return getMultiLayeredModelAndMask()
   return getMarmousi()
 
 def getSourcesAndReceivers():
@@ -117,10 +135,11 @@ def getSingleLayeredModelAndMask():
 def getMultiLayeredModelAndMask():
   tb = 0.25 # background slowness
   nlayer = 1+int(nz*dz)/0.25
+  #nlayer = 1+int(nz*dz)/0.5
   vstart,vstep = 100.0,-1.0
   t = fillfloat(vstart,nx,nz)
-  #for ilayer in range(2,nlayer):
-  for ilayer in range(3,nlayer):
+  for ilayer in range(2,nlayer):
+  #for ilayer in range(3,nlayer):
     vstart += vstep
     for iz in range(ilayer*nz/nlayer,(1+ilayer)*nz/nlayer):
       fill(vstart,t[iz])
@@ -232,38 +251,41 @@ def addGaussianError(s,emax=0.010,sigma=None):
   return add(s,g)
 
 def getModelAndMask():
-  t,s,r,m = setupForLayered()
+  ddir = datDir.split('/')[2]
+  if ddir=='marmousi':
+    t,s,r,m = setGlobalsForMarmousi()
+  elif ddir=='multiLayer':
+    t,s,r,m = setGlobalsForLayered()
   e = copy(s)
   subDir = datDir.split('/')[-2]
-  #s = mul(0.90,e) # erroneous background slowness
-  #s = mul(1.10,e) # erroneous background slowness #
-  #s = addGaussianError(e,emax=0.05)
-  #s = addGaussianError(e,emax=-0.05)
-  #s = addGaussianError(e,emax=0.05,sigma=nz/10.0) # plusGaussian
-  #s = addGaussianError(e,emax=-0.05,sigma=nz/10.0) # minusGaussian
-  #s = addGaussianError(e,emax=-0.05,sigma=nz/10.0)
-  #s = addGaussianError(e,emax=0.04)
-  #s = addGaussianError(e,emax=-0.04)
-  #s = addGaussianError(e,emax=-0.04)
-  if subDir=='plusGaussian':
+  if subDir=='plusSmallGaussian':
     #s = addGaussianError(e,emax=0.05,sigma=nz/10.0) # plusGaussian
-    s = addGaussianError(e,emax=0.05,sigma=20.0) # plusGaussian
-  elif subDir=='plusLargeGaussian':
-    #s = addGaussianError(e,emax=0.05,sigma=nz/3.0) # plusGaussian
-    s = addGaussianError(e,emax=0.05,sigma=67.0) # plusGaussian
+    s = addGaussianError(e,emax=0.05,sigma=25.0) # plusGaussian
   elif subDir=='plusMediumGaussian':
     #s = addGaussianError(e,emax=0.025,sigma=nz/4.0) # plusGaussian
     s = addGaussianError(e,emax=0.025,sigma=50.0) # plusGaussian
+  elif subDir=='plusLargeGaussian':
+    #s = addGaussianError(e,emax=0.05,sigma=nz/3.0) # plusGaussian
+    s = addGaussianError(e,emax=0.05,sigma=67.0) # plusGaussian
   elif subDir=='mul110':
     s = mul(1.10,e) # erroneous background slowness #
+  elif subDir=='mul105':
+    s = mul(1.05,e) # erroneous background slowness #
   elif subDir=='marmousi':
     e = makeLinearModel(s,fz=20)
+  elif subDir=='marmousiTrue':
+    e = copy(s)
   pixels(t,cmap=jet,title='t')
   pixels(s,cmap=jet,title='s')
   pixels(e,cmap=jet,title='e')
   if m is not None:
     pixels(m,cmap=gray,title='m')
-  pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
+  #pixels(sub(s,e),cmap=rwb,sperc=100.0,title='s-e')
+
+  d = sub(s,e)
+  z = max(abs(d))
+  pixels(d,cmap=rwb,cmin=-z,cmax=z,title='s-e')
+
   pixels(r,cmap=gray,sperc=100.0,title='r')
   print 'sum(sub(s,e))=%f'%(sum(sub(s,e)))
 
@@ -272,19 +294,22 @@ def getModelAndMask():
 
   return t,s,e,r,m
 
-def getInputs(modelChanged=True):
+def getInputs():
   t,s,e,r,m = getModelAndMask()
 
   # Warping
   maxShift = 0.20 # max shift in km
+  #bstrain1,bstrain2,bstrain3 = 16,16,8
   #bstrain1,bstrain2,bstrain3 = 16,8,8
+  #bstrain1,bstrain2,bstrain3 = 8,8,8
   #bstrain1,bstrain2,bstrain3 = 8,4,4
-  bstrain1,bstrain2,bstrain3 = 4,4,4
-  #bstrain1,bstrain2,bstrain3 = 4,2,2 ###
+  bstrain1,bstrain2,bstrain3 = 4,4,4 ###
+  #bstrain1,bstrain2,bstrain3 = 4,2,2
   smooth1,smooth2,smooth3 = 4.0,4.0,4.0
   bstrain3 = max(bstrain3/ds,1)
   warping = ImageWarping(
     bstrain1,bstrain2,bstrain3,smooth1,smooth2,smooth3,maxShift,dz)
+  warping.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.NEAREST)
   warping.setWindowSizeAndOverlap(nx,nx,0.5,0.5)
   print 'bstrain1=%d'%bstrain1
   print 'bstrain2=%d'%bstrain2
@@ -314,6 +339,15 @@ def getInputs(modelChanged=True):
     for isou in range(ns):
       read(datDir+'d%d.dat'%isou,rco[isou].getData())
     timer.stop('reading observed data')
+  #else: # ...else read from disk, then taper data (Toto) XXX
+  #  sigma = 1.0/dx # half width in samples
+  #  gt = GaussianTaper(sigma)
+  #  timer.start('reading observed data')
+  #  for isou in range(ns):
+  #    ri = rco[isou].getData()
+  #    read(datDir+'d%d.dat'%isou,ri)
+  #    gt.apply2(ri,ri)
+  #  timer.stop('reading observed data')
   pixels(rco[ns/2].getData(),sperc=99.9,title='rco')
 
   # Born modeling and solver.
@@ -328,18 +362,247 @@ def getInputs(modelChanged=True):
 
 #############################################################################
 
+def getNearAndFarWeights(n):
+  Check.argument(n%2==1,'n%2==1') # total number of offsets must be odd
+  h = n/2 # middle
+  d = 1.0/float(h)
+  wn = zerofloat(n) # near offset weights
+  wf = zerofloat(n) # far offset weights
+  for i in range(h+1):
+    wn[h+i] = wn[h-i] = 1.0-i*d
+    wf[h+i] = wf[h-i] = i*d
+  #points(wn)
+  #points(wf)
+  return wn,wf
+
+def goNearAndFarInversion():
+  ninv = 4 # inversion iterations
+  nmig = 1 # migration iterations
+  s,m,wave,born,bs,src,rco,u4,a4,b4,warping = getInputs()
+  rcon = zeros(ns,Receiver) # observed data, near offsets only
+  rcof = zeros(ns,Receiver) # observed data, far offsets only
+
+  # Near and far offset receivers
+  for isou in range(ns):
+
+    hx = int(2.0/dx) # half offset
+    #hx = int(4.0/dx) # half offset
+    xsi = xs[isou] # source location
+    fx = xsi-hx # first offset
+    lx = xsi+hx # last offset
+    mx = 1+2*hx # total number of offsets
+
+    # Limit offset of observed data to +/- mx/2
+    for ix in range(0,fx):
+      zero(rco[isou].getData()[ix])
+    for ix in range(lx+1,nx):
+      zero(rco[isou].getData()[ix])
+
+    # Construct near and far offset receivers and apply weights
+    rcon[isou] = Receiver(rco[isou]) # copy observed
+    rcof[isou] = Receiver(rco[isou]) # copy observed
+    wn,wf = getNearAndFarWeights(mx)
+    for ix in range(fx,lx+1):
+      if ix<0 or ix>=nx:
+        continue
+      else:
+        mul(wn[ix-fx],rcon[isou].getData()[ix],rcon[isou].getData()[ix])
+        mul(wf[ix-fx],rcof[isou].getData()[ix],rcof[isou].getData()[ix])
+
+#    xsi = xs[isou] # source location
+#
+#    #kx = 2 # max abs offset = nx/kx
+#    kx = 4 # max abs offset = nx/kx
+#    #kx = 6 # max abs offset = nx/kx
+#
+#    # Limit max offset to nx/kx
+#    for ix in range(0,xsi-nx/kx):
+#      zero(rco[isou].getData()[ix])
+#    for ix in range(1+xsi+nx/kx,nx):
+#      zero(rco[isou].getData()[ix])
+#
+#    # Near and far offset receivers
+#    rcon[isou] = Receiver(rco[isou])
+#    rcof[isou] = Receiver(rco[isou])
+#
+#    # Mute near offsets
+#    for ix in range(max(xsi-nx/(2*kx),0),min(xsi+nx/(2*kx),nx)):
+#      zero(rcof[isou].getData()[ix])
+#
+#    # Mute far offsets
+#    for ix in range(0,xsi-nx/(2*kx)):
+#      zero(rcon[isou].getData()[ix])
+#    for ix in range(xsi+nx/(2*kx),nx):
+#      zero(rcon[isou].getData()[ix])
+
+  #pixels(rcon[ns/2].getData())
+  #pixels(rcof[ns/2].getData())
+
+  # Precondition (mask)
+  h = copy(m)
+  hx = 30 if datDir.split('/')[2]=='marmousi' else 80
+  for iz in range(nz):
+    for ix in range(hx):
+      h[iz][ix] = 0.0
+    for ix in range(nx-hx,nx):
+      h[iz][ix] = 0.0
+  efilter(16.0,h,h)
+  pixels(h,title='h')
+
+  gm,pm = None,None
+  for iiter in range(ninv):
+    print ''; timer.start('iteration %d'%iiter)
+
+    # Migration images
+    rn = zerofloat(nx,nz) # reflectivity image for near offsets
+    rf = zerofloat(nx,nz) # reflectivity image for far offsets
+    if modelChanged or iiter>0:
+      timer.start('migration')
+      bs.setObservedData(rcof)
+      bs.solve(nmig,rf)
+      timer.stop('migration')
+      timer.start('migration')
+      bs.setObservedData(rcon)
+      bs.solve(nmig,rn)
+      timer.stop('migration')
+      if iiter==0:
+        write(datDir+'rn.dat',rn)
+        write(datDir+'rf.dat',rf)
+    else:
+      read(datDir+'rn.dat',rn)
+      read(datDir+'rf.dat',rf)
+    sn = normalize(rn,rn) # normalize
+    sf = normalize(rf,rf) # normalize
+    pixels(rn,sperc=100.0,title='rn_%d'%iiter)
+    pixels(rf,sperc=100.0,title='rf_%d'%iiter)
+
+    # Warping
+    u = transpose(warping.findShifts(transpose(rn),transpose(rf)))
+    #u = transpose(warping.findShifts(transpose(rf),transpose(rn)))
+    mul(h,u,u) # precondition
+    pixels(u,cmap=rwb,sperc=100.0,title='u_%d'%iiter)
+
+    # Scale shifts by cosine of dip
+    #u1,u2 = zerofloat(nz,nx),zerofloat(nz,nx)
+    #LocalOrientFilter(12.0,8.0).applyForNormal(transpose(rn),u1,u2)
+    #mul(transpose(u1),u,u)
+    #pixels(u1,cmap=jet,sperc=100.0,title='c_%d'%iiter)
+    #pixels(u,cmap=rwb,sperc=100.0,title='uc_%d'%iiter)
+    
+    # Adjoint source image
+    ru = zerofloat(nx,nz)
+    for iz in range(1,nz-1):
+      for ix in range(nx):
+        ru[iz][ix] = u[iz][ix]*(rn[iz+1][ix]-rn[iz-1][ix])
+        #ru[iz][ix] = u[iz][ix]*(rf[iz+1][ix]-rf[iz-1][ix])
+    div(ru,sn,ru) # scale again (denominator)
+    pixels(ru,sperc=100.0,title='ru_%d'%iiter)
+
+    # XXX
+    for iz in range(nz):
+      #mul(float(iz),ru[iz],ru[iz])
+      pass
+
+    # Gradient
+    stride = 8; stride /= ds # shot stride for gradient
+    class Reduce(Parallel.ReduceInt):
+      def compute(self,isou):
+        ksou = isou/stride
+        ui,ai,bi = u4.get(ksou),a4.get(ksou),b4.get(ksou)
+        wave.applyForward(src[isou],ui) # source wavefield
+        wave.applyAdjoint(Source.ReceiverSource(rco[isou]),ai) # rec wavefield
+        # TODO: second time derivative?
+        wave.applyAdjoint(Source.WavefieldSource(ai,ru),bi)
+        ga = wave.collapse(ui,bi,nabsorb) # source side
+        wave.applyForward(Source.WavefieldSource(ui,ru),bi)
+        gb = wave.collapse(bi,ai,nabsorb) # receiver side
+        add(ga,gb,gb)
+        mul(1.0/ns/nt,gb,gb)
+        return gb
+      def combine(self,ga,gb):
+        return add(ga,gb)
+    timer.start('gradient')
+    g = PartialParallel(np).reduce(0,ns,stride,Reduce()) 
+    #g = PartialParallel(np).reduce(ns/2,ns/2+1,stride,Reduce()) # one shot
+    timer.stop('gradient')
+    efilter(0.125/dx,g,g) # smooth
+    #mul(p,g,g) # precondition
+    p = getConjugateDirection(g,gm,pm) # cg direction
+    gm,pm = g,p
+    pixels(g,cmap=rwb,sperc=100.0,title='g_%d'%iiter)
+    pixels(p,cmap=rwb,sperc=100.0,title='p_%d'%iiter)
+
+    # Update slowness model
+    step = 0.050
+    #step = 0.005
+    #step = -0.002
+    updateSlownessSquared(step,p,s)
+    born.setSlowness(s)
+    wave.setSlowness(s)
+    pixels(s,cmap=jet,title='s_%d'%iiter)
+
+    # Update slowness model
+    #if ninv>1:
+    #  amin = -0.005 # minimum step length
+    #  amax = 0.005 # maximum step length
+    #  atol = 0.001 # tolerance
+    #  ss = mul(s,s) # squared slowness
+    #  class Misfit(BrentMinFinder.Function):
+    #    def evaluate(self,a):
+    #      e = mul(a/max(abs(p)),p)
+    #      add(ss,e,e) # update slowness squared
+    #      born.setSlowness(sqrt(e))
+    #      re = zerofloat(nx,nz) # reflectivity image
+    #      bs.solve(nmig,re)
+    #      normalize(re,re)
+    #      p2 = zerofloat(nz,nx) # slope
+    #      LocalSlopeFinder(12.0,8.0,2.0).findSlopes(transpose(re),p2)
+    #      mul(p2,p2,p2) # squared slope
+    #      mul(transpose(h),p2,p2) # precondition
+    #      return sum(p2)
+    #  timer.start('line search')
+    #  aopt = BrentMinFinder(Misfit()).findMin(amin,amax,atol)
+    #  timer.stop('line search')
+    #  print 'aopt=%f'%aopt
+    #  e = mul(aopt/max(abs(p)),p)
+    #  add(ss,e,e)
+    #  sqrt(e,s)
+    #  born.setSlowness(s)
+    #  wave.setSlowness(s)
+    #  pixels(s,cmap=jet,title='s_%d'%iiter)
+
+    timer.stop('iteration %d'%iiter)
+
+def normalize(rx,ry):
+  sigma = 0.125 # sigma in km
+  #sigma = 0.250 # sigma in km
+  s = abs(rx)
+  efilter(sigma/dx,s,s)
+  mul(1.0/max(s),s,s)
+  add(0.01,s,s)
+  div(rx,s,ry)
+  return s
+
+def updateSlownessSquared(aopt,p,s):
+  """Fixed step length."""
+  print 'aopt=%f'%aopt
+  e = mul(aopt/max(abs(p)),p)
+  add(mul(s,s),e,e)
+  sqrt(e,s)
+
+#############################################################################
+
 def goInversion():
-  modelChanged = False # if True, resimulate and remigrated observed data
   doLineSearch = False
-  ninv = 10 # inversion iterations
+  ninv = 1 # inversion iterations
   nmig = 2 # migration iterations within each inversion iteration
   nlsr = 2 # migration iterations within each inversion iteration
   #offset,stride = 10,4 # shot offset for warping, stride for gradient
   #offset,stride = 20,4 # shot offset for warping, stride for gradient
-  offset,stride = 16,8 # shot offset for warping, stride for gradient
+  #offset,stride = 16,8 # shot offset for warping, stride for gradient
   #offset,stride = 24,8 # shot offset for warping, stride for gradient
-  #offset,stride = 40,4 # shot offset for warping, stride for gradient
-  s,m,wave,born,bs,src,rco,u4,a4,b4,warping = getInputs(modelChanged)
+  offset,stride = 40,4 # shot offset for warping, stride for gradient
+  s,m,wave,born,bs,src,rco,u4,a4,b4,warping = getInputs()
   Check.argument(offset%ds==0,'offset%ds==0')
   Check.argument(stride%ds==0,'stride%ds==0')
   offset /= ds; stride /= ds # divide by shot stride
@@ -360,6 +623,7 @@ def goInversion():
   wp = zerofloat(nz,nx,ns) # weighted shifts (transposed)
   ru = zerofloat(nx,nz,ns) # adjoint source images
   gm,pm = None,None # gradient & conjugate-gradient directions
+  pscale = None # scale conjugate-gradient direction before line search
 
   for i in range(ninv):
     print ''
@@ -448,7 +712,9 @@ def goInversion():
     class Loop(Parallel.LoopInt):
       def compute(self,isou):
         for iz in range(nz):
-          mul(pow(float(iz),4.0),ru[isou][iz],ru[isou][iz]) # XXX
+          mul(float(iz),ru[isou][iz],ru[isou][iz]) # XXX
+          #mul(pow(float(iz),2.0),ru[isou][iz],ru[isou][iz]) # XXX
+          #mul(pow(float(iz),4.0),ru[isou][iz],ru[isou][iz]) # XXX
           pass
     Parallel.loop(ns,Loop())
 
@@ -456,12 +722,13 @@ def goInversion():
 
     # Gradient and conjugate gradient
     g = computeGradient(offset,stride,ru,wave,src,rco,u4,a4,b4)
-    RecursiveGaussianFilter(1.0/(fpeak*dx)).apply00(g,g) # XXX
+    efilter(1.0/(fpeak*dx),g,g) # XXX
+    #efilter(5.0/(fpeak*dx),g,g) # XXX
     #mul(transpose(m),g,g) # mask XXX
     p = getConjugateDirection(g,gm,pm)
+    gm,pm = g,p # rotate
     print 'sum(g)=%f'%sum(g)
     print 'sum(p)=%f'%sum(p)
-    gm,pm = g,p # rotate
 
 #    # Line search
 #    if doLineSearch or ninv>1:
@@ -479,8 +746,10 @@ def goInversion():
 
     if doLineSearch or ninv>1:
       timer.start('line search')
-      #updateSlownessModel(s,m,p,nlsr,offset,src,rco,u4,a4,warping)
-      updateSlownessModelX(s,p) # fixed step length
+      updateSlownessModel(s,m,p,nlsr,offset,src,rco,u4,a4,warping)
+      #if i==0: # if first iteration, set scale
+      #  pscale = 1.0/max(abs(p))
+      #updateSlownessModelX(s,p,pscale) # fixed step length
       timer.stop('line search')
       born.setSlowness(s)
       wave.setSlowness(s)
@@ -588,7 +857,7 @@ def applyShifts(warping,um,up,rm,rp,rmw,rpw):
   warping.applyShifts(up,rp,rpw) # shift image
 
 def makeScale(offset,m,rr,rmw,rpw,dm,dp):
-  niter = 4 # number of times to apply ref
+  niter = 8 # number of times to apply ref
   #sigma = 0.064 # sigma in km
   #sigma = 0.125 # sigma in km
   sigma = 0.250 # sigma in km #
@@ -718,11 +987,11 @@ def taperImage(xsou,rx,ry,imageIsTransposed=True):
   #hx = 40 # half taper width
   #hx = 60 # half taper width
   #hx = 80 # half taper width
-  hx = 100 # half taper width
+  #hx = 100 # half taper width
   #hx = 3*offset # half taper width
   #hx = 4*offset # half taper width
   #hx = 6*offset # half taper width
-  #hx = nx # no taper
+  hx = nx # no taper
   #sigma = 0.125/dx # half width for taper transition
   sigma = 8 # half width for taper transition
   w = zerofloat(nx)
@@ -865,14 +1134,16 @@ def updateSlownessModel(s,m,p,nmig,offset,source,receiver,u4,a4,warping):
   sqrt(e,s)
   #return aopt/max(abs(p))
 
-def updateSlownessModelX(s,p):
+def updateSlownessModelX(s,p,pscale=None):
   """Fixed step length."""
   #aopt = 0.002
   #aopt = 0.005
-  aopt = 0.010
+  #aopt = 0.010
+  aopt = 0.050
   #aopt = -0.005
   print 'aopt=%f'%aopt
-  e = mul(aopt/max(abs(p)),p)
+  #e = mul(aopt/max(abs(p)),p) if
+  e = mul(pscale*aopt,p) if pscale else mul(aopt/max(abs(p)),p)
   add(mul(s,s),e,e)
   sqrt(e,s)
 
@@ -1018,8 +1289,6 @@ gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
 def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
-  if not plots:
-    return
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   if nx==189:
     sp.setSize(1000,650)
@@ -1059,34 +1328,12 @@ def pixels(x,cmap=gray,perc=100.0,sperc=None,cmin=0.0,cmax=0.0,title=None):
   if cmin<cmax:
     pv.setClips(cmin,cmax)
   if title and savDir:
-    #write(savDir+title+'.dat',x)
-    #sp.paintToPng(720,3.33,savDir+title+'.png')
+    write(savDir+title+'.dat',x)
     sp.paintToPng(360,3.33,savDir+title+'.png')
+    #sp.paintToPng(720,3.33,savDir+title+'.png')
 
 def points(x):
-  if not plots:
-    return
   SimplePlot.asPoints(x)
-
-def display(x,cmap=gray,cbar=None,sperc=None,title=None):
-  if not plots:
-    return
-  frame = SimpleFrame()
-  ipg = frame.addImagePanels(x)
-  ipg.setColorModel(cmap)
-  colorBar = ColorBar(cbar) if cbar else ColorBar()
-  colorBar.setWidthMinimum(70)
-  ipg.addColorMapListener(colorBar)
-  colorBar.setFont(colorBar.getFont().deriveFont(12.0))
-  frame.add(colorBar,BorderLayout.EAST)
-  if sperc is not None:
-    clips = Clips(100-sperc,sperc,x)
-    clip = max(abs(clips.getClipMin()),abs(clips.getClipMax()))
-    ipg.setClips(-clip,clip)
-  elif min(x)<max(x):
-    ipg.setClips(min(x),max(x)) # fix colorbar
-  if title:
-    frame.setTitle(title)
 
 #############################################################################
 # Do everything on Swing thread.

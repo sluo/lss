@@ -7,9 +7,9 @@ from warp import *
 #############################################################################
 
 pngdatDir = None
-pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
+#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat/'
 #pngdatDir = os.getenv('HOME')+'/Desktop/pngdat2/'
-#pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
+pngdatDir = os.getenv('HOME')+'/Desktop/pngdat3/'
 
 gfile = None
 pfile = None
@@ -28,8 +28,8 @@ def main(args):
   #initialize()
   #compareData()
   #showData()
-  #WaveformInversion()
-  AmplitudeInversion()
+  WaveformInversion()
+  #AmplitudeInversion()
   #plotFiles()
 
   #plotWarpings()
@@ -53,12 +53,12 @@ def setupForMarmousi():
   #kxs,kzs = rampint(6,58,14),fillint(0,14)
   #kxs,kzs = rampint(3,33,24),fillint(0,24)
   #kxs,kzs = rampint(1,15,52),fillint(0,52)
-  kxs,kzs = rampint(3,10,77),fillint(0,77)
-  #kxs,kzs = rampint(3,5,153),fillint(0,153)
+  #kxs,kzs = rampint(3,10,77),fillint(0,77)
+  kxs,kzs = rampint(3,5,153),fillint(0,153)
   kxr,kzr = rampint(0,1,nx),fillint(0,nx)
   ns,nr = len(kxs),len(kxr)
-  #tt,t0,t1,s0,s1 = getMarmousi() # no error in background slowness s0
-  tt,t0,t1,s0,s1 = getMarmousi(econst=-0.05) # constant error in s0
+  tt,t0,t1,s0,s1 = getMarmousi() # no error in background slowness s0
+  #tt,t0,t1,s0,s1 = getMarmousi(econst=-0.05) # constant error in s0 ###
   #tt,t0,t1,s0,s1 = getMarmousi(egauss=0.25) # gaussian error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(erand=0.25) # random error in s0
   #tt,t0,t1,s0,s1 = getMarmousi(erand=-0.25) # random error in s0
@@ -67,9 +67,9 @@ def setupForMarmousi():
   plots(tt,t0,t1,s0,s1)
   if sfile is not None:
     s1 = read(sfile)
-  #psou = min(14,ns)
+  psou = min(14,ns)
   #psou = min(8,ns)
-  psou = min(1,ns)
+  #psou = min(1,ns)
   fpeak = 10.0
   niter = 10
   sw = Stopwatch(); sw.start()
@@ -693,7 +693,7 @@ def warp(ds,do,dw=None,v=None,rt=None,adjoint=False):
   ds = copy(nt/td,nr/rd,0,0,td,rd,ds)
   do = copy(nt/td,nr/rd,0,0,td,rd,do)
   #strainMax1,strainMax2 = 1.00,0.50
-  strainMax1,strainMax2 = 0.50,0.20
+  strainMax1,strainMax2 = 0.50,0.20 #
   #strainMax1,strainMax2 = 0.25,0.10
   #strainMax1,strainMax2 = 0.10,0.05
   shiftMax = int(maxShift/(td*dt))

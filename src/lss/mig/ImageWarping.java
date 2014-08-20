@@ -40,11 +40,20 @@ public class ImageWarping {
     _warp.setShiftSmoothing(smooth1/t1,smooth2,smooth3); // shift smoothing
     _warp.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.AVERAGE);
     _warp.setErrorSmoothing(2); // number of smoothings of alignment errors
-    if (strain3<=0.0) {
+    if (strain3<=0.0 && strain2<=0.0) {
+      _warp.setStrainMax(strain1);
+      _1d = true;
+      _2d = false;
+      _3d = false;
+    } else if (strain3<=0.0) {
       _warp.setStrainMax(strain1,strain2);
+      _1d = false;
+      _2d = true;
       _3d = false;
     } else {
       _warp.setStrainMax(strain1,strain2,strain3);
+      _1d = false;
+      _2d = false;
       _3d = true;
     }
     _t1 = t1;
@@ -102,13 +111,20 @@ public class ImageWarping {
     final float[][][] f, final float[][][] g, final float[][][] u)
   {
     zero(u);
+    final int n2 = f[0].length;
+    final int n3 = f.length;
     if (_3d) {
       _warp.findShifts(f,g,u);
-    } else {
-      int ns = f.length;
-      Parallel.loop(ns,new Parallel.LoopInt() {
-      public void compute(int is) {
-        findShifts(f[is],g[is],u[is]);
+    } else if (_2d) {
+      Parallel.loop(n3,new Parallel.LoopInt() {
+      public void compute(int i3) {
+        _warp.findShifts(f[i3],g[i3],u[i3]);
+      }});
+    } else if (_1d) {
+      Parallel.loop(n3,new Parallel.LoopInt() {
+      public void compute(int i3) {
+        for (int i2=0; i2<n2; ++i2)
+          _warp.findShifts(f[i3][i2],g[i3][i2],u[i3][i2]);
       }});
     }
   }
@@ -146,10 +162,16 @@ public class ImageWarping {
     _noise = noise;
   }
 
+  public void setErrorExtrapolation(
+    edu.mines.jtk.dsp.DynamicWarping.ErrorExtrapolation ee)
+  {
+    _warp.setErrorExtrapolation(ee);
+  }
+
   //////////////////////////////////////////////////////////////////////////
 
   private int _t1; // decimate along in direction 1, e.g., time
-  private boolean _3d; // true for 3D warping
+  private boolean _1d,_2d,_3d; // 1D, 2D, or 3D warping
   private double _sigmaRms; // sigma for RMS filtering
   private DynamicWarping _warp;
   private boolean _noise = true; // add random noise before finding shifts
@@ -208,10 +230,13 @@ public class ImageWarping {
     if (_3d) {
       ref.apply(xx,xx);
       ref.apply(yy,yy);
-    } else {
+    } else if (_2d) {
       ref.apply2(xx,xx);
       ref.apply1(xx,xx);
       ref.apply2(yy,yy);
+      ref.apply1(yy,yy);
+    } else if (_1d) {
+      ref.apply1(xx,xx);
       ref.apply1(yy,yy);
     }
 
