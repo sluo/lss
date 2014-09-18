@@ -1,22 +1,19 @@
 """
-Correlated leakage method for 2D images
+Correlated leakage method (CLM) for 2D images
 """
 from imports import *
 import ipf
 
-noise = 0.00 # noise-to-signal ratio
-#noise = 0.05 # noise-to-signal ratio
+#noise = 0.00 # noise-to-signal ratio
+noise = 0.05 # noise-to-signal ratio
 n1,n2 = 800,200
 shiftMax = 2.0 # maximum shift in samples (true shift)
-shiftTrial = 0.1 # user-specified trial shift (see abstract)
-#window1,window2 = 10,1 # window half widths
+shiftDrv = 1.0 # user-specified shift for derivative
+#window1,window2 = 12,1 # window half widths
 window1,window2 = 12,2 # window half widths
 #window1,window2 = 24,4 # window half widths
-#window1,window2 = 20,5 # window half widths
-#window1,window2 = 20,1 # window half widths
-#window1,window2 = 50,5 # window half widths
-#window1,window2 = 50,10 # window half widths
-#window1,window2 = n1,1 # window half widths
+smin,smax = -1.1*shiftMax,1.1*shiftMax # clips for shift plot
+emin,emax = -0.5*shiftMax,0.5*shiftMax # clips for error plot
 
 #############################################################################
 
@@ -27,8 +24,46 @@ def main(args):
   pixels(g,sperc=99.5,title='g')
   smin,smax = -1.1*shiftMax,1.1*shiftMax
   pixels(s,cmap=rwb,cmin=smin,cmax=smax,title='true')
-  cls = findClShifts(f,g); pixels(cls,cmap=rwb,cmin=smin,cmax=smax,title='cl')
-  ccs = findCcShifts(f,g); pixels(ccs,cmap=rwb,cmin=smin,cmax=smax,title='cc')
+  #goCl(f,g,s) # correlated leakage
+  #goCc(f,g,s) # crosscorrelation
+  goDw(f,g,s) # dynamic warping
+
+def goCl(f,g,s):
+  r = findClShifts(f,g)
+  #pixels(r,cmap=rwb,cmin=smin,cmax=smax,title='cl')
+  pixels2(r,sub(r,s),title='cl')
+def goCc(f,g,s):
+  r = findCcShifts(f,g)
+  #pixels(r,cmap=rwb,cmin=smin,cmax=smax,title='cc')
+  pixels2(r,sub(r,s),title='cc')
+def goDw(f,g,s):
+  r = findDwShifts(f,g)
+  d = zerofloat(n1,n2)
+  RecursiveGaussianFilter(1.0).apply1X(r,d)
+  pixels(d,cmap=rwb,sperc=99.9,title='derivative')
+  #pixels(r,cmap=rwb,cmin=smin,cmax=smax,title='dw')
+  pixels2(r,sub(r,s),title='dw')
+  pass
+
+def pixels2(f1,f2,title=None):
+  panel1 = getPanel(f1,cmap=rwb,cmin=smin,cmax=smax)
+  panel2 = getPanel(f2,cmap=rwb,cmin=emin,cmax=emax)
+  frame = PlotFrame(panel1,panel2,PlotFrame.Split.HORIZONTAL)
+  frame.setFontSize(24.0)
+  frame.setTitle(title)
+  frame.setSize(1400,600)
+  frame.setVisible(True)
+
+def findDwShifts(f,g):
+  """Dynamic warping"""
+  #strain1,strain2 = 0.25,0.5
+  strain1,strain2 = 0.05,0.1
+  dw = DynamicWarping(-2*int(shiftMax),2*int(shiftMax))
+  dw.setErrorSmoothing(2)
+  dw.setStrainMax(strain1,strain2)
+  dw.setShiftSmoothing(1.0,1.0)
+  u = dw.findShifts(f,g)
+  return mul(-1.0,u)
 
 def findCcShifts(f,g):
   """Local crosscorrelation"""
@@ -42,20 +77,8 @@ def findCcShifts(f,g):
 
 def findClShifts(f,g):
   """Correlated leakage method"""
-  null = -99.99
-  s = fillfloat(shiftTrial,n1,n2)
-  fs = applyShifts(f,s)
-  gs = applyShifts(g,s)
-
-  # Points for cross plot
-  x = zerofloat(n1,n2)
-  y = zerofloat(n1,n2)
-  class Loop(Parallel.LoopInt):
-    def compute(self,i2):
-      for i1 in range(n1):
-        x[i2][i1] = 0.5*(fs[i2][i1]+gs[i2][i1])-0.5*(f[i2][i1]+g[i2][i1])
-        y[i2][i1] = g[i2][i1]-f[i2][i1]
-  Parallel.loop(n2,Loop())
+  x,y = makeCrossPlot(f,g)
+  #x,y = makeCrossPlotX(f,g)
 
   # Linear regressions
   r = zerofloat(n1,n2)
@@ -65,11 +88,38 @@ def findClShifts(f,g):
       for i1 in range(n1):
         f1,l1 = max(i1-window1,0),min(i1+window1,n1-1)
         f2,l2 = max(i2-window2,0),min(i2+window2,n2-1)
-        r[i2][i1] = shiftTrial*linearRegression(x,y,f1,l1,f2,l2)
-  timer.start('find shifts')
+        r[i2][i1] = shiftDrv*linearRegression(x,y,f1,l1,f2,l2)
+  timer.start('clm')
   Parallel.loop(n2,Loop())
-  timer.stop('find shifts')
+  timer.stop('clm')
   return r
+
+def makeCrossPlotX(f,g):
+  """Cross plot for CLM, without using shiftDrv"""
+  x = zerofloat(n1,n2)
+  y = zerofloat(n1,n2)
+  class Loop(Parallel.LoopInt):
+    def compute(self,i2):
+      for i1 in range(1,n1-1):
+        x[i2][i1] = 0.5*(f[i2][i1+1]-f[i2][i1-1])
+        y[i2][i1] = g[i2][i1]-f[i2][i1]
+  Parallel.loop(n2,Loop())
+  return x,y
+
+def makeCrossPlot(f,g):
+  """Cross plot for CLM"""
+  s = fillfloat(shiftDrv,n1,n2)
+  fs = applyShifts(f,s)
+  gs = applyShifts(g,s)
+  x = zerofloat(n1,n2)
+  y = zerofloat(n1,n2)
+  class Loop(Parallel.LoopInt):
+    def compute(self,i2):
+      for i1 in range(n1):
+        x[i2][i1] = 0.5*(fs[i2][i1]+gs[i2][i1])-0.5*(f[i2][i1]+g[i2][i1])
+        y[i2][i1] = g[i2][i1]-f[i2][i1]
+  Parallel.loop(n2,Loop())
+  return x,y
 
 def getImagesAndShifts():
   random = Random(12345)
@@ -184,11 +234,21 @@ gray = ColorMap.GRAY
 jet = ColorMap.JET
 rwb = ColorMap.RED_WHITE_BLUE
 def pixels(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
+  panel = getPanel(f,cmap,cmin,cmax,perc,sperc,cbar=None)
+  frame = PlotFrame(panel)
+  frame.setFontSize(24.0)
+  #frame.setFontSizeForSlide(1.5,1.5)
+  if title:
+    frame.setTitle(title)
+  frame.setSize(700,600)
+  frame.setVisible(True)
+
+def getPanel(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None):
   panel = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
   cb = panel.addColorBar()
   if cbar:
     cb.setLabel(cbar)
-  cb.setWidthMinimum(100)
+  cb.setWidthMinimum(80)
   pixel = panel.addPixels(f)
   pixel.setColorModel(cmap)
   if cmin<cmax:
@@ -200,12 +260,7 @@ def pixels(f,cmap=gray,cmin=0,cmax=0,perc=100,sperc=None,cbar=None,title=None):
     clip = max(abs(clips.getClipMin()),abs(clips.getClipMax()))
     pixel.setClips(-clip,clip)
   pixel.setInterpolation(PixelsView.Interpolation.LINEAR)
-  frame = PlotFrame(panel)
-  frame.setFontSizeForSlide(1.5,1.5)
-  if title:
-    frame.setTitle(title)
-  frame.setSize(1100,1000)
-  frame.setVisible(True)
+  return panel
 
 #############################################################################
 import sys,time

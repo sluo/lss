@@ -7,13 +7,13 @@ nt = 501
 dt = 1.0
 freq = 0.10
 shiftMax = 2.0
-shiftTrial = 1.0 
+shiftDrv = 1.0 
 
 #nt = 1001
 #dt = 0.001
 #freq = 50
 #shiftMax = 0.003
-#shiftTrial = 0.001
+#shiftDrv = 0.001
 
 #############################################################################
 
@@ -23,12 +23,15 @@ def main(args):
   makeCrossPlot(f,g)
 
 def makeCrossPlot(f,g):
-  ti = 1+int(shiftTrial/dt)
+  ti = 1+int(shiftDrv/dt)
   x = zerofloat(nt-ti)
   y = zerofloat(nt-ti)
   for it in range(nt-ti):
-    x[it] = 0.5*(f.evaluate(it+shiftTrial/dt)+g.evaluate(it+shiftTrial/dt))-\
-            0.5*(f.evaluate(it       )+g.evaluate(it       ))
+    x[it] = 0.5*(
+      f.evaluate(it+shiftDrv/dt)-f.evaluate(it)+
+      g.evaluate(it+shiftDrv/dt)-g.evaluate(it))
+    #x[it] = f.evaluate(it+shiftDrv/dt)-f.evaluate(it)
+    #x[it] = g.evaluate(it+shiftDrv/dt)-g.evaluate(it)
     y[it] = g.evaluate(it)-f.evaluate(it)
 
   # Best-fit line
@@ -38,17 +41,19 @@ def makeCrossPlot(f,g):
   #avg = 0.0
   #for it in range(nt-ti):
   #  avg += y[it]/x[it]
-  #print avg/(nt-ti)
+  #print 'avg =',avg/(nt-ti)
 
   sp = SimplePlot()
+  sp.setHLabel("f'(t)")
+  sp.setVLabel("a f'(t)")
   pxy = sp.addPoints(x,y)
   pxy.setMarkStyle(PointsView.Mark.HOLLOW_CIRCLE)
-  #pxy.setMarkColor(Color.RED)
   pxy.setLineStyle(PointsView.Line.NONE)
   pxz = sp.addPoints(x,z)
   pxz.setMarkStyle(PointsView.Mark.NONE)
-  pxz.setLineWidth(4.0)
-  pxz.setLineColor(Color.GREEN)
+  pxz.setLineWidth(2.0)
+  pxz.setLineColor(Color.RED)
+  sp.setSize(800,600)
 
 def getSequences():
   f = zerofloat(nt)
@@ -94,6 +99,7 @@ def linearRegression(x,y):
   for i in range(n):
     z[i] = alpha+beta*x[i]
   print 'slope =',beta
+  print 'intercept =',alpha
   return z
 
 def points(f,g):
