@@ -169,18 +169,22 @@ public class FlattenerUtil {
    * @param r array {r1,r2} of shifts.
    * @return array with shifts applied.
    */
-  public static float[][] applyShiftsR(float[][] f, float[][][] r) {
-    int n1 = f[0].length;
-    int n2 = f.length;
-    float[][] r1 = r[0], r2 = r[1];
-    SincInterpolator si = new SincInterpolator();
-    si.setUniform(n1,1.0,0.0,n2,1.0,0.0,f);
-    float[][] g = zerofloat(n1,n2);
-    for (int i2=0; i2<n2; ++i2) {
+  public static float[][] applyShiftsR(
+    final float[][] f, final float[][][] r)
+  {
+    final int n1 = f[0].length;
+    final int n2 = f.length;
+    final float[][] r1 = r[0], r2 = r[1];
+    final SincInterpolator si = new SincInterpolator();
+    final float[][] g = zerofloat(n1,n2);
+    Parallel.loop(n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
       for (int i1=0; i1<n1; ++i1) {
-        g[i2][i1] = si.interpolate(i1-r1[i2][i1],i2-r2[i2][i1]);
+        g[i2][i1] = si.interpolate(
+          n1,1.0,0.0,n2,1.0,0.0,f,
+          i1-r1[i2][i1],i2-r2[i2][i1]);
       }
-    }
+    }});
     return g;
   }
 
@@ -214,21 +218,22 @@ public class FlattenerUtil {
    * @param r array {r1,r2,r3} of shifts.
    * @return array with shifts applied.
    */
-  public static float[][][] applyShiftsR(float[][][] f, float[][][][] r) {
+  public static float[][][] applyShiftsR(
+    final float[][][] f, final float[][][][] r)
+  {
     final int n1 = f[0][0].length;
     final int n2 = f[0].length;
     final int n3 = f.length;
     final float[][][] r1 = r[0], r2 = r[1], r3 = r[2];
     final SincInterpolator si = new SincInterpolator();
-    si.setUniform(n1,1.0,0.0,n2,1.0,0.0,n3,1.0,0.0,f);
     final float[][][] g = zerofloat(n1,n2,n3);
     Parallel.loop(n3,new Parallel.LoopInt() {
     public void compute(int i3) {
       for (int i2=0; i2<n2; ++i2)
         for (int i1=0; i1<n1; ++i1)
-          g[i3][i2][i1] = si.interpolate(i1-r1[i3][i2][i1],
-                                         i2-r2[i3][i2][i1],
-                                         i3-r3[i3][i2][i1]);
+          g[i3][i2][i1] = si.interpolate(
+            n1,1.0,0.0,n2,1.0,0.0,n3,1.0,0.0,f, 
+            i1-r1[i3][i2][i1],i2-r2[i3][i2][i1],i3-r3[i3][i2][i1]);
     }});
     return g;
   }
@@ -269,17 +274,22 @@ public class FlattenerUtil {
    * @param s array {s1,s2} of shifts.
    * @return array with shifts applied.
    */
-  public static float[][] applyShiftsS(float[][] f, float[][][] s) {
-    int n1 = f[0].length;
-    int n2 = f.length;
-    float[][] s1 = s[0], s2 = s[1];
-    float[][] g = new float[n2][n1];
-    SincInterpolator si = new SincInterpolator();
-    //si.setExtrapolation(SincInterpolator.Extrapolation.ZERO);
-    si.setUniform(n1,1.0,0.0,n2,1.0,0.0,f);
-    for (int i2=0; i2<n2; ++i2)
-      for (int i1=0; i1<n1; ++i1)
-        g[i2][i1] = si.interpolate(i1+s1[i2][i1],i2+s2[i2][i1]);
+  public static float[][] applyShiftsS(
+    final float[][] f, final float[][][] s)
+  {
+    final int n1 = f[0].length;
+    final int n2 = f.length;
+    final float[][] s1 = s[0], s2 = s[1];
+    final float[][] g = new float[n2][n1];
+    final SincInterpolator si = new SincInterpolator();
+    Parallel.loop(n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      for (int i1=0; i1<n1; ++i1) {
+        g[i2][i1] = si.interpolate(
+          n1,1.0,0.0,n2,1.0,0.0,f,
+          i1+s1[i2][i1],i2+s2[i2][i1]);
+      }
+    }});
     return g;
   }
 
@@ -322,15 +332,15 @@ public class FlattenerUtil {
     final float[][][] g = zerofloat(n1,n2,n3);
     final float[][][] s1 = s[0], s2 = s[1], s3 = s[2];
     final SincInterpolator si = new SincInterpolator();
-    si.setUniform(n1,1.0,0.0,n2,1.0,0.0,n3,1.0,0.0,f);
     Parallel.loop(n3,new Parallel.LoopInt() {
     public void compute(int i3) {
       for (int i2=0; i2<n2; ++i2)
         for (int i1=0; i1<n1; ++i1)
-          g[i3][i2][i1] = si.interpolate(i1+s1[i3][i2][i1],
-                                         i2+s2[i3][i2][i1],
-                                         i3+s3[i3][i2][i1]);
+          g[i3][i2][i1] = si.interpolate(
+            n1,1.0,0.0,n2,1.0,0.0,n3,1.0,0.0,f,
+            i1+s1[i3][i2][i1],i2+s2[i3][i2][i1],i3+s3[i3][i2][i1]);
     }});
+
     return g;
   }
 

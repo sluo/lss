@@ -52,7 +52,6 @@ public class SemblanceSpectrum {
     float[] t = new float[nt];
     float[][] q = new float[nx][nt];
     SincInterpolator si = new SincInterpolator();
-    si.setUniformSampling(nt,dt,ft);
     for (int ix=0; ix<nx; ++ix) {
       double x = sx.getValue(ix);
       double xxg = (x*x)/(vnmo*vnmo);
@@ -60,8 +59,7 @@ public class SemblanceSpectrum {
         double t0 = st.getValue(it);
         t[it] = (float)sqrt(t0*t0+xxg); 
       }
-      si.setUniformSamples(p[ix]);
-      si.interpolate(nt,t,q[ix]);
+      si.interpolate(nt,dt,ft,p[ix],nt,t,q[ix]);
     }
     return q;
   }

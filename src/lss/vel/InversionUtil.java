@@ -80,7 +80,6 @@ public class InversionUtil {
     int n2 = x.length;
     final double dtheta = 2.0*PI/na;
     final SincInterpolator si = new SincInterpolator();
-    si.setUniform(n1,1.0,0.0,n2,1.0,0.0,x);
     float[][] g = Parallel.reduce(na-1,new Parallel.ReduceInt<float[][]>() {
       public float[][] compute(int ia) {
         double theta = dtheta*(ia+1);
@@ -90,6 +89,7 @@ public class InversionUtil {
         return add(f1,f2);
       }
     });
+
     return add(x,g);
   }
   public static float[][] rotateGradientOnce(
@@ -108,7 +108,7 @@ public class InversionUtil {
         double q2 = i2-r2;
         double t1 = c*q1+s*q2;
         double t2 = c*q2-s*q1;
-        y[i2][i1] = si.interpolate(t1+r1,t2+r2);
+        y[i2][i1] = si.interpolate(n1,1.0,0.0,n2,1.0,0.0,x,t1+r1,t2+r2);
       }
     }
     return y;

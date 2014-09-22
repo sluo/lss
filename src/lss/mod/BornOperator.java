@@ -342,7 +342,7 @@ public class BornOperator {
     final float[][] wf = w;
     final float[][] df = d;
     final float[][] ef = new float[nr][nt]; // shifted
-    final SincInterp si = new SincInterp();
+    final SincInterpolator si = new SincInterpolator();
     Parallel.loop(nr,new Parallel.LoopInt() {
     public void compute(int ir) {
       float[] p = add(rf,wf[ir]);

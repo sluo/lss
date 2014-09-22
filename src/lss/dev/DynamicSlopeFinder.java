@@ -124,25 +124,17 @@ public class DynamicSlopeFinder {
    * @param f input array of image samples.
    * @param g output array of shifted image samples.
    */
-  public void applyShifts(float[][] s, float[][] f, float[][] g) {
+  public void applyShifts(
+    final float[][] s, final float[][] f, final float[][] g)
+  {
     final int n1 = s[0].length;
     final int n2 = s.length;
-    final float[][] sf = s;
-    final float[][] ff = f;
-    final float[][] gf = g;
-    final Parallel.Unsafe<SincInterpolator> siu =
-      new Parallel.Unsafe<SincInterpolator>();
+    final SincInterpolator si = new SincInterpolator();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      SincInterpolator si = siu.get();
-      if (si==null) {
-        si = new SincInterpolator();
-        si.setUniformSampling(n1,1.0,0.0);
-        siu.set(si);
-      }
-      si.setUniformSamples(ff[i2]);
+      float[] fi = f[i2];
       for (int i1=0; i1<n1; ++i1) {
-        gf[i2][i1] = si.interpolate(i1+sf[i2][i1]);
+        g[i2][i1] = si.interpolate(n1,1.0,0.0,fi,i1+s[i2][i1]);
       }
     }});
   }

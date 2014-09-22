@@ -64,19 +64,20 @@ public class FlattenerS {
     return s;
   }
 
-  public static float[][] applyShifts(float[][] f, float[][] s) {
-    int n1 = f[0].length;
-    int n2 = f.length;
-    SincInterpolator si = new SincInterpolator();
-    si.setUniformSampling(n1,1.0,0.0);
-    float[] r = rampfloat(0.0f,1.0f,n1);
-    float[] t = zerofloat(n1);
-    float[][] g = zerofloat(n1,n2);
-    for (int i2=0; i2<n2; ++i2) {
-      sub(r,s[i2],t);
-      si.setUniformSamples(f[i2]);
-      si.interpolate(n1,t,g[i2]);
-    }
+  public static float[][] applyShifts(
+    final float[][] f, final float[][] s)
+  {
+    final int n1 = f[0].length;
+    final int n2 = f.length;
+    final SincInterpolator si = new SincInterpolator();
+    final float[] r = rampfloat(0.0f,1.0f,n1);
+    final float[][] g = zerofloat(n1,n2);
+    Parallel.loop(n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float[] t = sub(r,s[i2]);
+      si.interpolate(n1,1.0,0.0,f[i2],n1,t,g[i2]);
+    }});
+
     return g;
   }
 
@@ -96,22 +97,22 @@ public class FlattenerS {
     return g;
   }
 
-  public static float[][][] applyShifts(float[][][] f, float[][][] s) {
-    int n1 = f[0][0].length;
-    int n2 = f[0].length;
-    int n3 = f.length;
-    SincInterpolator si = new SincInterpolator();
-    si.setUniformSampling(n1,1.0,0.0);
-    float[] r = rampfloat(0.0f,1.0f,n1);
-    float[] t = zerofloat(n1);
-    float[][][] g = zerofloat(n1,n2,n3);
-    for (int i3=0; i3<n3; ++i3) {
+  public static float[][][] applyShifts(
+    final float[][][] f, final float[][][] s)
+  {
+    final int n1 = f[0][0].length;
+    final int n2 = f[0].length;
+    final int n3 = f.length;
+    final SincInterpolator si = new SincInterpolator();
+    final float[] r = rampfloat(0.0f,1.0f,n1);
+    final float[][][] g = zerofloat(n1,n2,n3);
+    Parallel.loop(n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
       for (int i2=0; i2<n2; ++i2) {
-        sub(r,s[i3][i2],t);
-        si.setUniformSamples(f[i3][i2]);
-        si.interpolate(n1,t,g[i3][i2]);
+        float[] t = sub(r,s[i3][i2]);
+        si.interpolate(n1,1.0,0.0,f[i3][i2],n1,t,g[i3][i2]);
       }
-    }
+    }});
     return g;
   }
 
