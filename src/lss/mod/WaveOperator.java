@@ -307,8 +307,12 @@ public class WaveOperator {
       }
 
       // Set data.
-      if (receiver!=null)
+      if (receiver!=null) {
         receiver.setData(up,it,_nabsorb);
+        if (!forward && _adjoint) {
+          receiver.setData(ui,it+1,_nabsorb);
+        }
+      }
 
       // Rotate arrays.
       ut = um; um = ui; ui = up;

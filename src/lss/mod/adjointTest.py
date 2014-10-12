@@ -16,9 +16,10 @@ random = Random(12345)
 ##############################################################################
 
 def main(args):
-  #testWaveOperator()
+  testWaveOperator()
+  #testWaveOperatorWithReceivers()
   #testBornOperator()
-  testBornOperatorWithShifts()
+  #testBornOperatorWithShifts()
 
 def testWaveOperator():
   """Adjoint test for forward/adjoint wave propagation"""
@@ -28,6 +29,24 @@ def testWaveOperator():
   wave.applyForward(Source.WavefieldSource(fa),gb)
   wave.applyAdjoint(Source.WavefieldSource(ga),fb)
   checkDotProducts(fa,fb,ga,gb)
+
+def testWaveOperatorWithReceivers():
+  """Adjoint test for WaveOperator with Receiver input/output"""
+  nr = nx*nz
+  xr = zeroint(nr)
+  zr = zeroint(nr)
+  ir = 0
+  for ix in range(nx):
+    for iz in range(nz):
+      xr[ir] = ix
+      zr[ir] = iz
+      ir += 1
+  fa,ga = Receiver(xr,zr,rfloat(nt,nr)),Receiver(xr,zr,nt)
+  fb,gb = Receiver(xr,zr,rfloat(nt,nr)),Receiver(xr,zr,nt)
+  wave = WaveOperator(getSlowness(),dx,dt,nabsorb)
+  wave.applyForward(Source.ReceiverSource(fa),ga)
+  wave.applyAdjoint(Source.ReceiverSource(fb),gb)
+  checkDotProducts(fa.getData(),gb.getData(),fb.getData(),ga.getData())
 
 def testBornOperator(useTimeShifts=False):
   """Adjoint test for Born modeling and migration"""
