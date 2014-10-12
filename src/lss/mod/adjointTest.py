@@ -16,8 +16,8 @@ random = Random(12345)
 ##############################################################################
 
 def main(args):
-  testWaveOperator()
-  #testWaveOperatorWithReceivers()
+  #testWaveOperator()
+  testWaveOperatorWithReceivers()
   #testBornOperator()
   #testBornOperatorWithShifts()
 
