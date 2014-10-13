@@ -19,12 +19,12 @@ home = os.getenv('HOME')
 #dresDir = home+'/Desktop/subg/nonlinear/vfile/dres00/'
 #aresDir = home+'/Desktop/subg/nonlinear/vfile/ares00/'
 dresDir = home+'/Desktop/subg/nonlinear/vz/dres00/'
-aresDir = home+'/Desktop/subg/nonlinear/vz/ares00/'
+#aresDir = home+'/Desktop/subg/nonlinear/vz/ares00/'
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares01/'
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares02/'
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares03/'
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares04/'
-#aresDir = home+'/Desktop/subg/nonlinear/vz/ares05/' # SD, shift obs (best)
+aresDir = home+'/Desktop/subg/nonlinear/vz/ares05/' # SD, shift obs (best)
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares05a/' # CG, shift pre
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares05b/' # CG, shift obs
 #aresDir = home+'/Desktop/subg/nonlinear/vz/ares05c/' # SD, shift pre
@@ -34,7 +34,7 @@ aresDir = home+'/Desktop/subg/nonlinear/vz/ares00/'
 
 savDir = None
 #savDir = '/Users/sluo/Desktop/png/'
-savDir = '/Users/sluo/Dropbox/png/'
+#savDir = '/Users/sluo/Dropbox/png/'
 
 plotVelocity = True # convert slowness to velocity
 
@@ -55,7 +55,7 @@ cmapMig = ColorMap.GRAY # colormap for migration images
 #############################################################################
 
 def main(args):
-  #plotImages()
+  plotImages()
   #plotImageSubsets()
   plotSlownesses()
   #plotData() # ares05 only

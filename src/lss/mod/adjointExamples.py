@@ -1,6 +1,6 @@
-from java.util import *
+from java.util import Random
+from edu.mines.jtk.util import Almost
 from edu.mines.jtk.util.ArrayMath import *
-from lss.mod import *
 
 ##############################################################################
 
@@ -191,9 +191,20 @@ def applyAdjoint3B(f,g):
 def check(fa,fb,ga,gb):
   f = dot(fa,gb)
   g = dot(ga,fb)
-  print "adjoint test:",WaveOperator.compareDigits(f,g)
+  #print "adjoint test:",WaveOperator.compareDigits(f,g)
+  print "adjoint test:",compareDigits(f,g)
   print f
   print g
+
+def compareDigits(xa,xb):
+  digits = 20
+  equal = False
+  while not equal and digits>0:
+    almost = Almost(digits)
+    equal = almost.equal(xa,xb)
+    if not equal:
+      digits -= 1
+  return digits
 
 def dot(u,v):
   return sum(mul(u,v))
