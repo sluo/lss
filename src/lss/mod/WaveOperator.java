@@ -113,8 +113,16 @@ public class WaveOperator {
 
   //////////////////////////////////////////////////////////////////////////
 
+
+
   public WaveOperator(
-  float[][] s, double dx, double dt, int nabsorb) {
+  float[][] s, double dx, double dt, int nabsorb){
+    this(s,dx,dt,nabsorb,true);
+  }
+
+
+  public WaveOperator(
+  float[][] s, double dx, double dt, int nabsorb, boolean verb) {
     int nx = s[0].length;
     int nz = s.length;
     Check.argument(nabsorb>=FD_ORDER,"nabsorb>=FD_ORDER");
@@ -133,7 +141,19 @@ public class WaveOperator {
     _izc = _izb+nz;
     _izd = _izc+_b;
     _w = makeWeights();
+    _verb = verb; 
     setSlowness(s);
+
+    if(_verb)
+      checkCFL();
+  }
+  
+  public void checkCFL(){
+    float vmax = 1.0f/min(_s);
+    float cfl = (_dx/_dt)/vmax;
+    Check.argument(cfl>1.0f,"CFL condition is not satisfied (dx/dt/vmax <1)");
+    System.err.printf("dx/dt/vmax = %g, vmax=%g ",cfl,vmax); 
+    System.err.printf(" b=%d \n",_b);
   }
 
   public void setAdjoint(boolean adjoint) {
@@ -179,6 +199,10 @@ public class WaveOperator {
     final int nt = u.length;
     Check.argument(_nx==nx,"_nx==nx");
     Check.argument(_nz==nz,"_nz==nz");
+
+    final float f = FF*_dt*_dt*_dx;
+    final float[][] rr = div(-1*f,mul(_dx*_dx,mul(_s,_s)));
+
     final int b = _nabsorb-FD_ORDER/2;
     float[][] ua = new float[nz][nx];
     float[][] ub;
@@ -199,9 +223,7 @@ public class WaveOperator {
         float[] uim09 = uif[iz-9 ], uip09 = uif[iz+9 ];
         float[] uim10 = uif[iz-10], uip10 = uif[iz+10];
         for (int ix=_ixa; ix<_ixd; ++ix) {
-          float f = FF*_dt*_dt*_dx;
-          float d = _s[iz][ix]*_dx;
-          float r = -f/(d*d);
+          float r = rr[iz][ix];
           //float q = 0.5f*r;
           //float a = 0.5461f; // (Jo et. al., 1996)
           //float b = 1.0f-a;
@@ -253,6 +275,7 @@ public class WaveOperator {
   private float[][] _w; // weights for boundary
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
+  private boolean _verb; 
 
   // Adjoint flag; if true, use for adjoint code during back propagation.
   private boolean _adjoint = true;
@@ -547,6 +570,7 @@ public class WaveOperator {
         //float q = 0.5f*r;
         //float a = 0.5461f; // (Jo et. al., 1996)
         float a = 1.0f;
+   
         upi[ix] += (
           a*((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
           C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
