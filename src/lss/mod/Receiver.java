@@ -126,24 +126,6 @@ public class Receiver {
     }
   }
 
-  public void setDataRadj(float[][] ui, int it, int nabsorb) {
-    int n = (int) _n/2;
- 
-    for (int ir=0; ir<_nr; ++ir) {
-      int xr = _xr[ir]+nabsorb;
-      int zr = _zr[ir]+nabsorb;
-      /* Gather wavefield around the receiver locations */
-      for(int i2=0; i2<_n; i2++){
-        int i2u = -n +i2;        
-        for(int i1=0; i1<_n; i1++){
-          int i1u = -n +i1;
-          ui[zr+i2u][xr+i1u] += _data[ir][it]*_sinc_weights[ir][i2][i1];
-        }
-      }
-    }
-  }
-
-
   public boolean isSincRec(){
     return _round_coord;
   }

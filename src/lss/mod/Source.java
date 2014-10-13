@@ -110,12 +110,15 @@ public interface Source {
 
       int n = (int) _n/2;
 
-      /* Scatter wavelet in the surounding locations */
+      /* Scatter wavelet in the surounding locations. This
+         loop will crash if nabsorb < 5 */
       for (int i2=0; i2<_n; i2++){
         int i2u = -n +i2;        
+        int iz = _izs +nabsorb+i2u;
         for(int i1=0; i1<_n; i1++){
           int i1u = -n +i1;
-          ui[_izs+nabsorb+i2u][_ixs+nabsorb+i1u] += _sinc_weights[i2][i1]*_w[it];
+          int ix = _ixs+nabsorb+i1u;
+          ui[iz][ix] +=  _sinc_weights[i2][i1]*_w[it];
         }
       }
     }
@@ -125,14 +128,14 @@ public interface Source {
       float o =(int) (-_n/2)+1;
       SincInterpolator sinc = new SincInterpolator();
 
-      /* Here I build the input spike */
+      /* Here I build the input 2D spike */
       Sampling is1 = new Sampling(_n,1,o);
       Sampling is2 = is1;
       float[][] ispike = new float[_n][_n];
       ispike[(int)_n/2][(int)_n/2] = 1.0f;
 
 
-      /* Here I build the shifted spike */
+      /* Here I build the shifted 2D spike */
       float d1 = (float) _xs - _ixs;
       float d2 = (float) _zs - _izs; 
 
@@ -172,18 +175,9 @@ public interface Source {
       _nr = receiver.getNr();
       _nt = receiver.getNt();
       _data = receiver.getData();
-      _rec = receiver;
     }
 
     public void add(float[][] ui, int it, int nabsorb) {
-      if(_rec.isSincRec()) {
-        _rec.setDataRadj(ui, it, nabsorb);
-      }else{ 
-        addI(ui, it, nabsorb);
-      }
-    }
-
-    public void addI(float[][] ui, int it, int nabsorb) {
       if (it>=_nt) 
         return;
       for (int ir=0; ir<_nr; ++ir) {
@@ -192,7 +186,6 @@ public interface Source {
         ui[zs][xs] += _data[ir][it];
       }
     }
-    private Receiver _rec;
     private int _nr,_nt;
     private int[] _xr, _zr;
     private float[][] _data;

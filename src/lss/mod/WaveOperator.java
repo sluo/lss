@@ -152,7 +152,8 @@ public class WaveOperator {
     float vmax = 1.0f/min(_s);
     float cfl = (_dx/_dt)/vmax;
     Check.argument(cfl>1.0f,"CFL condition is not satisfied (dx/dt/vmax <1)");
-    System.out.printf("dx/dt/vmax = %g, vmax=%g ",cfl,vmax); 
+    System.err.printf("dx/dt/vmax = %g, vmax=%g ",cfl,vmax); 
+    System.err.printf(" b=%d \n",_b);
   }
 
   public void setAdjoint(boolean adjoint) {
@@ -565,6 +566,7 @@ public class WaveOperator {
         //float q = 0.5f*r;
         //float a = 0.5461f; // (Jo et. al., 1996)
         float a = 1.0f;
+   
         upi[ix] += (
           a*((2.0f+C00*r)*uii[ix]-umi[ix]+r*(
           C01*(uim01[ix]+uii[ix-1 ]+uii[ix+1 ]+uip01[ix])+
