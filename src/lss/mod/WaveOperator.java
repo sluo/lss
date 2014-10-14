@@ -113,19 +113,12 @@ public class WaveOperator {
 
   //////////////////////////////////////////////////////////////////////////
 
-
-
   public WaveOperator(
-  float[][] s, double dx, double dt, int nabsorb){
-    this(s,dx,dt,nabsorb,true);
-  }
-
-
-  public WaveOperator(
-  float[][] s, double dx, double dt, int nabsorb, boolean verb) {
+  float[][] s, double dx, double dt, int nabsorb) {
     int nx = s[0].length;
     int nz = s.length;
     Check.argument(nabsorb>=FD_ORDER,"nabsorb>=FD_ORDER");
+    Check.argument(min(s)*dx/dt>2.0f,"dx/dt/vmax > 2"); // CFL condition
     _nabsorb = nabsorb;
     _b = nabsorb-FD_ORDER/2;
     _nz = nz+2*nabsorb;
@@ -141,21 +134,9 @@ public class WaveOperator {
     _izc = _izb+nz;
     _izd = _izc+_b;
     _w = makeWeights();
-    _verb = verb; 
     setSlowness(s);
-
-    if(_verb)
-      checkCFL();
   }
   
-  public void checkCFL(){
-    float vmax = 1.0f/min(_s);
-    float cfl = (_dx/_dt)/vmax;
-    Check.argument(cfl>1.0f,"CFL condition is not satisfied (dx/dt/vmax <1)");
-    System.err.printf("dx/dt/vmax = %g, vmax=%g ",cfl,vmax); 
-    System.err.printf(" b=%d \n",_b);
-  }
-
   public void setAdjoint(boolean adjoint) {
     _adjoint = adjoint;
   }
@@ -275,7 +256,6 @@ public class WaveOperator {
   private float[][] _w; // weights for boundary
   private int _ixa,_ixb,_ixc,_ixd;
   private int _iza,_izb,_izc,_izd;
-  private boolean _verb; 
 
   // Adjoint flag; if true, use for adjoint code during back propagation.
   private boolean _adjoint = true;
