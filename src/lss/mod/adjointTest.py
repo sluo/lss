@@ -8,7 +8,8 @@ from lss.mod import *
 ##############################################################################
 
 nabsorb = 20
-nx,nz,nt = 10,11,402
+#nx,nz,nt = 10,11,402
+nx,nz,nt = 1,1,10
 dx,dz,dt = 0.01,0.01,0.001
 nxp,nzp = nx+2*nabsorb,nz+2*nabsorb
 random = Random(12345)
@@ -16,8 +17,8 @@ random = Random(12345)
 ##############################################################################
 
 def main(args):
-  #testWaveOperator()
-  testWaveOperatorWithReceivers()
+  testWaveOperator()
+  #testWaveOperatorWithReceivers()
   #testBornOperator()
   #testBornOperatorWithShifts()
 

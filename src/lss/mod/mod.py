@@ -20,8 +20,22 @@ dx = 0.004*stride
 def main(args):
   s = getMarmousi(stride)
   checkStability(s)
-  goModeling(s)
-  goModelingA(s)
+  #goModeling(s)
+  goModelingSinc(s)
+  #goMigration(s)
+
+def goMigration(s):
+  nabsorb = 20
+  nx,nz,nt = len(s[0]),len(s),1+int(tmax/dt)
+  u = zerofloat(nx+2*nabsorb,nz+2*nabsorb,nt)
+  a = zerofloat(nx+2*nabsorb,nz+2*nabsorb,nt)
+  wave = WaveOperator(s,dx,dt,nabsorb)
+  xs,zs = (nx/2)*dx,0.0
+  rec = Receiver(rampint(0,1,nx),fillint(0,nx),nt)
+  wave.applyForward(src,rec,u)
+  wave.applyAdjoint(ReceiverSource(receiver),a)
+  r = WaveOperator.collapse(u,a,nabsorb)
+  pixels(r,perc=99.5)
 
 def goModeling(s):
   nx,nz,nt = len(s[0]),len(s),1+int(tmax/dt)
@@ -33,19 +47,24 @@ def goModeling(s):
   print sum(data)
   pixels(data,perc=99.5)
 
-def goModelingA(s):
+def goModelingSinc(s):
   nabsorb = 20
   nx,nz,nt = len(s[0]),len(s),1+int(tmax/dt)
   wave = WaveOperator(s,dx,dt,nabsorb)
-  xs,zs = (nx/2)*dx,0.0
-  #xs,zs = (nx/2)*dx+dx/2,dz/2
-  src = RickerSource(xs,zs,fpeak)
-  src.setupForDomain(dx,dz,dt,nabsorb)
-  rec = Receiver(rampint(0,1,nx),fillint(0,nx),nt)
+  #xs,zs = (nx/2)*dx,0.0
+  xs,zs = (nx/2)*dx+dx/2,0.010
+  print xs
+  print zs
+  src = SincSource.RickerWavelet(xs,zs,fpeak)
+  src.setupForDomain(nx,dx,nz,dz,nt,dt,nabsorb)
+  #rec = Receiver(rampint(0,1,nx),fillint(0,nx),nt)
+  rec = SincReceiver(xs+1.123,zs+1.123,nt)
+  rec.setupForDomain(nx,dx,nz,dz,nt,dt,nabsorb)
   wave.applyForward(src,rec)
   data = rec.getData()
   print sum(data)
-  pixels(data,perc=99.5)
+  #pixels(data,perc=99.5)
+  SimplePlot.asPoints(data[0])
 
 def checkStability(s):
   vmax = 1.0/min(s)

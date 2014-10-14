@@ -262,7 +262,7 @@ public class WaveOperator {
 
   private void apply(
   boolean forward, Source source, Receiver receiver, float[][][] u) {
-    int nt = (u==null)?receiver.getNt():u.length;
+    int nt = (u==null)?receiver.getNt():max(u.length,receiver.getNt());
     float[][] um,ui,up;
     float[][] ut = new float[_nz][_nx];
     if (u==null) {

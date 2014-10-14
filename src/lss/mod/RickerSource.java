@@ -24,8 +24,10 @@ public class RickerSource implements Source {
     _dt = (float)dt;
     _ifx = (int)(_x/dx)-3+nabsorb;
     _ifz = (int)(_z/dz)-3+nabsorb;
-    _sincx = getSinc(_x,_dx);
-    _sincz = getSinc(_z,_dz);
+    _sincx = getSinc(_x,dx);
+    _sincz = getSinc(_z,dz);
+    edu.mines.jtk.mosaic.SimplePlot.asPoints(_sincx);
+    edu.mines.jtk.mosaic.SimplePlot.asPoints(_sincz);
   }
 
   public void add(float[][] ui, int it, int nabsorb) {
@@ -43,7 +45,7 @@ public class RickerSource implements Source {
   ////////////////////////////////////////////////////////////////////////////
 
   private float _fpeak,_tdelay;
-  private double _x,_z,_dx,_dz,_dt;
+  private double _x,_z,_dt;
   private int _ifx,_ifz;
 
   private int _lsinc; // length of sinc approximations
@@ -53,12 +55,21 @@ public class RickerSource implements Source {
   private float[] _sincx; // sinc coefficients for x direction
   private float[] _sincz; // sinc coefficients for z direction
 
+  // See SincInterpolator
   private float[] getSinc(double x, double dx) {
-    double xn = x*dx;
+    double xscale = 1.0/dx;
+    double xshift = _lsinc;
+    double xn = xshift+x*xscale;
     int ixn = (int)xn;
-    double fracx = xn-(int)ixn;
+    double fracx = xn-ixn;
     if (fracx<0.0) fracx += 1.0;
     int ksincx = (int)(fracx*_nsincm1+0.5);
+    //System.out.println("xscale="+xscale);
+    //System.out.println("xshift="+xshift);
+    //System.out.println("xn="+xn);
+    //System.out.println("ixn="+ixn);
+    //System.out.println("fracx="+fracx);
+    //System.out.println("ksincx="+ksincx);
     return _asinc[ksincx];
   }
 }
