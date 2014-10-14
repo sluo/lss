@@ -11,4 +11,5 @@ build/
 *.DS_Store
 .gradle
 
+src/lss/iwt/dat*/
 src/lss/sem/cdps/
