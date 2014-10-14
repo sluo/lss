@@ -10,7 +10,7 @@ import lss.opt.*;
 import lss.util.SharedFloat4;
 
 /**
- * Solver to migrate each shot individually.
+ * Solver to compute least-squares migration images.
  * @author Simon Luo, Colorado School of Mines
  * @version 2013.12.02
  */
@@ -20,10 +20,65 @@ public class BornSolver {
    * Constructs a solver.
    * @param born Born modeling operator.
    * @param src sources.
+   * @param rco receivers containing observed data.
+   */
+  public BornSolver(BornOperatorS born, Source[] src, Receiver[] rco) {
+    this(born,src,null,rco,null,null,null);
+  }
+
+  /**
+   * Constructs a solver.
+   * @param born Born modeling operator.
+   * @param src sources.
+   * @param rco receivers containing observed data.
+   * @param ref roughening filter.
+   */
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rco,
+    RecursiveExponentialFilter ref)
+  {
+    this(born,src,null,rco,ref,null,null);
+  }
+
+  /**
+   * Constructs a solver.
+   * @param born Born modeling operator.
+   * @param src sources.
+   * @param rco receivers containing observed data.
+   * @param ref roughening filter.
+   * @param mp model preconditioner.
+   */
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rco,
+    RecursiveExponentialFilter ref, float[][] mp)
+  {
+    this(born,src,null,rco,ref,mp,null);
+  }
+
+  /**
+   * Constructs a solver.
+   * @param born Born modeling operator.
+   * @param src sources.
    * @param rcp receivers for predicted data.
    * @param rco receivers containing observed data.
    * @param ref roughening filter.
-   * @param mp model preconditioning, e.g., water-layer mask.
+   * @param mp model preconditioner, e.g., water-layer mask.
+   */
+  public BornSolver(
+    BornOperatorS born, Source[] src, Receiver[] rcp, Receiver[] rco,
+    RecursiveExponentialFilter ref, float[][] mp)
+  {
+    this(born,src,rcp,rco,ref,mp,null);
+  }
+
+  /**
+   * Constructs a solver.
+   * @param born Born modeling operator.
+   * @param src sources.
+   * @param rcp receivers for predicted data.
+   * @param rco receivers containing observed data.
+   * @param ref roughening filter.
+   * @param mp model preconditioner, e.g., water-layer mask.
    * @param ts time shifts.
    */
   public BornSolver(
@@ -32,6 +87,14 @@ public class BornSolver {
     RecursiveExponentialFilter ref, float[][] mp, float[][][] ts)
   {
     Check.argument(src.length==rco.length,"src.length==rco.length");
+    if (rcp==null) {
+      int nr = rco.length;
+      rcp = new Receiver[nr];
+      for (int ir=0; ir<nr; ++ir) {
+        rcp[ir] = new Receiver(rco[ir]);
+        zero(rcp[ir].getData());
+      }
+    }
     int[] nxz = born.getNxNz();
     _ns = src.length;
     _nx = nxz[0];
@@ -43,14 +106,6 @@ public class BornSolver {
     _ref = ref;
     _mp = mp;
     _ts = ts;
-  }
-
-  public BornSolver(
-    BornOperatorS born,
-    Source[] src, Receiver[] rcp, Receiver[] rco,
-    RecursiveExponentialFilter ref, float[][] mp)
-  {
-    this(born,src,rcp,rco,ref,mp,null);
   }
 
   /**
