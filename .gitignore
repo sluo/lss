@@ -10,3 +10,5 @@ build/
 *.class
 *.DS_Store
 .gradle
+
+src/lss/sem/cdps/

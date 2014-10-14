@@ -16,12 +16,12 @@ from jarray import zeros
 #############################################################################
 # Parameters
 
-# You might want to change these
+# Might want to change these
 ds = 10 # shot spacing in samples
 niter = 2 # number of iterations when computing the image
 npmax = 18 # max number of shots migrated in parallel (reduce to save memory)
 
-# You probably should not change these
+# Probably should not change these
 tmax = 2.5 # maximum recording time
 fpeak = 10.0 # peak frequency of Ricker wavelet
 nabsorb = 20 # number of samples in absorbing boundary
@@ -43,9 +43,9 @@ print 'nparallel =',np
 timer = Timer()
 def main(args):
   s = getSlowness()
-  r = goLsMigration(s)
+  #r = goLsMigration(s)
   pixels(transpose(s),cmap=jet)
-  pixels(transpose(r),cmap=gray,perc=98.0)
+  #pixels(transpose(r),cmap=gray,perc=98.0)
 
 def goLsMigration(s):
 
@@ -119,8 +119,8 @@ rwb = ColorMap.RED_WHITE_BLUE
 def pixels(x,cmap=gray,perc=100.0,title=None):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   cb = sp.addColorBar()
-  cb.setWidthMinimum(250)
-  sp.setSize(800,600)
+  cb.setWidthMinimum(130)
+  sp.setSize(750,600)
   if title:
     sp.addTitle(title)
   pv = sp.addPixels(x)
