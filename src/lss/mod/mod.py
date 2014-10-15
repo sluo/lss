@@ -21,22 +21,7 @@ def main(args):
   s = getMarmousi(stride)
   checkStability(s)
   #goModeling(s)
-  #goModelingSinc(s)
-  goMigration(s)
-
-def goMigration(s):
-  nabsorb = 20
-  nx,nz,nt = len(s[0]),len(s),1+int(tmax/dt)
-  u = zerofloat(nx+2*nabsorb,nz+2*nabsorb,nt)
-  a = zerofloat(nx+2*nabsorb,nz+2*nabsorb,nt)
-  wave = WaveOperator(s,dx,dt,nabsorb)
-  xs,zs = (nx/2)*dx,0.0
-  src = Source.RickerSource(nx/2,0,dt,fpeak)
-  rec = Receiver(rampint(0,1,nx),fillint(0,nx),nt)
-  wave.applyForward(src,rec,u)
-  wave.applyAdjoint(Source.ReceiverSource(rec),a)
-  r = WaveOperator.collapse(u,a,nabsorb)
-  pixels(r,perc=99.5)
+  goModelingSinc(s)
 
 def goModeling(s):
   nx,nz,nt = len(s[0]),len(s),1+int(tmax/dt)
