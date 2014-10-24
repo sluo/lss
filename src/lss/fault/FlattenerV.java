@@ -1,5 +1,7 @@
 package lss.fault;
 
+import java.util.*;
+
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.mosaic.*;
 import edu.mines.jtk.util.*;
@@ -47,6 +49,165 @@ public class FlattenerV {
     float[][][] we)
   {
     return findShifts(u1,u2,u3,we,null);
+  }
+
+  private static float[][][] constraintsFromFaultSkins(
+    FaultSkin[] fs, int n1, int n2, int n3)
+  {
+    int offset = 2; // TODO: remove this
+    ArrayList<float[][]> constraints = new ArrayList<float[][]>();
+    for (FaultSkin skin: fs) {
+      for (FaultCell cell: skin) {
+        int[] ci = getFaultCellIndices(cell,offset);
+        int i1 = ci[0];
+        int i2 = ci[1];
+        int i3 = ci[2];
+        int i2m = ci[3];
+        int i3m = ci[4];
+        int i2p = ci[5];
+        int i3p = ci[6];
+        if (!inBounds(i2m,n2) || !inBounds(i3m,n3)) continue;
+        if (!inBounds(i2p,n2) || !inBounds(i3p,n3)) continue;
+        float[] s = cell.getS(); // slip vector
+        float hs1 = s[0]*0.5f; // half the 1st component
+        float hs2 = s[1]*0.5f; // half the 2nd component
+        float hs3 = s[2]*0.5f; // half the 3rd component
+        float[] fx = new float[3];
+        float[] hx = new float[3];
+      }
+    }
+    float[][][] cs = new float[1][1][1]; // TODO
+    return cs;
+  }
+
+  public static float[][][] imageOfIndices(
+    FaultSkin[] fs, int n1, int n2, int n3)
+  {
+    float[][][] y = new float[n3][n2][n1];
+    int offset = 2;
+    int[][] ci = getFaultCellIndices(fs,offset);
+    int nc = ci.length;
+    for (int ic=0; ic<nc; ++ic) {
+      int i1 = ci[ic][0];
+      int i2 = ci[ic][1];
+      int i3 = ci[ic][2];
+      int i2m = ci[ic][3];
+      int i3m = ci[ic][4];
+      int i2p = ci[ic][5];
+      int i3p = ci[ic][6];
+      if (inBounds(i1,n1)) {
+        if (inBounds(i2,n2) && inBounds(i2,n3)) {
+          y[i3 ][i2 ][i1] = 1.0f;
+        }
+        if (inBounds(i2m,n2) && inBounds(i3m,n3)) {
+          y[i3m][i2m][i1] = 2.0f;
+        }
+        if (inBounds(i2p,n2) && inBounds(i3p,n3)) {
+          y[i3p][i2p][i1] = 3.0f;
+        }
+      }
+      //if (i1<0 || i1>=n1) continue;
+      //if (i2<0 || i2>=n2) continue;
+      //if (i3<0 || i3>=n3) continue;
+      //if (i2m<0 || i2m>=n2) continue;
+      //if (i3m<0 || i3m>=n3) continue;
+      //if (i2p<0 || i2p>=n2) continue;
+      //if (i3p<0 || i3p>=n3) continue;
+      //y[i3 ][i2 ][i1] = 1.0f;
+      //y[i3m][i2m][i1] = 2.0f;
+      //y[i3p][i2p][i1] = 3.0f;
+    }
+    return y;
+  }
+
+  private static boolean inBounds(int i, int n) {
+    return (i>=0 && i<n);
+  }
+
+  private static int[] getFaultCellIndices(FaultCell fc, int offset) {
+    int[] ci = new int[7]; // cell indices
+    float[] x = fc.getX(); // coordinates for this cell
+    float[] w = fc.getW(); // fault normal for this cell
+    float x1 = x[0], x2 = x[1], x3 = x[2];
+    float w1 = w[0], w2 = w[1], w3 = w[2];
+    int i1 = round(x1);
+    int i2 = round(x2);
+    int i3 = round(x3);
+    int i2m = i2-offset;
+    int i2p = i2+offset;
+    int i3m = i3-offset;
+    int i3p = i3+offset;
+    if ((i2p-i2m)*w2<0.0f) {
+      int i2t = i2m;
+      i2m = i2p;
+      i2p = i2t;
+    }
+    if ((i3p-i3m)*w3<0.0f) {
+      int i3t = i3m;
+      i3m = i3p;
+      i3p = i3t;
+    }
+    ci[0] = i1;
+    ci[1] = i2;
+    ci[2] = i3;
+    ci[3] = i2m;
+    ci[4] = i3m;
+    ci[5] = i2p;
+    ci[6] = i3p;
+    return ci;
+  }
+
+  private static int[][] getFaultCellIndices(FaultSkin[] fs, int offset) {
+    int ns = fs.length; // number of skins
+    int nc = 0; // total number of cells
+    for (int is=0; is<ns; ++is)
+      nc += fs[is].size();
+    int[][] ci = new int[nc][7]; // cell indices
+    int ic = 0;
+    for (FaultSkin skin: fs) {
+      for (FaultCell cell: skin) {
+        float[] x = cell.getX(); // coordinates for this cell
+        float[] w = cell.getW(); // fault normal for this cell
+        float x1 = x[0], x2 = x[1], x3 = x[2];
+        float w1 = w[0], w2 = w[1], w3 = w[2];
+        int i1 = round(x1);
+        int i2 = round(x2);
+        int i3 = round(x3);
+        int i2m = i2-offset;
+        int i2p = i2+offset;
+        int i3m = i3-offset;
+        int i3p = i3+offset;
+        //if (x2>i2) {
+        //  i2p += offset;
+        //} else if (x2<i2) {
+        //  i2m -= offset;
+        //}
+        //if (x3>i3) {
+        //  i3p += offset;
+        //} else if (x3<i3) {
+        //  i3m -= offset;
+        //}
+        if ((i2p-i2m)*w2<0.0f) {
+          int i2t = i2m;
+          i2m = i2p;
+          i2p = i2t;
+        }
+        if ((i3p-i3m)*w3<0.0f) {
+          int i3t = i3m;
+          i3m = i3p;
+          i3p = i3t;
+        }
+        ci[ic][0] = i1;
+        ci[ic][1] = i2;
+        ci[ic][2] = i3;
+        ci[ic][3] = i2m;
+        ci[ic][4] = i3m;
+        ci[ic][5] = i2p;
+        ci[ic][6] = i3p;
+        ++ic;
+      }
+    }
+    return ci;
   }
 
   /**
@@ -542,6 +703,7 @@ public class FlattenerV {
         float[][][] xi = x[i4];
         float[][][] yi = y[i4];
         copy(xi,yi);
+        constrain(_k1,_k2,_k3,yi);
         removeAverage(yi);
         smooth3(_sigma3,_ew,yi);
         smooth2(_sigma2,_ew,yi);
@@ -549,8 +711,12 @@ public class FlattenerV {
         smooth2(_sigma2,_ew,yi);
         smooth3(_sigma3,_ew,yi);
         removeAverage(yi);
+        constrain(_k1,_k2,_k3,yi);
       }
     }
+    int[][] _k1 = null;
+    int[][] _k2 = null;
+    int[][] _k3 = null;
     float[][][] _ew; // equation weights
     float _sigma1,_sigma2,_sigma3;
   }
