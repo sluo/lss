@@ -166,7 +166,7 @@ public class FlattenerRT {
   // private
 
   private static final float W0 = 1.000f; // flatness
-  private static final float W1 = 0.011f; // distance
+  private static final float W1 = 0.010f; // distance
   private static final float W2 = 0.001f; // thickness
 
   private double _d1 = 1.0; // sampling interval in 1st dimension
@@ -177,7 +177,7 @@ public class FlattenerRT {
   private float _epsilon = 0.000f; // damping for stability?
   private float _small = 0.001f; // stop CG iterations if residuals are small
   private int _inner = 10; // maximum number of inner CG iterations
-  private int _outer = 20; // maximum number of outer iterations
+  private int _outer = 10; // maximum number of outer iterations
 
   private static class A2 implements CgSolver.A {
     A2(float epsilon, Smoother2 smoother, float[][][] p) {

@@ -24,4 +24,5 @@ dependencies {
   compile fileTree('../jtk/build/libs') // for edu_mines_jtk.jar
   compile fileTree('../jtk/libs') // jars provided with the Mines JTK
   compile fileTree('../idh/bench/build/libs') // idh
+  compile fileTree('../ipf/build/libs') // ipf
 }
